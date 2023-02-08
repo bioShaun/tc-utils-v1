@@ -28,6 +28,17 @@ OUT_COLUMNS = ["chrom", "start", "end", "ref", "alt", "num1", "num2"]
 
 @app.command()
 def random_select(var_table: Path, region_table: Path, out: Path, seed: int = 1):
+    """
+    随机选取区域内的位点
+    
+    var_table:
+
+    chr01   27126   T       C       .       .       .
+
+    region_table:
+
+    chr01   0       50000   0
+    """
     bedtools_cmd = f'awk \'{{print $1"\\t"$2-1"\\t"$2"\\t"$3"\\t"$4"\\t"$5"\\t"$6}}\' {var_table} |bedtools intersect -a {region_table} -b - -wo'
     res = delegator.run(bedtools_cmd)
     if res.err:
