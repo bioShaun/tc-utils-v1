@@ -7,7 +7,7 @@ from sqlalchemy import create_engine
 
 
 def formatTitle(title) -> str:
-    return title.lower()
+    return title.replace("-", "_").lower()
 
 
 def toPsql(
