@@ -6,6 +6,8 @@ from typing import List, Optional
 from pathlib import Path
 from functools import partial
 
+app = typer.Typer()
+
 
 class TableColumn(Enum):
     CHROM = "CHROM"
@@ -83,6 +85,17 @@ def convertGT(row: pd.Series, miss_fmt: MissFmt, out_fmt: OutFmt) -> str:
             return f"{row[TableColumn.REF.value]}{row[TableColumn.ALT.value]}"
 
 
+def npConvertGT(row: pd.Series, miss_fmt: MissFmt) -> str:
+    GT_MAP = {
+        GT_VALUE.ALT.value: f"{row[TableColumn.ALT.value]}{row[TableColumn.ALT.value]}",
+        GT_VALUE.REF.value: f"{row[TableColumn.REF.value]}{row[TableColumn.REF.value]}",
+        GT_VALUE.HET.value: f"{row[TableColumn.REF.value]}{row[TableColumn.ALT.value]}",
+        GT_VALUE.NA.value: miss_fmt.value,
+    }
+    return GT_MAP[row[TableColumn.GENOTYPE.value]]
+
+
+@app.command()
 def gt2linkagemap(
     gt_file: Path,
     out_file: Path,
@@ -185,5 +198,32 @@ def gt2linkagemap(
         merged_loci_stats.to_csv(merged_loci_stats_file, sep="\t", float_format="%.3f")
 
 
+@app.command()
+def npGt2linkagemap(
+    gt_file: Path,
+    out_file: Path,
+    miss_fmt: MissFmt = MissFmt.N,
+) -> None:
+    gt_df = pd.read_csv(gt_file, sep="\t")
+
+    # transform
+    loci_columns = gt_df.columns[:4]
+    melt_gt_df = gt_df.melt(
+        id_vars=[*loci_columns],
+        var_name=TableColumn.SAMPLE_NAME.value,
+        value_name=TableColumn.GENOTYPE.value,
+    )
+    myConvertGT = partial(npConvertGT, miss_fmt=miss_fmt)
+    melt_gt_df[TableColumn.GENOTYPE.value] = melt_gt_df.apply(myConvertGT, axis=1)
+
+    convert_df = melt_gt_df.set_index(
+        [*loci_columns, TableColumn.SAMPLE_NAME.value]
+    ).unstack(4)
+    convert_df.columns = convert_df.columns.droplevel()
+
+    out_cols = [each for each in gt_df.columns if each not in [*loci_columns]]
+    convert_df.to_csv(out_file, sep="\t", columns=out_cols)
+
+
 if __name__ == "__main__":
-    typer.run(gt2linkagemap)
+    app()
