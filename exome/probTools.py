@@ -116,6 +116,13 @@ def load_table_from_vcf(vcf: Path) -> pd.DataFrame:
     return df
 
 
+def add_probe_id(row) -> str:
+    if row['sequence_type'] != 'center':
+        return f"{row['chrom']}_{row['pos']}_{row['sequence_type']}"
+    else:
+        return f"{row['chrom']}_{row['pos']}"
+
+
 @app.command()
 def addSeq(
     input_file: Path,
@@ -145,7 +152,6 @@ def addSeq(
                 continue
             chrom = id_map_dict[record.id]
         chrom_df = df[df["chrom"] == chrom].copy()
-        print(chrom_df)
         if chrom_df.empty:
             continue
         get_seq_by_chrom = partial(get_seq, record=record)
@@ -156,7 +162,7 @@ def addSeq(
     add_seq_df = add_seq_df.explode(["sequence", "sequence_type"])
     add_seq_df["GC"] = add_seq_df["sequence"].map(gc_fraction)
     add_seq_df["id"] = add_seq_df.apply(
-        lambda x: f"{x['chrom']}_{x['pos']}_{x['sequence_type']}", axis=1
+        add_probe_id, axis=1
     )
     csv_out = input_file.with_suffix(".seq.csv")
     add_seq_df.to_csv(
