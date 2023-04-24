@@ -3,7 +3,9 @@ import typer
 import numpy as np
 import pandas as pd
 
+from loguru import logger
 from pathlib import Path
+from pandarallel import pandarallel
 
 
 app = typer.Typer()
@@ -53,23 +55,30 @@ def by_locus(vcftools_frq: Path, vcftools_hwe: Path, out_file: Path) -> None:
 
 
 @app.command()
-def by_sample(gt_tsv: Path, sample_list: Path, out_file: Path) -> None:
+def by_sample(
+    gt_tsv: Path, sample_list: Path, out_file: Path, threads: int = 4
+) -> None:
+    pandarallel.initialize(progress_bar=True, nb_workers=threads)
     df = pd.read_csv(gt_tsv, sep="\t", header=None)
     df = df.drop(columns=[0, 1, 2, 3])
     df.columns = pd.read_csv(sample_list, sep="\t", header=None)[0].tolist()
     df = df.T
-    df["p1"] = df.apply(lambda row: ref_freq(row), axis=1)
+    df["p1"] = df.parallel_apply(lambda row: ref_freq(row), axis=1)
     df["p2"] = 1 - df["p1"]
-    df["Ho"] = df.apply(lambda row: het_freq(row), axis=1)
-    df["He"] = df.apply(lambda row: 1 - row["p1"] ** 2 - row["p2"] ** 2, axis=1)
-    df["PIC"] = df.apply(
+    df["Ho"] = df.parallel_apply(lambda row: het_freq(row), axis=1)
+    df["He"] = df.parallel_apply(
+        lambda row: 1 - row["p1"] ** 2 - row["p2"] ** 2, axis=1
+    )
+    df["PIC"] = df.parallel_apply(
         lambda row: 1
         - (row["p1"] ** 2 + row["p2"] ** 2)
         - 2 * (row["p1"] ** 2) * (row["p2"] ** 2),
         axis=1,
     )
-    df["SHI"] = df.apply(lambda row: shannonIndex(row["p1"], row["p2"]), axis=1)
-    df.to_csv(out_file, columns=["p1", "p2", "Ho", "He", "PIC", "SHI"])
+    df["SHI"] = df.parallel_apply(
+        lambda row: shannonIndex(row["p1"], row["p2"]), axis=1
+    )
+    df.to_csv(out_file, columns=["Ho", "He", "PIC", "SHI"])
 
 
 if __name__ == "__main__":
