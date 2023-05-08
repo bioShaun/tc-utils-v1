@@ -4,12 +4,14 @@ import delegator
 import pandas as pd
 import numpy as np
 from functools import partial, reduce
+from operator import itemgetter
 from loguru import logger
 
 from Bio import SeqIO
 from Bio.SeqUtils import gc_fraction
 
 from pathlib import Path
+from pandarallel import pandarallel
 
 RAW_HEADER = ["chrom", "pos", "allele", "score"]
 
@@ -53,12 +55,14 @@ def isIndel(allele: str) -> bool:
     return False
 
 
-def get_seq(row, record):
+def get_seq(row, record, gc_bias):
     pos = row["pos"] - 1
     seq_list = []
     center_probe = record.seq[pos - PROB_LENGTH // 2 : pos + PROB_LENGTH // 2]
-    if center_probe.lower().count("n") > 10:
-        min_n = 10
+    center_probe_gc = gc_fraction(center_probe)
+    probe_gc_bias = abs(center_probe_gc - 0.5)
+    if center_probe.lower().count("n") > 10 or probe_gc_bias > gc_bias:
+        center_candidates = []
         for i in range(10, PROB_LENGTH // 2 + 10, 10):
             tmp_probe1 = record.seq[
                 pos - PROB_LENGTH // 2 - i : pos + PROB_LENGTH // 2 - i
@@ -67,21 +71,16 @@ def get_seq(row, record):
                 pos - PROB_LENGTH // 2 + i : pos + PROB_LENGTH // 2 + i
             ]
             tmp_probe1_n = tmp_probe1.lower().count("n")
+            tmp_probe1_gc_bias = abs(gc_fraction(tmp_probe1) - 0.5)
+            center_candidates.append([tmp_probe1, tmp_probe1_gc_bias, tmp_probe1_n])
             tmp_probe2_n = tmp_probe2.lower().count("n")
-            if tmp_probe1_n == 0:
-                center_probe = tmp_probe1
-                break
-            if tmp_probe2_n == 0:
-                center_probe = tmp_probe2
-                break
-            if tmp_probe1_n < min_n:
-                center_probe = tmp_probe1
-                min_n = tmp_probe1_n
-            if tmp_probe2_n < min_n:
-                center_probe = tmp_probe2
-                min_n = tmp_probe2_n
+            tmp_probe2_gc_bias = abs(gc_fraction(tmp_probe2) - 0.5)
+            center_candidates.append([tmp_probe2, tmp_probe2_gc_bias, tmp_probe2_n])
+        center_candidates_sort = sorted(center_candidates, key=itemgetter(2, 1))
+        seq_list.append(center_candidates_sort[0][0])
+    else:
+        seq_list.append(center_probe)
 
-    seq_list.append(center_probe)
     if isIndel(row["allele"]):
         seq_list.append(record.seq[pos - PROB_LENGTH : pos])
         seq_list.append(record.seq[pos + 1 : pos + 1 + PROB_LENGTH])
@@ -110,17 +109,9 @@ def load_table_from_vcf(vcf: Path) -> pd.DataFrame:
         usecols=[0, 1, 3, 4],
         names=["chrom", "pos", "ref", "alt"],
     )
-    df["allele"] = df.apply(lambda x: f"{x['ref']},{x['alt']}", axis=1)
+    df["allele"] = df.apply(lambda x: f"{x['ref']}>{x['alt']}", axis=1)
     df["score"] = 0
-    df["chrom"] = df["chrom"].astype("str")
     return df
-
-
-def add_probe_id(row) -> str:
-    if row['sequence_type'] != 'center':
-        return f"{row['chrom']}_{row['pos']}_{row['sequence_type']}"
-    else:
-        return f"{row['chrom']}_{row['pos']}"
 
 
 @app.command()
@@ -129,7 +120,10 @@ def addSeq(
     ref: Path,
     input_type: InputType = InputType.TABLE,
     id_map: Path = typer.Option(None),
+    gc_bias: float = 0.15,
+    threads: int = 4,
 ) -> None:
+    pandarallel.initialize(progress_bar=True, nb_workers=threads)
     if input_type == InputType.VCF:
         df = load_table_from_vcf(input_file)
     else:
@@ -147,6 +141,7 @@ def addSeq(
     add_seq_df_list = []
     for record in SeqIO.parse(ref, "fasta"):
         chrom = record.id
+        logger.info(f"add sequence for chromosome {chrom}")
         if id_map:
             if record.id not in id_map_dict:
                 continue
@@ -154,21 +149,22 @@ def addSeq(
         chrom_df = df[df["chrom"] == chrom].copy()
         if chrom_df.empty:
             continue
-        get_seq_by_chrom = partial(get_seq, record=record)
-        chrom_df["sequence"] = list(chrom_df.apply(get_seq_by_chrom, axis=1))
-        chrom_df["sequence_type"] = list(chrom_df.apply(get_seq_label, axis=1))
+        get_seq_by_chrom = partial(get_seq, record=record, gc_bias=gc_bias)
+        chrom_df["sequence"] = list(chrom_df.parallel_apply(get_seq_by_chrom, axis=1))
+        chrom_df["sequence_type"] = list(chrom_df.parallel_apply(get_seq_label, axis=1))
         add_seq_df_list.append(chrom_df)
     add_seq_df = pd.concat(add_seq_df_list)
     add_seq_df = add_seq_df.explode(["sequence", "sequence_type"])
     add_seq_df["GC"] = add_seq_df["sequence"].map(gc_fraction)
-    add_seq_df["id"] = add_seq_df.apply(
-        add_probe_id, axis=1
+    add_seq_df["N_count"] = add_seq_df["sequence"].map(lambda x: x.lower().count("n"))
+    add_seq_df["id"] = add_seq_df.parallel_apply(
+        lambda x: f"{x['chrom']}_{x['pos']}_{x['sequence_type']}", axis=1
     )
     csv_out = input_file.with_suffix(".seq.csv")
     add_seq_df.to_csv(
         csv_out,
         index=False,
-        columns=FLAT_HEADER + ["sequence", "sequence_type", "GC"],
+        columns=FLAT_HEADER + ["sequence", "sequence_type", "GC", "N_count"],
         float_format="%.3f",
     )
     seq_file = input_file.with_suffix(".seq.fa")
@@ -218,14 +214,34 @@ def check_ref(csv_input: Path, ref: Path, id_map: Path = typer.Option(None)) -> 
 
 
 @app.command()
+def addmaf(csv_input: Path, vcftools_frq: Path, threads: int = 4) -> None:
+    pandarallel.initialize(progress_bar=True, nb_workers=threads)
+    candidates_df = pd.read_csv(csv_input)
+    frq_df = pd.read_csv(
+        vcftools_frq,
+        sep="\t",
+        usecols=[0, 1, 4],
+        skiprows=1,
+        header=None,
+        names=["chrom", "pos", "ref_freq"],
+    )
+    candidates_df = candidates_df.merge(frq_df)
+    candidates_df["maf"] = candidates_df["ref_freq"].parallel_map(
+        lambda x: x if x <= 0.5 else 1 - x
+    )
+    candidates_df.drop("ref_freq", inplace=True, axis=1)
+    csv_out = csv_input.with_suffix(".maf.csv")
+    candidates_df.to_csv(csv_out, index=False, float_format="%.3f")
+
+
+@app.command()
 def addMatch(
     flat_file: Path, seq_file: Path, ref_file: Path, minimap2: str = "minimap2"
 ) -> None:
     paf_file = seq_file.with_suffix(".paf")
     if not paf_file.exists():
         logger.info(f"Run minimap2 to generate {paf_file}")
-        return
-        # delegator.run(f"{minimap2} -cx sr {ref_file} {seq_file} > {paf_file}")
+        delegator.run(f"{minimap2} -cx sr {ref_file} {seq_file} > {paf_file}")
     paf_df = pd.read_csv(paf_file, sep="\t", usecols=[0, 9], names=["id", "matches"])
     match_df = (
         paf_df.id.value_counts().reset_index().rename(columns={"count": "matches"})
