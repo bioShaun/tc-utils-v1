@@ -63,7 +63,7 @@ def get_seq(row, record, gc_bias):
     probe_gc_bias = abs(center_probe_gc - 0.5)
     if center_probe.lower().count("n") > 10 or probe_gc_bias > gc_bias:
         center_candidates = []
-        for i in range(10, PROB_LENGTH // 2 + 10, 10):
+        for i in range(10, PROB_LENGTH // 4, 10):
             tmp_probe1 = record.seq[
                 pos - PROB_LENGTH // 2 - i : pos + PROB_LENGTH // 2 - i
             ]
@@ -150,8 +150,8 @@ def addSeq(
         if chrom_df.empty:
             continue
         get_seq_by_chrom = partial(get_seq, record=record, gc_bias=gc_bias)
-        chrom_df["sequence"] = list(chrom_df.parallel_apply(get_seq_by_chrom, axis=1))
-        chrom_df["sequence_type"] = list(chrom_df.parallel_apply(get_seq_label, axis=1))
+        chrom_df["sequence"] = list(chrom_df.parallel_apply(get_seq_by_chrom, axis=1))  # type: ignore
+        chrom_df["sequence_type"] = list(chrom_df.parallel_apply(get_seq_label, axis=1))  # type: ignore
         add_seq_df_list.append(chrom_df)
     add_seq_df = pd.concat(add_seq_df_list)
     add_seq_df = add_seq_df.explode(["sequence", "sequence_type"])
@@ -159,7 +159,7 @@ def addSeq(
     add_seq_df["N_count"] = add_seq_df["sequence"].map(lambda x: x.lower().count("n"))
     add_seq_df["id"] = add_seq_df.parallel_apply(
         lambda x: f"{x['chrom']}_{x['pos']}_{x['sequence_type']}", axis=1
-    )
+    )  # type: ignore
     csv_out = input_file.with_suffix(".seq.csv")
     add_seq_df.to_csv(
         csv_out,
@@ -236,7 +236,11 @@ def addmaf(csv_input: Path, vcftools_frq: Path, threads: int = 4) -> None:
 
 @app.command()
 def addMatch(
-    flat_file: Path, seq_file: Path, ref_file: Path, minimap2: str = "minimap2"
+    flat_file: Path,
+    seq_file: Path,
+    ref_file: Path,
+    minimap2: str = "minimap2",
+    label: str = "candidates",
 ) -> None:
     paf_file = seq_file.with_suffix(".paf")
     if not paf_file.exists():
@@ -262,6 +266,67 @@ def addMatch(
     )
     # merged_df = pd.merge(flat_df, match_df, on="id", how="outer")
     merged_df.fillna(0, inplace=True)
+    merged_df["label"] = label
+
+    csv_out = flat_file.with_suffix(".match.csv")
+    merged_df.to_csv(csv_out, index=False)
+
+
+@app.command()
+def addLociMatch(
+    flat_file: Path,
+    seq_file: Path,
+    ref_file: Path,
+    minimap2: str = "minimap2",
+    label: str = "candidates",
+) -> None:
+    paf_file = seq_file.with_suffix(".paf")
+    if not paf_file.exists():
+        logger.info(f"Run minimap2 to generate {paf_file}")
+        delegator.run(f"{minimap2} -cx sr {ref_file} {seq_file} > {paf_file}")
+    paf_df = pd.read_csv(
+        paf_file,
+        sep="\t",
+        usecols=[0, 5, 7, 8, 9, 11],
+        names=["id", "new_chrom", "new_start", "new_end", "matches", "mapq"],
+    )
+    new_loci_df = paf_df[
+        (paf_df["mapq"] == 60) & (paf_df["matches"] >= PROB_LENGTH * 0.9)
+    ].copy()
+    new_loci_df["new_pos"] = new_loci_df["new_start"] + PROB_LENGTH // 2
+    new_loci_df["new_id"] = new_loci_df.apply(
+        lambda x: f"{x['new_chrom']}_{x['new_pos']}_center", axis=1
+    )
+    new_loci_df = new_loci_df[["id", "new_id", "new_chrom", "new_pos"]]
+    id_map_df = new_loci_df[["id", "new_id"]]
+    id_map_df.to_csv(flat_file.with_suffix(".id_map.csv"), index=False)
+
+    match_df = (
+        paf_df.id.value_counts().reset_index().rename(columns={"count": "matches"})
+    )
+    flat_df = pd.read_csv(flat_file)
+    new_loci_df = new_loci_df.merge(flat_df)
+
+    merged_df_list = [new_loci_df]
+    for cutoff in MATCH_CUTOFFS:
+        cutoff_name = f"match_{cutoff}"
+        filter_paf_df = paf_df[paf_df["matches"] >= cutoff]
+        match_df = (
+            filter_paf_df.id.value_counts()
+            .reset_index()
+            .rename(columns={"count": cutoff_name})
+        )
+        merged_df_list.append(match_df)
+    merged_df = reduce(
+        lambda left, right: pd.merge(left, right, on="id", how="left"), merged_df_list
+    )
+    # merged_df = pd.merge(flat_df, match_df, on="id", how="outer")
+    merged_df.drop(["id", "chrom", "pos"], axis=1, inplace=True)
+    merged_df.rename(
+        columns={"new_chrom": "chrom", "new_pos": "pos", "new_id": "id"}, inplace=True
+    )
+    merged_df.fillna(0, inplace=True)
+    merged_df["label"] = label
 
     csv_out = flat_file.with_suffix(".match.csv")
     merged_df.to_csv(csv_out, index=False)
