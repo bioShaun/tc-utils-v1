@@ -1,16 +1,15 @@
 from enum import Enum
-import typer
-import delegator
-import pandas as pd
-import numpy as np
 from functools import partial, reduce
 from operator import itemgetter
-from loguru import logger
+from pathlib import Path
 
+import delegator
+import numpy as np
+import pandas as pd
+import typer
 from Bio import SeqIO
 from Bio.SeqUtils import gc_fraction
-
-from pathlib import Path
+from loguru import logger
 from pandarallel import pandarallel
 
 RAW_HEADER = ["chrom", "pos", "allele", "score"]
@@ -100,17 +99,19 @@ def get_ref(row, record):
     return str(seq)
 
 
-def load_table_from_vcf(vcf: Path) -> pd.DataFrame:
-    df = pd.read_csv(
+def load_table_from_vcf(vcf: Path, score: int) -> pd.DataFrame:
+    dfs = pd.read_csv(
         vcf,
         sep="\t",
         comment="#",
         header=None,
         usecols=[0, 1, 3, 4],
         names=["chrom", "pos", "ref", "alt"],
+        chunksize=100_000,
     )
-    df["allele"] = df.apply(lambda x: f"{x['ref']}>{x['alt']}", axis=1)
-    df["score"] = 0
+    df = pd.concat(dfs)
+    df["allele"] = df.parallel_apply(lambda x: f"{x['ref']},{x['alt']}", axis=1)  # type: ignore
+    df["score"] = score
     return df
 
 
@@ -121,11 +122,12 @@ def addSeq(
     input_type: InputType = InputType.TABLE,
     id_map: Path = typer.Option(None),
     gc_bias: float = 0.15,
+    score: int = 0,
     threads: int = 4,
 ) -> None:
     pandarallel.initialize(progress_bar=True, nb_workers=threads)
     if input_type == InputType.VCF:
-        df = load_table_from_vcf(input_file)
+        df = load_table_from_vcf(input_file, score)
     else:
         df = pd.read_csv(input_file, header=None, names=RAW_HEADER)
         df.allele.fillna("", inplace=True)
@@ -134,6 +136,7 @@ def addSeq(
             logger.warning(f"Duplicate position found: {dup_df}")
             dup_df.to_csv(input_file.with_suffix(".dup.csv"), index=False)
             df.drop_duplicates(subset=["chrom", "pos"], inplace=True)
+    df["chrom"] = df["chrom"].astype("str")
     id_map_dict = {}
     if id_map:
         id_map_dict = {line.split()[0]: line.split()[1] for line in id_map.open()}
@@ -241,11 +244,14 @@ def addMatch(
     ref_file: Path,
     minimap2: str = "minimap2",
     label: str = "candidates",
+    threads: int = 8,
 ) -> None:
     paf_file = seq_file.with_suffix(".paf")
     if not paf_file.exists():
         logger.info(f"Run minimap2 to generate {paf_file}")
-        delegator.run(f"{minimap2} -cx sr {ref_file} {seq_file} > {paf_file}")
+        delegator.run(
+            f"{minimap2} -t {threads} -cx sr {ref_file} {seq_file} > {paf_file}"
+        )
     paf_df = pd.read_csv(paf_file, sep="\t", usecols=[0, 9], names=["id", "matches"])
     match_df = (
         paf_df.id.value_counts().reset_index().rename(columns={"count": "matches"})
