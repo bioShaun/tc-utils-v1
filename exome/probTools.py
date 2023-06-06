@@ -249,9 +249,8 @@ def addMatch(
     paf_file = seq_file.with_suffix(".paf")
     if not paf_file.exists():
         logger.info(f"Run minimap2 to generate {paf_file}")
-        delegator.run(
-            f"{minimap2} -t {threads} -cx sr {ref_file} {seq_file} > {paf_file}"
-        )
+        cmd = f"{minimap2} -t {threads} --secondary yes -N 5 -cx sr {ref_file} {seq_file} > {paf_file}"
+        delegator.run(cmd)
     paf_df = pd.read_csv(paf_file, sep="\t", usecols=[0, 9], names=["id", "matches"])
     match_df = (
         paf_df.id.value_counts().reset_index().rename(columns={"count": "matches"})
