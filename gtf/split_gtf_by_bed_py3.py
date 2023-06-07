@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import typer
+
 
 def main(bed: Path, gtf: Path):
     chr_dict = dict()
@@ -29,3 +31,7 @@ def main(bed: Path, gtf: Path):
                         output_line[4] = int(end) - each_inter[0]
             output_str = "\t".join(output_line)
             print(output_str)
+
+
+if __name__ == "__main__":
+    typer.run(main)
