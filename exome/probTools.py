@@ -54,20 +54,20 @@ def isIndel(allele: str) -> bool:
     return False
 
 
-def get_seq(row, record, gc_bias):
+def get_seq(row, record, gc_bias, probe_length):
     pos = row["pos"] - 1
     seq_list = []
-    center_probe = record.seq[pos - PROB_LENGTH // 2 : pos + PROB_LENGTH // 2]
+    center_probe = record.seq[pos - probe_length // 2 : pos + probe_length // 2]
     center_probe_gc = gc_fraction(center_probe)
     probe_gc_bias = abs(center_probe_gc - 0.5)
     if center_probe.lower().count("n") > 10 or probe_gc_bias > gc_bias:
         center_candidates = []
-        for i in range(10, PROB_LENGTH // 4, 10):
+        for i in range(10, probe_length // 4, 10):
             tmp_probe1 = record.seq[
-                pos - PROB_LENGTH // 2 - i : pos + PROB_LENGTH // 2 - i
+                pos - probe_length // 2 - i : pos + probe_length // 2 - i
             ]
             tmp_probe2 = record.seq[
-                pos - PROB_LENGTH // 2 + i : pos + PROB_LENGTH // 2 + i
+                pos - probe_length // 2 + i : pos + probe_length // 2 + i
             ]
             tmp_probe1_n = tmp_probe1.lower().count("n")
             tmp_probe1_gc_bias = abs(gc_fraction(tmp_probe1) - 0.5)
@@ -81,8 +81,8 @@ def get_seq(row, record, gc_bias):
         seq_list.append(center_probe)
 
     if isIndel(row["allele"]):
-        seq_list.append(record.seq[pos - PROB_LENGTH : pos])
-        seq_list.append(record.seq[pos + 1 : pos + 1 + PROB_LENGTH])
+        seq_list.append(record.seq[pos - probe_length : pos])
+        seq_list.append(record.seq[pos + 1 : pos + 1 + probe_length])
     return seq_list
 
 
@@ -124,6 +124,7 @@ def addSeq(
     gc_bias: float = 0.15,
     score: int = 0,
     threads: int = 4,
+    probe_length: int = PROB_LENGTH,
 ) -> None:
     pandarallel.initialize(progress_bar=True, nb_workers=threads)
     if input_type == InputType.VCF:
@@ -152,7 +153,7 @@ def addSeq(
         chrom_df = df[df["chrom"] == chrom].copy()
         if chrom_df.empty:
             continue
-        get_seq_by_chrom = partial(get_seq, record=record, gc_bias=gc_bias)
+        get_seq_by_chrom = partial(get_seq, record=record, gc_bias=gc_bias, probe_length=probe_length)
         chrom_df["sequence"] = list(chrom_df.parallel_apply(get_seq_by_chrom, axis=1))  # type: ignore
         chrom_df["sequence_type"] = list(chrom_df.parallel_apply(get_seq_label, axis=1))  # type: ignore
         add_seq_df_list.append(chrom_df)
@@ -257,8 +258,10 @@ def addMatch(
     )
     flat_df = pd.read_csv(flat_file)
     merged_df_list = [flat_df]
+    match_cols = []
     for cutoff in MATCH_CUTOFFS:
         cutoff_name = f"match_{cutoff}"
+        match_cols.append(cutoff_name)
         filter_paf_df = paf_df[paf_df["matches"] >= cutoff]
         match_df = (
             filter_paf_df.id.value_counts()
@@ -271,6 +274,7 @@ def addMatch(
     )
     # merged_df = pd.merge(flat_df, match_df, on="id", how="outer")
     merged_df.fillna(0, inplace=True)
+    merged_df[match_cols] = merged_df[match_cols].astype(int)
     merged_df["label"] = label
 
     csv_out = flat_file.with_suffix(".match.csv")
