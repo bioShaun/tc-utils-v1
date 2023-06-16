@@ -48,3 +48,7 @@ def main(vcf: Path, ref: Path, out_dir: Path, half_length: int = 200) -> None:
         for row in df.itertuples():
             seq_id = f"{row.chrom}_{row.pos}"
             seq_fasta_inf.write(f">{seq_id}\n{row.sequence}\n")
+
+
+if __name__ == "__main__":
+    typer.run(main)
