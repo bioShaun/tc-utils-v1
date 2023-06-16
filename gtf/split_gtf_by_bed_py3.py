@@ -25,10 +25,10 @@ def main(bed: Path, gtf: Path):
             chrom, *_, start, end = output_line[:5]
             if chrom in chr_dict:
                 for each_inter in chr_dict[chrom]:
-                    if start >= each_inter[0] and end <= each_inter[1]:
+                    if int(start) >= each_inter[0] and int(end) <= each_inter[1]:
                         output_line[0] = chr_dict[chrom][each_inter]
-                        output_line[3] = int(start) - each_inter[0]
-                        output_line[4] = int(end) - each_inter[0]
+                        output_line[3] = str(int(start) - each_inter[0])
+                        output_line[4] = str(int(end) - each_inter[0])
             output_str = "\t".join(output_line)
             print(output_str)
 

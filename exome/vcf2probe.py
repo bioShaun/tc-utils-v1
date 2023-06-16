@@ -10,14 +10,14 @@ CHUNK_SIZE = 1_000_000
 
 
 def add_seq(row: pd.Series, record_dict: Dict[str, Any], half_length: int):
-    start = row["pos"] - half_length
+    pos = row["pos"] - 1
+    start = pos - half_length
     if start < 0:
         start = 0
-    end = row["pos"] + 1 + half_length
-    pos = row["pos"]
+    end = pos + 1 + half_length
     chrom = str(row["chrom"])
-    left_seq = record_dict[chrom][start:pos]
-    right_seq = record_dict[chrom][pos + 1 : end]
+    left_seq = record_dict[chrom].seq[start:pos]
+    right_seq = record_dict[chrom].seq[pos + 1 : end]
     middle_seq = f"[{row['ref']}/{row['alt']}]"
     return f"{left_seq}{middle_seq}{right_seq}"
 
@@ -32,6 +32,7 @@ def main(vcf: Path, ref: Path, out_dir: Path, half_length: int = 200) -> None:
         header=None,
         usecols=[0, 1, 3, 4],
         names=["chrom", "pos", "ref", "alt"],
+        comment="#",
     )
     out_dir.mkdir(parents=True, exist_ok=True)
     seq_table = out_dir / "seq.table.csv"
