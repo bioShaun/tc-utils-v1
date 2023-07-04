@@ -22,18 +22,28 @@ def add_seq(row: pd.Series, record_dict: Dict[str, Any], half_length: int):
     return f"{left_seq}{middle_seq}{right_seq}"
 
 
-def main(vcf: Path, ref: Path, out_dir: Path, half_length: int = 200) -> None:
+def main(
+    vcf: Path, ref: Path, out_dir: Path, half_length: int = 200, is_vcf: bool = True
+) -> None:
     ref_dict = {}
     for record in SeqIO.parse(ref, "fasta"):
         ref_dict[record.id] = record
-    dfs = pd.read_table(
-        vcf,
-        chunksize=CHUNK_SIZE,
-        header=None,
-        usecols=[0, 1, 3, 4],
-        names=["chrom", "pos", "ref", "alt"],
-        comment="#",
-    )
+    if is_vcf:
+        dfs = pd.read_table(
+            vcf,
+            chunksize=CHUNK_SIZE,
+            header=None,
+            usecols=[0, 1, 3, 4],
+            names=["chrom", "pos", "ref", "alt"],
+            comment="#",
+        )
+    else:
+        dfs = pd.read_csv(
+            vcf,
+            chunksize=CHUNK_SIZE,
+            header=None,
+            names=["chrom", "pos", "ref", "alt"],
+        )
     out_dir.mkdir(parents=True, exist_ok=True)
     seq_table = out_dir / "seq.table.csv"
     seq_fasta = out_dir / "seq.fasta"
