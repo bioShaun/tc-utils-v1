@@ -1,55 +1,42 @@
-from enum import Enum
-from functools import partial
 from pathlib import Path
+from typing import Tuple
 
 import pandas as pd
 import typer
+from tqdm import tqdm
+from pandarallel import pandarallel
 
 
-class StatType(str, Enum):
-    HET = "het"
-    MISS = "miss"
-    MAF = "maf"
-
-
-def allele_stats(row: pd.Series, stat_type: StatType) -> float:
-    allele_count = row.value_counts()
+def allele_stats(row: pd.Series) -> Tuple[str, float, float, float]:
+    allele_count = row["genotype"].value_counts()
     miss_count = allele_count.get("./.", 0)
     het_count = allele_count.get("0/1", 0)
     real_sample_count = len(row) - miss_count
-    match stat_type:
-        case StatType.MISS:
-            return miss_count / len(row)
-        case StatType.HET:
-            return het_count / real_sample_count
-        case StatType.MAF:
-            ref_count = allele_count.get("0/0", 0)
-            ref_rate = (ref_count * 2 + het_count) / (real_sample_count * 2)
-            maf = ref_rate if ref_rate < 0.5 else 1 - ref_rate
-            return maf
-        case _:
-            raise ValueError(f"Unknown type {stat_type}")
+    miss_rate = miss_count / len(row)
+    het_rate = het_count / real_sample_count
+    ref_count = allele_count.get("0/0", 0)
+    ref_rate = (ref_count * 2 + het_count) / (real_sample_count * 2)
+    maf = ref_rate if ref_rate < 0.5 else 1 - ref_rate
+    alleles = f'{row["REF"]},{row["ALT"]}'
+    return alleles, miss_rate, het_rate, maf
 
 
 def transform_one(df: pd.DataFrame) -> pd.DataFrame:
-    melt_df = df.melt(id_vars=["CHROM", "POS", "REF", "ALT"])
-    allele_group = melt_df.groupby(["CHROM", "POS", "REF", "ALT"])["value"]
-    cal_miss_rate = partial(allele_stats, stat_type=StatType.MISS)
-    cal_het_rate = partial(allele_stats, stat_type=StatType.HET)
-    cal_maf_rate = partial(allele_stats, stat_type=StatType.MAF)
-    miss_rate_df = allele_group.apply(cal_miss_rate)
-    het_rate_df = allele_group.apply(cal_het_rate)
-    maf_df = allele_group.apply(cal_maf_rate)
-    stats_df = pd.concat([miss_rate_df, het_rate_df, maf_df], axis=1)
-    stats_df.columns = ["missing", "het", "maf"]
-    stats_df.reset_index(inplace=True)
-    stats_df["alleles"] = stats_df.apply(lambda x: f'{x["REF"]},{x["ALT"]}', axis=1)
-    return stats_df
+    vcf_columns = ["CHROM", "POS", "REF", "ALT"]
+    sample_count = len(df.columns) - len(vcf_columns)
+    sample_columns = [f"genotype" for i in range(sample_count)]
+    df.columns = [*vcf_columns, *sample_columns]
+    df["stats_info"] = df.parallel_apply(allele_stats, axis=1)
+    df[["alleles", "missing", "het", "maf"]] = pd.DataFrame(
+        df["stats_info"].tolist(), index=df.index
+    )
+    return df
 
 
-def vcfStats(gt_table: Path, vcf_stats: Path) -> None:
-    dfs = pd.read_table(gt_table, chunksize=100_000)
-    for n, df in enumerate(dfs):
+def vcfStats(gt_table: Path, vcf_stats: Path, threads: int = 4) -> None:
+    pandarallel.initialize(nb_workers=threads)
+    dfs = pd.read_table(gt_table, chunksize=100_000, header=None)
+    for n, df in tqdm(enumerate(dfs)):
         mode = "w" if n == 0 else "a"
         stats_df = transform_one(df)
         stats_df.to_csv(
@@ -58,6 +45,7 @@ def vcfStats(gt_table: Path, vcf_stats: Path) -> None:
             index=False,
             header=False,
             columns=["CHROM", "POS", "alleles", "missing", "het", "maf"],
+            float_format="%.3f",
         )
 
 
