@@ -14,11 +14,10 @@ def allele_stats(row: pd.Series) -> Tuple[str, float, float, float]:
     real_sample_count = len(row) - miss_count
     miss_rate = miss_count / len(row)
     het_rate = het_count / real_sample_count
-    ref_count = allele_count.get("0/0", 0)
-    ref_rate = (ref_count * 2 + het_count) / (real_sample_count * 2)
-    maf = ref_rate if ref_rate < 0.5 else 1 - ref_rate
+    alt_count = allele_count.get("1/1", 0)
+    alt_rate = (alt_count * 2 + het_count) / (real_sample_count * 2)
     alleles = f'{row["REF"]},{row["ALT"]}'
-    return alleles, miss_rate, het_rate, maf
+    return alleles, miss_rate, het_rate, alt_rate
 
 
 def transform_one(df: pd.DataFrame) -> pd.DataFrame:
@@ -27,7 +26,7 @@ def transform_one(df: pd.DataFrame) -> pd.DataFrame:
     sample_columns = [f"genotype" for i in range(sample_count)]
     df.columns = [*vcf_columns, *sample_columns]
     df["stats_info"] = df.parallel_apply(allele_stats, axis=1)
-    df[["alleles", "missing", "het", "maf"]] = pd.DataFrame(
+    df[["alleles", "missing", "het", "af"]] = pd.DataFrame(
         df["stats_info"].tolist(), index=df.index
     )
     return df
@@ -44,7 +43,7 @@ def vcfStats(gt_table: Path, vcf_stats: Path, threads: int = 4) -> None:
             mode=mode,
             index=False,
             header=False,
-            columns=["CHROM", "POS", "alleles", "missing", "het", "maf"],
+            columns=["CHROM", "POS", "alleles", "missing", "het", "af"],
             float_format="%.3f",
         )
 
