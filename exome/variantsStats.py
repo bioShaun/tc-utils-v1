@@ -103,20 +103,24 @@ def extract_coverage_stats(alignment_stats: Path, region_size: int) -> List[floa
 
 def coverageStats(alignment_dir: Path, region_size: int) -> pd.DataFrame:
     cov_data = []
-    for cov_file in alignment_dir.glob('*/*.coverage.stat')
+    for cov_file in alignment_dir.glob("*/*.coverage.stat"):
         sample_name = cov_file.parent.name
         cov_percent, cov_depth = extract_coverage_stats(cov_file, region_size)
         cov_data.append([sample_name, cov_percent, cov_depth])
-    cov_df = pd.DataFrame(cov_data, columns=["Sample", "Mean Sequencing Depth", "Coverage >= 1x(%)"])
+    cov_df = pd.DataFrame(
+        cov_data, columns=["Sample", "Mean Sequencing Depth", "Coverage >= 1x(%)"]
+    )
     cov_df = cov_df.set_index("Sample")
     multi_columns = [[""] * len(cov_df.columns), list(cov_df.columns)]
     cov_df.columns = pd.MultiIndex.from_arrays(multi_columns)
     return cov_df
 
+
 def get_region_size(bed_file: Path) -> int:
     bed_df = pd.read_table(bed_file, header=None, names=["chrom", "start", "end"])
-    bed_df['region_size'] = bed_df["end"] - bed_df["start"]
-    return bed_df['region_size'].sum()
+    bed_df["region_size"] = bed_df["end"] - bed_df["start"]
+    return bed_df["region_size"].sum()
+
 
 def sampleStats(snp_stats: Path, indel_stats: Path, region_bed: Path, out_file: Path):
     snp_df = snpStats(snp_stats)
