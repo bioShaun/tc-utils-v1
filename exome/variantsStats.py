@@ -122,11 +122,17 @@ def get_region_size(bed_file: Path) -> int:
     return bed_df["region_size"].sum()
 
 
-def sampleStats(snp_stats: Path, indel_stats: Path, region_bed: Path, out_file: Path):
+def sampleStats(
+    snp_stats: Path,
+    indel_stats: Path,
+    alignment_dir: Path,
+    region_bed: Path,
+    out_file: Path,
+):
     snp_df = snpStats(snp_stats)
     indel_df = indelStats(indel_stats)
     region_size = get_region_size(region_bed)
-    cov_df = coverageStats(snp_stats.parent, region_size)
+    cov_df = coverageStats(alignment_dir, region_size)
     merged_df = pd.merge(snp_df, indel_df, left_index=True, right_index=True)
     merged_df = pd.merge(cov_df, merged_df, left_index=True, right_index=True)
     merged_df.reset_index(col_level=1, inplace=True)
