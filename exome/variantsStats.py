@@ -92,7 +92,7 @@ def extract_coverage_stats(alignment_stats: Path, region_size: int) -> List[floa
     out_stats = [0.0, 0.0]
     with alignment_stats.open() as align_info:
         for each_line in align_info:
-            if "bases mapped (cigar)" in each_line:
+            if "bases mapped (cigar):" in each_line:
                 alignment_length = int(each_line.split("\t")[2])
                 out_stats[0] = alignment_length / region_size
             if "percentage of target genome with coverage" in each_line:
@@ -136,7 +136,7 @@ def sampleStats(
     merged_df = pd.merge(snp_df, indel_df, left_index=True, right_index=True)
     merged_df = pd.merge(cov_df, merged_df, left_index=True, right_index=True)
     merged_df.reset_index(col_level=1, inplace=True)
-    merged_df.to_csv(out_file, index=False)
+    merged_df.to_csv(out_file, index=False, float_format="%.2f")
 
 
 if __name__ == "__main__":
