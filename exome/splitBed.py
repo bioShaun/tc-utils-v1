@@ -1,10 +1,19 @@
 from pathlib import Path
+from typing import List
 import pandas as pd
 import numpy as np
 import typer
+from dataclasses import dataclass
 
 
 OUT_COLUMNS = ["chrom", "start", "end"]
+
+
+@dataclass
+class BedClass:
+    chrom: str
+    start: int
+    end: int
 
 
 def save_current_bedrows(rows, out_dir: Path) -> None:
@@ -60,14 +69,27 @@ def split_fai(fai_file: Path, out_dir: Path, split_number: int) -> None:
     genome_length = fai_df["chrom_length"].sum()
     genome_split_length = get_genome_split_length(genome_length, split_number)
 
+    row_list = []
+    current_length = 0
+    step = genome_split_length // 10
     for row in fai_df.itertuples():
-        for i in range(0, row.chrom_length, genome_split_length):
+        for i in range(0, row.chrom_length, step):
+            if current_length > genome_split_length:
+                save_current_bedrows(row_list, split_out_dir)
+                row_list = []
+                current_length = 0
             end = i + genome_split_length
             if end > row.chrom_length:
                 end = row.chrom_length
-            file_path = split_out_dir / f"{row.chrom}_{i}_{end}.bed"
-            with file_path.open("w") as bed_inf:
-                bed_inf.write(f"{row.chrom}\t{i}\t{end}\n")
+            region_length = end - i
+            current_length += region_length
+            last_item = row_list[-1] if row_list else None
+            if last_item and last_item.chrom == row.chrom:
+                last_item.end = end
+            else:
+                row_list.append(BedClass(chrom=str(row.chrom), start=i, end=end))
+    if row_list:
+        save_current_bedrows(row_list, split_out_dir)
 
 
 def main(
