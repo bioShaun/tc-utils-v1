@@ -11,6 +11,13 @@ def split_bed(bed_file: Path, out_dir: Path, split_number: int) -> None:
     bed_number_per_file = record_number // split_number
 
 
+def get_genome_split_length(genome_length: int, split_number: int) -> int:
+    raw_length = genome_length // split_number
+    multiby = np.floor(np.log10(raw_length))
+    multier = raw_length // multiby
+    return multier * multiby
+
+
 def split_fai(fai_file: Path, out_dir: Path, split_number: int) -> None:
     split_out_dir = out_dir / "genome"
     if split_out_dir.exists():
@@ -20,7 +27,8 @@ def split_fai(fai_file: Path, out_dir: Path, split_number: int) -> None:
         fai_file, header=None, names=["chrom", "chrom_length"], usecols=[0, 1]
     )
     genome_length = fai_df["chrom_length"].sum()
-    genome_split_length = genome_length // split_number
+    genome_split_length = get_genome_split_length(genome_length, split_number)
+
     for row in fai_df.itertuples():
         for i in range(row.chrom_length):
             end = i + genome_split_length
