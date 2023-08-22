@@ -30,7 +30,7 @@ def split_fai(fai_file: Path, out_dir: Path, split_number: int) -> None:
     genome_split_length = get_genome_split_length(genome_length, split_number)
 
     for row in fai_df.itertuples():
-        for i in range(row.chrom_length):
+        for i in range(0, row.chrom_length, genome_split_length):
             end = i + genome_split_length
             if end > row.chrom_length:
                 end = row.chrom_length
