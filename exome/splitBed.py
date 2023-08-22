@@ -22,7 +22,7 @@ def split_bed(bed_file: Path, out_dir: Path, split_number: int) -> None:
 
 def get_genome_split_length(genome_length: int, split_number: int) -> int:
     raw_length = genome_length // split_number
-    multiby = int(10 ** np.floor(np.log10(raw_length)) )
+    multiby = int(10 ** np.floor(np.log10(raw_length)))
     multier = raw_length // multiby
     return multier * multiby
 
@@ -53,7 +53,7 @@ def main(
     bed_fai: Path, out_path: Path, split_number: int = 500, is_bed: bool = True
 ) -> None:
     if is_bed:
-        pass
+        split_bed(bed_file=bed_fai, out_dir=out_path, split_number=split_number)
     else:
         split_fai(fai_file=bed_fai, out_dir=out_path, split_number=split_number)
 
