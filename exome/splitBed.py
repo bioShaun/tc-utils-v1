@@ -13,6 +13,9 @@ def split_bed(bed_file: Path, out_dir: Path, split_number: int) -> None:
 
 def split_fai(fai_file: Path, out_dir: Path, split_number: int) -> None:
     split_out_dir = out_dir / "genome"
+    if split_out_dir.exists():
+        raise ValueError(f"{split_out_dir} 已存在，请检查")
+    split_out_dir.mkdir(parents=True)
     fai_df = pd.read_table(
         fai_file, header=None, names=["chrom", "chrom_length"], usecols=[0, 1]
     )
