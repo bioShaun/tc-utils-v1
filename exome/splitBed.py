@@ -9,6 +9,15 @@ def split_bed(bed_file: Path, out_dir: Path, split_number: int) -> None:
     bed_df = pd.read_table(bed_file, header=None, names=["chrom", "start", "end"])
     record_number = len(bed_df)
     bed_number_per_file = record_number // split_number
+    for chrom, chrom_df in bed_df.groupby("chrom"):
+        for split_df in np.array_split(chrom_df, bed_number_per_file):
+            split_df = pd.DataFrame(split_df)
+            start_loci = split_df.loc[split_df.index[0]]
+            end_loci = split_df.loc[split_df.index[-1]]
+            split_file_path = (
+                split_out_dir / f"{chrom}_{start_loci.start}_{end_loci.end}.bed"
+            )
+            split_df.to_csv(split_file_path, sep="\t", index=False, header=False)
 
 
 def get_genome_split_length(genome_length: int, split_number: int) -> int:
