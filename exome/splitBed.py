@@ -6,6 +6,9 @@ import typer
 
 def split_bed(bed_file: Path, out_dir: Path, split_number: int) -> None:
     split_out_dir = out_dir / bed_file.stem
+    if split_out_dir.exists():
+        raise ValueError(f"{split_out_dir} 已存在，请检查")
+    split_out_dir.mkdir(parents=True)    
     bed_df = pd.read_table(bed_file, header=None, names=["chrom", "start", "end"])
     record_number = len(bed_df)
     bed_number_per_file = record_number // split_number
