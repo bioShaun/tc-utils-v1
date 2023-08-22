@@ -4,23 +4,40 @@ import numpy as np
 import typer
 
 
+OUT_COLUMNS = ["chrom", "start", "end"]
+
+
+def save_current_bedrows(rows, out_dir: Path) -> None:
+    start_loci = rows[0]
+    end_loci = rows[-1]
+    start_pos = f"{start_loci.chrom}_{start_loci.start}"
+    if start_loci.chrom == end_loci.chrom:
+        end_pos = f"{end_loci.end}"
+    else:
+        end_pos = f"{end_loci.chrom}_{end_loci.end}"
+    out_file = out_dir / f"{start_pos}_{end_pos}"
+    df = pd.DataFrame(rows)
+    df.to_csv(out_file, sep="\t", index=False, header=False, columns=OUT_COLUMNS)
+
+
 def split_bed(bed_file: Path, out_dir: Path, split_number: int) -> None:
     split_out_dir = out_dir / bed_file.stem
     if split_out_dir.exists():
         raise ValueError(f"{split_out_dir} 已存在，请检查")
-    split_out_dir.mkdir(parents=True)    
+    split_out_dir.mkdir(parents=True)
     bed_df = pd.read_table(bed_file, header=None, names=["chrom", "start", "end"])
-    record_number = len(bed_df)
-    bed_number_per_file = record_number // split_number
-    for chrom, chrom_df in bed_df.groupby("chrom"):
-        for split_df in np.array_split(chrom_df, bed_number_per_file):
-            split_df = pd.DataFrame(split_df)
-            start_loci = split_df.loc[split_df.index[0]]
-            end_loci = split_df.loc[split_df.index[-1]]
-            split_file_path = (
-                split_out_dir / f"{chrom}_{start_loci.start}_{end_loci.end}.bed"
-            )
-            split_df.to_csv(split_file_path, sep="\t", index=False, header=False)
+    bed_df["region_length"] = bed_df["end"] - bed_df["start"]
+    bed_length = bed_df["region_length"].sum()
+    bed_length_per_file = bed_length // split_number
+    current_bed_list = []
+    current_bed_size = 0
+    for row in bed_df.itertuples():
+        if current_bed_size > bed_length_per_file:
+            save_current_bedrows(current_bed_list, split_out_dir)
+        current_bed_size += row.region_length
+        current_bed_list.append(row)
+    if current_bed_list:
+        save_current_bedrows(current_bed_list, split_out_dir)
 
 
 def get_genome_split_length(genome_length: int, split_number: int) -> int:
@@ -40,7 +57,6 @@ def split_fai(fai_file: Path, out_dir: Path, split_number: int) -> None:
     )
     genome_length = fai_df["chrom_length"].sum()
     genome_split_length = get_genome_split_length(genome_length, split_number)
-    print(genome_split_length)
 
     for row in fai_df.itertuples():
         for i in range(0, row.chrom_length, genome_split_length):
