@@ -34,6 +34,8 @@ def split_bed(bed_file: Path, out_dir: Path, split_number: int) -> None:
     for row in bed_df.itertuples():
         if current_bed_size > bed_length_per_file:
             save_current_bedrows(current_bed_list, split_out_dir)
+            current_bed_list = []
+            current_bed_size = 0
         current_bed_size += row.region_length
         current_bed_list.append(row)
     if current_bed_list:
