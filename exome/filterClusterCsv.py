@@ -22,9 +22,9 @@ def main(
             compare_rows.append([row.Index, row.chrom, row.pos])
             continue
         compare_row = compare_rows[1 - snp_count]
-        if row.chrom == compare_row.chrom and row.pos - compare_row.pos <= window_size:
+        if row.chrom == compare_row[1] and row.pos - compare_row[2] <= window_size:
             for each_row in compare_rows:
-                cluster_rows.add(each_row.Index)
+                cluster_rows.add(each_row[0])
             cluster_rows.add(row.Index)
         compare_rows.append([row.Index, row.chrom, row.pos])
         compare_rows = compare_rows[1:]
