@@ -82,7 +82,7 @@ def split_fai(fai_file: Path, out_dir: Path, split_number: int) -> None:
                 save_current_bedrows(row_list, split_out_dir, pad_num)
                 row_list = []
                 current_length = 0
-            end = i + genome_split_length
+            end = i + step
             if end > row.chrom_length:
                 end = row.chrom_length
             region_length = end - i
