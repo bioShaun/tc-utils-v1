@@ -78,7 +78,7 @@ def split_fai(fai_file: Path, out_dir: Path, split_number: int) -> None:
     step = genome_split_length // 10
     for row in fai_df.itertuples():
         for i in range(0, row.chrom_length, step):
-            if current_length > genome_split_length:
+            if current_length >= genome_split_length:
                 save_current_bedrows(row_list, split_out_dir, pad_num)
                 row_list = []
                 current_length = 0
@@ -97,7 +97,7 @@ def split_fai(fai_file: Path, out_dir: Path, split_number: int) -> None:
 
 
 def main(
-    bed_fai: Path, out_path: Path, split_number: int = 500, is_bed: bool = True
+    bed_fai: Path, out_path: Path, split_number: int = 400, is_bed: bool = True
 ) -> None:
     if is_bed:
         split_bed(bed_file=bed_fai, out_dir=out_path, split_number=split_number)
