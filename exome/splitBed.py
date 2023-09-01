@@ -16,14 +16,14 @@ class BedClass:
     end: int
 
 
-def save_current_bedrows(rows, out_dir: Path, pad_num: int) -> None:
+def save_current_bedrows(rows, out_dir: Path, pad_num: int, prefix_idx: str) -> None:
     start_loci = rows[0]
     end_loci = rows[-1]
     start_site = str(start_loci.start).zfill(pad_num)
     end_site = str(end_loci.end).zfill(pad_num)
     start_pos = f"{start_loci.chrom}_{start_site}"
     end_pos = f"{end_loci.chrom}_{end_site}"
-    out_file = out_dir / f"{start_pos}_{end_pos}.bed"
+    out_file = out_dir / f"{prefix_idx}_{start_pos}_{end_pos}.bed"
     df = pd.DataFrame(rows)
     df.to_csv(out_file, sep="\t", index=False, header=False, columns=OUT_COLUMNS)
 
@@ -41,15 +41,25 @@ def split_bed(bed_file: Path, out_dir: Path, split_number: int) -> None:
     current_bed_size = 0
     max_size = bed_df["end"].max()
     pad_num = int(np.ceil(np.log10(max_size)))
+    prefix_pad_num = int(np.ceil(np.log10(split_number)))
+    current_idx = 0
     for row in bed_df.itertuples():
         if current_bed_size > bed_length_per_file:
-            save_current_bedrows(current_bed_list, split_out_dir, pad_num)
+            current_idx += 1
+            current_idx_prefix = str(current_idx).zfill(prefix_pad_num)
+            save_current_bedrows(
+                current_bed_list, split_out_dir, pad_num, current_idx_prefix
+            )
             current_bed_list = []
             current_bed_size = 0
         current_bed_size += row.region_length
         current_bed_list.append(row)
     if current_bed_list:
-        save_current_bedrows(current_bed_list, split_out_dir, pad_num)
+        current_idx += 1
+        current_idx_prefix = str(current_idx).zfill(prefix_pad_num)
+        save_current_bedrows(
+            current_bed_list, split_out_dir, pad_num, current_idx_prefix
+        )
 
 
 def get_genome_split_length(genome_length: int, split_number: int) -> int:
@@ -73,13 +83,20 @@ def split_fai(fai_file: Path, out_dir: Path, split_number: int) -> None:
     max_size = fai_df["chrom_length"].max()
     pad_num = int(np.ceil(np.log10(max_size)))
 
+    prefix_pad_num = int(np.ceil(np.log10(split_number)))
+
     row_list = []
     current_length = 0
     step = genome_split_length // 10
+    current_idx = 0
     for row in fai_df.itertuples():
         for i in range(0, row.chrom_length, step):
             if current_length >= genome_split_length:
-                save_current_bedrows(row_list, split_out_dir, pad_num)
+                current_idx += 1
+                current_idx_prefix = str(current_idx).zfill(prefix_pad_num)
+                save_current_bedrows(
+                    row_list, split_out_dir, pad_num, current_idx_prefix
+                )
                 row_list = []
                 current_length = 0
             end = i + step
@@ -93,7 +110,9 @@ def split_fai(fai_file: Path, out_dir: Path, split_number: int) -> None:
             else:
                 row_list.append(BedClass(chrom=str(row.chrom), start=i, end=end))
     if row_list:
-        save_current_bedrows(row_list, split_out_dir, pad_num)
+        current_idx += 1
+        current_idx_prefix = str(current_idx).zfill(prefix_pad_num)
+        save_current_bedrows(row_list, split_out_dir, pad_num, current_idx_prefix)
 
 
 def main(
