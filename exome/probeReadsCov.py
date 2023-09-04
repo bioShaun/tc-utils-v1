@@ -13,7 +13,7 @@ def main(cov_dir: Path, out_file: Path) -> None:
         )
         df["probe_length"] = df["end"] - df["start"]
         df[sample_name] = df["read_count"] / df["probe_length"]
-        df_list.append(df)
+        df_list.append(df["chrom", "start", "end", sample_name].copy())
     merged_df = reduce(
         lambda x, y: pd.merge(x, y, on=["chrom", "start", "end"]),
         df_list,
