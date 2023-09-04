@@ -11,6 +11,7 @@ def main(cov_dir: Path, out_file: Path) -> None:
         df = pd.read_table(
             file_i, header=None, names=["chrom", "start", "end", "read_count"]
         )
+        df.drop_duplicates(inplace=True)
         df["probe_length"] = df["end"] - df["start"]
         df[sample_name] = df["read_count"] / df["probe_length"]
         df_list.append(df[["chrom", "start", "end", sample_name]].copy())
