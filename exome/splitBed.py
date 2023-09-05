@@ -77,8 +77,8 @@ def split_fai(fai_file: Path, out_dir: Path, split_number: int) -> None:
     fai_df = pd.read_table(
         fai_file, header=None, names=["chrom", "chrom_length"], usecols=[0, 1]
     )
-    fai_df["chrom"] = fai_df["chrom"].astype("str")
-    fai_df.sort_values(by=["chrom"], inplace=True)
+    # fai_df["chrom"] = fai_df["chrom"].astype("str")
+    # fai_df.sort_values(by=["chrom"], inplace=True)
     genome_length = fai_df["chrom_length"].sum()
     genome_split_length = get_genome_split_length(genome_length, split_number)
 
