@@ -52,15 +52,17 @@ def npConvertGT(row: pd.Series, miss_fmt: str) -> str:
 
 def gt2seq(gt_df: pd.DataFrame, miss_fmt: str):
     # transform
+    gt_df.drop_duplicates(subset=LOCATION_COLS, inplace=True)
     melt_gt_df = gt_df.melt(
         id_vars=LOCATION_COLS,
         var_name=TableColumn.SAMPLE_NAME.value,
         value_name=TableColumn.GENOTYPE.value,
     )
     myConvertGT = partial(npConvertGT, miss_fmt=miss_fmt)
-    melt_gt_df[TableColumn.GENOTYPE.value] = melt_gt_df.parallel_apply(
-        myConvertGT, axis=1
-    )
+    # melt_gt_df[TableColumn.GENOTYPE.value] = melt_gt_df.parallel_apply(
+    #     myConvertGT, axis=1
+    # )
+    melt_gt_df[TableColumn.GENOTYPE.value] = melt_gt_df.apply(myConvertGT, axis=1)
 
     convert_df = melt_gt_df.set_index(
         [*LOCATION_COLS, TableColumn.SAMPLE_NAME.value]
@@ -91,6 +93,8 @@ def main(
     seq_dfs = []
     gt_concat_dfs = []
     for i, gt_df in enumerate(gt_dfs):
+        gt_df.replace(".", "./.", inplace=True)
+        gt_df.replace("1/0", "0/1", inplace=True)
         logger.info(f"Transforming {i}")
         seq_df = gt2seq(gt_df, miss_fmt)
         seq_dfs.append(seq_df)
