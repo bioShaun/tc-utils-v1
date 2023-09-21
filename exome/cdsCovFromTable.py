@@ -211,6 +211,7 @@ def main(
     sample_list = [each.strip() for each in sample_file.open()]
     cds_columns = [*loci_columns, *sample_list]
     cds_df = pd.read_table(cds_cov_table, header=None, names=cds_columns)
+    print(cds_df)
     if split_bed is not None:
         cds_df = merge_chr(cds_df, split_bed)
     df_matrix = cds_df.set_index(loci_columns)
