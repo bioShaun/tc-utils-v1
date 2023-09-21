@@ -22,7 +22,7 @@ def main(vcf_file: Path, ref: Path, out_file: Path, flank_size: int = 200) -> No
     for row in tqdm(vcf_df.itertuples()):
         pos = row.pos - 1
         start = pos - 200 if pos >= 200 else 0
-        left_seq = str(ref_dict[row.chrom].seq[start : pos - 1])
+        left_seq = str(ref_dict[row.chrom].seq[start:pos])
         right_seq = str(ref_dict[row.chrom].seq[pos + 1 : pos + 1 + 200])
         target_seq = str(ref_dict[row.chrom].seq[pos])
         primer_seq = f"{left_seq}[{target_seq}/{row.alt}]{right_seq}"
