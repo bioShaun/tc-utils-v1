@@ -37,7 +37,7 @@ def load_bed_files(bed_dir: Path, split_bed: Optional[Path] = None) -> pd.DataFr
     for bed_i in bed_dir.glob("*.bed"):
         sample_name = bed_i.stem.rstrip(".cov")
         bed_i_columns = [*BED_COLUMNS, sample_name]
-        df_i = pd.read_table(bed_i, header=None, names=bed_i_columns, nrows=20000)
+        df_i = pd.read_table(bed_i, header=None, names=bed_i_columns)
         df_list.append(df_i)
     df = reduce(
         lambda x, y: pd.merge(x, y),
