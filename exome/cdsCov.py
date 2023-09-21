@@ -35,6 +35,7 @@ def merge_chr(df: pd.DataFrame, split_bed: Path) -> pd.DataFrame:
 def load_bed_files(bed_dir: Path, split_bed: Optional[Path] = None) -> pd.DataFrame:
     df_list = []
     for bed_i in bed_dir.glob("*.bed"):
+        logger.info(f"Load {bed_i} ...")
         sample_name = bed_i.stem.rstrip(".cov")
         bed_i_columns = [*BED_COLUMNS, sample_name]
         df_i = pd.read_table(bed_i, header=None, names=bed_i_columns)
@@ -166,13 +167,14 @@ def plot_probe_coverage(
         miss_rate = get_coverage_rate(df)
         plot_title = f"{region_tag}M window miss rate: {miss_rate}%"
     else:
-        plot_title = ""
+        plot_title = f"{region_tag}M Coverage"
     if plot_type == "miss":
         out_name = f"{region_tag}M-miss"
     else:
         out_name = f"{region_tag}M-coverage"
     if sample_name is not None:
         out_name = f"{sample_name}-{out_name}"
+        plot_title = f"{sample_name} {plot_title}"
     out_prefix = out_dir / out_name
     df.to_csv(
         f"{out_prefix}.tsv",
@@ -233,6 +235,7 @@ def main(
             plot_type="coverage",
         )
     for sample_i in passed_df_matrix_bool.columns:
+        logger.info(f"Processing {sample_i}")
         sampe_i_df = passed_df_matrix_bool[[sample_i]].reset_index()
         sampe_i_df["pos"] = (sampe_i_df["start"] + sampe_i_df["end"]) // 2
         cover_ratio_df = add_region(sampe_i_df, chr_size, region_size)
