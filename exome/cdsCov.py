@@ -155,6 +155,7 @@ def plot_probe_coverage(
     region_size: int,
     out_dir: Path,
     plot_type="miss",
+    sample_name: Optional[str] = None,
 ) -> None:
     df[["chrom", "start", "end"]] = df["region"].str.split("_", expand=True)
     df[["start", "end"]] = df[["start", "end"]].astype("int")
@@ -167,9 +168,12 @@ def plot_probe_coverage(
     else:
         plot_title = ""
     if plot_type == "miss":
-        out_prefix = out_dir / f"{region_tag}M-miss"
+        out_name = f"{region_tag}M-miss"
     else:
-        out_prefix = out_dir / f"{region_tag}M-coverage"
+        out_name = f"{region_tag}M-coverage"
+    if sample_name is not None:
+        out_name = f"{sample_name}-{out_name}"
+    out_prefix = out_dir / out_name
     df.to_csv(
         f"{out_prefix}.tsv",
         sep="\t",
@@ -193,35 +197,67 @@ def main(
     sample_ratio_cutoff: float = 0.5,
     region_ratio_cutoff: float = 0.5,
     split_bed: Optional[Path] = None,
+    plot_all: bool = False,
 ) -> None:
+    out_dir.mkdir(exist_ok=True, parents=True)
     cds_df = load_bed_files(cds_cov_dir, split_bed)
     df_matrix = cds_df.set_index(["chrom", "start", "end", "transcript"])
     df_matrix_bool = df_matrix >= min_reads
     cover_df = df_matrix_bool.sum(1)
     cover_ratio_df = cover_df / df_matrix_bool.shape[1]
-    cover_ratio_df.name = "cover_ratio"
-    cover_ratio_df = pd.DataFrame(cover_ratio_df).reset_index()
-    cover_ratio_df["pos"] = (cover_ratio_df["start"] + cover_ratio_df["end"]) // 2
-    cover_ratio_df["cover_passed"] = (
-        cover_ratio_df["cover_ratio"] >= sample_ratio_cutoff
-    )
-    cover_ratio_df = add_region(cover_ratio_df, chr_size, region_size)
-    region_passed = cover_ratio_df.groupby("region")["cover_passed"].sum()
-    region_cds_count = cover_ratio_df.groupby("region").size()
-    region_ratio = region_passed / region_cds_count
-    region_ratio.dropna(inplace=True)
-    region_ratio.name = "coverage"
-    region_miss = region_ratio.map(lambda x: 0 if x >= region_ratio_cutoff else 1)
-    region_miss.name = "miss"
-    region_ratio_df = pd.DataFrame(region_ratio).reset_index()
-    region_miss_df = pd.DataFrame(region_miss).reset_index()
-    plot_probe_coverage(df=region_miss_df, region_size=region_size, out_dir=out_dir)
-    plot_probe_coverage(
-        df=region_ratio_df,
-        region_size=region_size,
-        out_dir=out_dir,
-        plot_type="coverage",
-    )
+    passed_df_matrix_bool = df_matrix_bool.loc[
+        cover_ratio_df[cover_ratio_df >= sample_ratio_cutoff].index
+    ].copy()
+    if plot_all:
+        cover_ratio_df.name = "cover_ratio"
+        cover_ratio_df = pd.DataFrame(cover_ratio_df).reset_index()
+        cover_ratio_df["pos"] = (cover_ratio_df["start"] + cover_ratio_df["end"]) // 2
+        cover_ratio_df["cover_passed"] = (
+            cover_ratio_df["cover_ratio"] >= sample_ratio_cutoff
+        )
+        cover_ratio_df = add_region(cover_ratio_df, chr_size, region_size)
+        region_passed = cover_ratio_df.groupby("region")["cover_passed"].sum()
+        region_cds_count = cover_ratio_df.groupby("region").size()
+        region_ratio = region_passed / region_cds_count
+        region_ratio.dropna(inplace=True)
+        region_ratio.name = "coverage"
+        region_miss = region_ratio.map(lambda x: 0 if x >= region_ratio_cutoff else 1)
+        region_miss.name = "miss"
+        region_ratio_df = pd.DataFrame(region_ratio).reset_index()
+        region_miss_df = pd.DataFrame(region_miss).reset_index()
+        plot_probe_coverage(df=region_miss_df, region_size=region_size, out_dir=out_dir)
+        plot_probe_coverage(
+            df=region_ratio_df,
+            region_size=region_size,
+            out_dir=out_dir,
+            plot_type="coverage",
+        )
+    for sample_i in passed_df_matrix_bool.columns:
+        sampe_i_df = passed_df_matrix_bool[[sample_i]].reset_index()
+        sampe_i_df["pos"] = (sampe_i_df["start"] + sampe_i_df["end"]) // 2
+        cover_ratio_df = add_region(sampe_i_df, chr_size, region_size)
+        region_passed = cover_ratio_df.groupby("region")[sample_i].sum()
+        region_cds_count = cover_ratio_df.groupby("region").size()
+        region_ratio = region_passed / region_cds_count
+        region_ratio.dropna(inplace=True)
+        region_ratio.name = "coverage"
+        region_miss = region_ratio.map(lambda x: 0 if x >= region_ratio_cutoff else 1)
+        region_miss.name = "miss"
+        region_ratio_df = pd.DataFrame(region_ratio).reset_index()
+        region_miss_df = pd.DataFrame(region_miss).reset_index()
+        plot_probe_coverage(
+            df=region_miss_df,
+            region_size=region_size,
+            out_dir=out_dir,
+            sample_name=sample_i,
+        )
+        plot_probe_coverage(
+            df=region_ratio_df,
+            region_size=region_size,
+            out_dir=out_dir,
+            plot_type="coverage",
+            sample_name=sample_i,
+        )
 
 
 if __name__ == "__main__":
