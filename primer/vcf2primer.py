@@ -29,3 +29,7 @@ def main(vcf_file: Path, ref: Path, out_file: Path, flank_size: int = 200) -> No
         out_list.append({"name": f"{row.chrom}_{row.pos}", "sequence": primer_seq})
     out_df = pd.DataFrame(out_list)
     out_df.to_csv(out_file, sep="\t", index=False)
+
+
+if __name__ == "__main__":
+    typer.run(main)
