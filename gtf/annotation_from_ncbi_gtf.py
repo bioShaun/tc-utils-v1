@@ -20,6 +20,7 @@ def get_tag_value_from_gtf(tag: str, info: str) -> str:
 class Gene:
     gene_id: str
     name: str
+    out_id: str
     refseq_id: str = field(default=None)
     position: str = field(init=False)
     description_set: set[str] = field(init=False)
@@ -48,8 +49,9 @@ class Gene:
 
     @property
     def gene_out_id(self) -> str:
-        if self.refseq_id:
-            return self.refseq_id
+        if self.out_id == "refseq_id":
+            if self.refseq_id:
+                return self.refseq_id
         return self.gene_id
 
     @property
@@ -75,7 +77,9 @@ class Transcript:
 
 
 @app.command()
-def gene_annotation(gtf: Path, annotation: Path) -> None:
+def gene_annotation(
+    gtf: Path, annotation: Path, gene_id_att: str = "refseq_id"
+) -> None:
     gene_dict: dict[str, Gene] = {}
     with open(gtf) as gtf_inf:
         for eachline in gtf_inf:
@@ -86,7 +90,9 @@ def gene_annotation(gtf: Path, annotation: Path) -> None:
             gene_id = get_tag_value_from_gtf("gene_id", eachline_attrs)
             gene_name = get_tag_value_from_gtf("gene", eachline_attrs)
             if gene_id not in gene_dict:
-                gene_dict[gene_id] = Gene(gene_id=gene_id, name=gene_name)
+                gene_dict[gene_id] = Gene(
+                    gene_id=gene_id, name=gene_name, out_id=gene_id_att
+                )
             gene_dict[gene_id].add_info(eachline)
 
     with open(annotation, "w") as annotation_inf:
