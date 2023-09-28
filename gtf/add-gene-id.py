@@ -4,14 +4,32 @@ import typer
 
 def main(gtf: Path) -> None:
     out_gtf = gtf.with_suffix(".addGene.gtf")
+    tr_dict = {}
+    with gtf.open("r") as in_gtf:
+        for line in in_gtf:
+            line_inf = line.strip().strip("\t")
+            out_inf = line
+            tr_id = line_inf[-1].split()[0].split()[-1]
+            if tr_id not in tr_dict:
+                tr_dict[tr_id] = {}
+                tr_dict[tr_id]["exon"] = []
+                tr_dict[tr_id]["CDS"] = []
+                tr_dict[tr_id]["transcript"] = []
+            if "gene_id" not in line:
+                gene_id = line.strip().split()[-1]
+                out_inf = f"{line.strip()} gene_id {gene_id}\n"
+            tr_dict[tr_id][line_inf[2]].append(out_inf)
     with out_gtf.open("w") as out:
-        with gtf.open("r") as in_gtf:
-            for line in in_gtf:
-                if "gene_id" in line:
-                    out.write(line)
-                else:
-                    gene_id = line.strip().split()[-1]
-                    out.write(f"{line.strip()} gene_id {gene_id}\n")
+        for transcript in tr_dict:
+            for feature in ["transcript", "exon", "CDS"]:
+                feature_lines = tr_dict[transcript][feature]
+                if len(feature_lines) == 0:
+                    feature_lines = tr_dict[transcript]["CDS"]
+                for line in feature_lines:
+                    line_list = line.split('\t')
+                    line_list[2] = feature
+                    for line in feature_lines:
+                        out.write('\t'.join(line_list)
 
 
 if __name__ == "__main__":
