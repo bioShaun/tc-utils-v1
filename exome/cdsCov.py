@@ -8,8 +8,9 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
 import numpy as np
+from tqdm import tqdm
 
-#BED_COLUMNS = ["chrom", "start", "end", "transcript"]
+# BED_COLUMNS = ["chrom", "start", "end", "transcript"]
 BED_COLUMNS = ["chrom", "start", "end"]
 
 
@@ -35,8 +36,9 @@ def merge_chr(df: pd.DataFrame, split_bed: Path) -> pd.DataFrame:
 
 def load_bed_files(bed_dir: Path, split_bed: Optional[Path] = None) -> pd.DataFrame:
     df_list = []
-    for bed_i in bed_dir.glob("*.bed"):
-        logger.info(f"Load {bed_i} ...")
+    bed_files = list(bed_dir.glob("*.bed"))
+    for bed_i in tqdm(bed_files):
+        # logger.info(f"Load {bed_i} ...")
         sample_name = bed_i.stem.rstrip(".cov")
         bed_i_columns = [*BED_COLUMNS, sample_name]
         df_i = pd.read_table(bed_i, header=None, names=bed_i_columns)
@@ -201,10 +203,11 @@ def main(
     region_ratio_cutoff: float = 0.5,
     split_bed: Optional[Path] = None,
     plot_all: bool = False,
+    sample_path: Optional[Path] = None,
 ) -> None:
     out_dir.mkdir(exist_ok=True, parents=True)
     cds_df = load_bed_files(cds_cov_dir, split_bed)
-    #df_matrix = cds_df.set_index(["chrom", "start", "end", "transcript"])
+    # df_matrix = cds_df.set_index(["chrom", "start", "end", "transcript"])
     df_matrix = cds_df.set_index(["chrom", "start", "end"])
     df_matrix_bool = df_matrix >= min_reads
     cover_df = df_matrix_bool.sum(1)
@@ -236,7 +239,12 @@ def main(
             out_dir=out_dir,
             plot_type="coverage",
         )
-    for sample_i in passed_df_matrix_bool.columns:
+    if sample_path is not None:
+        with open(sample_list, "r") as f:
+            sample_list = [x.strip() for x in f.readlines()]
+    else:
+        sample_list = passed_df_matrix_bool.columns
+    for sample_i in tqdm(passed_df_matrix_bool.columns):
         logger.info(f"Processing {sample_i}")
         sampe_i_df = passed_df_matrix_bool[[sample_i]].reset_index()
         sampe_i_df["pos"] = (sampe_i_df["start"] + sampe_i_df["end"]) // 2
