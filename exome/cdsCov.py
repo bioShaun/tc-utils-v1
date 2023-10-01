@@ -9,7 +9,8 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
 import numpy as np
 
-BED_COLUMNS = ["chrom", "start", "end", "transcript"]
+#BED_COLUMNS = ["chrom", "start", "end", "transcript"]
+BED_COLUMNS = ["chrom", "start", "end"]
 
 
 def merge_chr(df: pd.DataFrame, split_bed: Path) -> pd.DataFrame:
@@ -203,7 +204,8 @@ def main(
 ) -> None:
     out_dir.mkdir(exist_ok=True, parents=True)
     cds_df = load_bed_files(cds_cov_dir, split_bed)
-    df_matrix = cds_df.set_index(["chrom", "start", "end", "transcript"])
+    #df_matrix = cds_df.set_index(["chrom", "start", "end", "transcript"])
+    df_matrix = cds_df.set_index(["chrom", "start", "end"])
     df_matrix_bool = df_matrix >= min_reads
     cover_df = df_matrix_bool.sum(1)
     cover_ratio_df = cover_df / df_matrix_bool.shape[1]

@@ -7,9 +7,9 @@ def main(gtf: Path) -> None:
     tr_dict = {}
     with gtf.open("r") as in_gtf:
         for line in in_gtf:
-            line_inf = line.strip().strip("\t")
+            line_inf = line.strip().split("\t")
             out_inf = line
-            tr_id = line_inf[-1].split()[0].split()[-1]
+            tr_id = line_inf[-1].split()[1]
             if tr_id not in tr_dict:
                 tr_dict[tr_id] = {}
                 tr_dict[tr_id]["exon"] = []
@@ -28,8 +28,7 @@ def main(gtf: Path) -> None:
                 for line in feature_lines:
                     line_list = line.split('\t')
                     line_list[2] = feature
-                    for line in feature_lines:
-                        out.write('\t'.join(line_list)
+                    out.write('\t'.join(line_list))
 
 
 if __name__ == "__main__":
