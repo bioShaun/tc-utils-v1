@@ -8,6 +8,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
 import numpy as np
+from tqdm import tqdm
 
 BED_COLUMNS = ["chrom", "start", "end", "transcript"]
 # BED_COLUMNS = ["chrom", "start", "end"]
@@ -37,8 +38,9 @@ def load_bed_files(
     bed_dir: Path, bed_cols: List[str], split_bed: Optional[Path] = None
 ) -> pd.DataFrame:
     df_list = []
-    for bed_i in bed_dir.glob("*.bed"):
-        logger.info(f"Load {bed_i} ...")
+    bed_files = list(bed_dir.glob("*.bed"))
+    for bed_i in tqdm(bed_files):
+        # logger.info(f"Load {bed_i} ...")
         sample_name = bed_i.stem.rstrip(".cov")
         bed_i_columns = [*bed_cols, sample_name]
         df_i = pd.read_table(bed_i, header=None, names=bed_i_columns)
