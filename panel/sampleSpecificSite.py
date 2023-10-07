@@ -56,8 +56,8 @@ def main(
             index_col=[0, 1, 2, 3, 4],
             chunksize=chunck_size,
         )
-    stats_df_list = []
-    for gt_df in tqdm(gt_df_list):
+    gt_stats_file = gt_file.with_suffix(".stats")
+    for i, gt_df in tqdm(enumerate(gt_df_list)):
         case_df = gt_df[case_sample_list]
         case_stats_df = get_gt_stats(case_df, case_name)
         control_name = f"non_{case_name}"
@@ -66,10 +66,13 @@ def main(
         merged_df = case_stats_df.merge(
             control_stats_df, left_index=True, right_index=True
         )
-        stats_df_list.append(merged_df)
-    stats_df = pd.concat(stats_df_list)
-    gt_stats_file = gt_file.with_suffix(".stats")
-    stats_df.to_csv(gt_stats_file, sep="\t")
+        if i == 0:
+            header = True
+            mode = "w"
+        else:
+            header = False
+            mode = "a"
+        merged_df.to_csv(gt_stats_file, sep="\t", mode=mode, header=header)
 
 
 if __name__ == "__main__":
