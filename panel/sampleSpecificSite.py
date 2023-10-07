@@ -80,9 +80,9 @@ def gt_stats(
 def gt_stats_filter(
     stats_file: Path,
     case_name: str,
-    case_va_portion: float = 0.9,
+    case_va_portion: float = 0.8,
     contral_va_portion: float = 0.01,
-    allow_het: bool = False,
+    allow_het: bool = True,
 ):
     stats_df = pd.read_table(stats_file)
     filter_columns = ["alt"]
@@ -94,7 +94,7 @@ def gt_stats_filter(
         filter1 = stats_df[case_col] >= case_va_portion
         filter2 = stats_df[control_col] < contral_va_portion
         filter_df = stats_df[filter1 & filter2]
-        filter_file = stats_file.with_suffix(".filter_{col}.tsv")
+        filter_file = stats_file.with_suffix(f".filter_{col}.tsv")
         filter_df.to_csv(filter_file, sep="\t", index=False)
 
 
