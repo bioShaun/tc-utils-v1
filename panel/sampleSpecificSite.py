@@ -2,7 +2,6 @@ from pathlib import Path
 import typer
 
 import pandas as pd
-from pandarallel import pandarallel
 from tqdm import tqdm
 
 
