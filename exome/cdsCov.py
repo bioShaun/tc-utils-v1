@@ -34,9 +34,19 @@ def merge_chr(df: pd.DataFrame, split_bed: Path) -> pd.DataFrame:
     return merged_df
 
 
-def load_bed_files(bed_dir: Path, split_bed: Optional[Path] = None) -> pd.DataFrame:
+def load_sample_data_dir(cov_dir: Path, sample_path: Optional[Path]) -> List[Path]:
+    if sample_path is not None:
+        with open(sample_path, "r") as f:
+            sample_list = [x.strip() for x in f.readlines()]
+            return [cov_dir / f"{each}.cov.bed" for each in sample_list]
+    return list(cov_dir.glob("*.bed"))
+
+
+def load_bed_files(
+    bed_dir: Path, sample_size: int, split_bed: Optional[Path] = None
+) -> pd.DataFrame:
     df_list = []
-    bed_files = list(bed_dir.glob("*.bed"))
+    bed_files = list(bed_dir.glob("*.bed"))[:sample_size]
     for bed_i in tqdm(bed_files):
         # logger.info(f"Load {bed_i} ...")
         sample_name = bed_i.stem.rstrip(".cov")
@@ -197,16 +207,17 @@ def main(
     cds_cov_dir: Path,
     out_dir: Path,
     chr_size: Path,
+    sample_path: Optional[Path] = None,
     min_reads: int = 10,
+    cov_sample_size: int = 100,
     region_size: int = 1000000,
     sample_ratio_cutoff: float = 0.5,
     region_ratio_cutoff: float = 0.5,
     split_bed: Optional[Path] = None,
     plot_all: bool = False,
-    sample_path: Optional[Path] = None,
 ) -> None:
     out_dir.mkdir(exist_ok=True, parents=True)
-    cds_df = load_bed_files(cds_cov_dir, split_bed)
+    cds_df = load_bed_files(cds_cov_dir, cov_sample_size, split_bed)
     # df_matrix = cds_df.set_index(["chrom", "start", "end", "transcript"])
     df_matrix = cds_df.set_index(["chrom", "start", "end"])
     df_matrix_bool = df_matrix >= min_reads
@@ -215,6 +226,7 @@ def main(
     passed_df_matrix_bool = df_matrix_bool.loc[
         cover_ratio_df[cover_ratio_df >= sample_ratio_cutoff].index
     ].copy()
+    passed_df_matrix_loci = passed_df_matrix_bool.reset_index()[BED_COLUMNS]
     if plot_all:
         cover_ratio_df.name = "cover_ratio"
         cover_ratio_df = pd.DataFrame(cover_ratio_df).reset_index()
@@ -239,14 +251,14 @@ def main(
             out_dir=out_dir,
             plot_type="coverage",
         )
-    if sample_path is not None:
-        with open(sample_list, "r") as f:
-            sample_list = [x.strip() for x in f.readlines()]
-    else:
-        sample_list = passed_df_matrix_bool.columns
-    for sample_i in tqdm(passed_df_matrix_bool.columns):
+    sample_data_list = load_sample_data_dir(cds_cov_dir, sample_path)
+    for sample_data_i in tqdm(sample_data_list):
+        sample_i = sample_data_i.stem.rstrip(".cov")
         logger.info(f"Processing {sample_i}")
-        sampe_i_df = passed_df_matrix_bool[[sample_i]].reset_index()
+        sampe_i_df = pd.read_table(
+            sample_data_i, header=None, names=[*BED_COLUMNS, sample_i]
+        )
+        sampe_i_df = sampe_i_df.merge(passed_df_matrix_loci)
         sampe_i_df["pos"] = (sampe_i_df["start"] + sampe_i_df["end"]) // 2
         cover_ratio_df = add_region(sampe_i_df, chr_size, region_size)
         region_passed = cover_ratio_df.groupby("region")[sample_i].sum()
