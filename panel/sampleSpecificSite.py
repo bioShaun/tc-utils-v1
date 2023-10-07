@@ -2,6 +2,7 @@ from pathlib import Path
 import typer
 
 import pandas as pd
+from pandarallel import pandarallel
 
 
 GT_COLUMN_PREFIX = ["chrom", "pos", "ref", "alt", "filter"]
@@ -16,7 +17,7 @@ GT_MAP = {
 
 
 def get_gt_stats(df: pd.DataFrame, name: str) -> pd.DataFrame:
-    stats_df = pd.DataFrame(df.apply(lambda x: x.value_counts() / df.shape[1], axis=1))
+    stats_df = pd.DataFrame(df.parallel_apply(lambda x: x.value_counts() / df.shape[1], axis=1))  # type: ignore
     stats_df.columns = [f"{name}_{GT_MAP[each]}" for each in stats_df.columns]
     return stats_df
 
@@ -30,7 +31,9 @@ def main(
     contral_va_portion: float = 0.05,
     control_va_count: int = 10,
     test: bool = False,
+    threads: int = 4,
 ):
+    pandarallel.initialize(progress_bar=True, nb_workers=threads)
     all_sample_list = [each.strip() for each in all_sample_path.open()]
     case_sample_list = [each.strip() for each in case_sample_path.open()]
     control_sample_list = [
