@@ -56,3 +56,7 @@ def main(
     merged_df = case_stats_df.merge(control_stats_df, left_index=True, right_index=True)
     gt_stats_file = gt_file.with_suffix(".stats")
     merged_df.to_csv(gt_stats_file, sep="\t")
+
+
+if __name__ == "__main__":
+    typer.run(main)
