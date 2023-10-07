@@ -40,13 +40,13 @@ def main(
         gt_df = pd.read_table(
             gt_file,
             header=None,
-            names=[all_sample_list],
+            names=all_sample_list,
             index_col=[0, 1, 2, 3, 4],
             nrows=100,
         )
     else:
         gt_df = pd.read_table(
-            gt_file, header=None, names=[all_sample_list], index_col=[0, 1, 2, 3, 4]
+            gt_file, header=None, names=all_sample_list, index_col=[0, 1, 2, 3, 4]
         )
     case_df = gt_df[case_sample_list]
     case_stats_df = get_gt_stats(case_df, case_name)
