@@ -19,6 +19,7 @@ GT_MAP = {
 def get_gt_stats(df: pd.DataFrame, name: str) -> pd.DataFrame:
     stats_df = pd.DataFrame(df.parallel_apply(lambda x: x.value_counts() / df.shape[1], axis=1))  # type: ignore
     stats_df.columns = [f"{name}_{GT_MAP[each]}" for each in stats_df.columns]
+    stats_df.fillna(0, inplace=True)
     return stats_df
 
 
