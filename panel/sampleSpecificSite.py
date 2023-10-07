@@ -34,9 +34,9 @@ def main(
     control_va_count: int = 10,
     test: bool = False,
     threads: int = 4,
-    chunck_size: int = 100_000,
+    chunck_size: int = 10_000,
 ):
-    pandarallel.initialize(progress_bar=True, nb_workers=threads)
+    pandarallel.initialize(nb_workers=threads)
     all_sample_list = [each.strip() for each in all_sample_path.open()]
     case_sample_list = [each.strip() for each in case_sample_path.open()]
     control_sample_list = [
