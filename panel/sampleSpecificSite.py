@@ -5,6 +5,9 @@ import pandas as pd
 from tqdm import tqdm
 
 
+app = typer.Typer()
+
+
 GT_COLUMN_PREFIX = ["chrom", "pos", "ref", "alt", "filter"]
 
 
@@ -23,14 +26,12 @@ def get_gt_stats(df: pd.DataFrame, name: str) -> pd.DataFrame:
     return stats_df
 
 
-def main(
+@app.command()
+def gt_stats(
     gt_file: Path,
     all_sample_path: Path,
     case_sample_path: Path,
     case_name: str,
-    case_va_portion: float = 0.9,
-    contral_va_portion: float = 0.05,
-    control_va_count: int = 10,
     test: bool = False,
     chunck_size: int = 10_000,
 ):
@@ -75,5 +76,27 @@ def main(
         merged_df.to_csv(gt_stats_file, sep="\t", mode=mode, header=header)
 
 
+@app.command()
+def gt_stats_filter(
+    stats_file: Path,
+    case_name: str,
+    case_va_portion: float = 0.9,
+    contral_va_portion: float = 0.01,
+    allow_het: bool = False,
+):
+    stats_df = pd.read_table(stats_file)
+    filter_columns = ["alt"]
+    if allow_het:
+        filter_columns.append("het")
+    for col in filter_columns:
+        case_col = f"{case_name}_{col}"
+        control_col = f"none_{case_name}_{col}"
+        filter1 = stats_df[case_col] >= case_va_portion
+        filter2 = stats_df[control_col] < contral_va_portion
+        filter_df = stats_df[filter1 & filter2]
+        filter_file = stats_file.with_suffix(".filter_{col}.tsv")
+        filter_df.to_csv(filter_file, sep="\t", index=False)
+
+
 if __name__ == "__main__":
-    typer.run(main)
+    app()
