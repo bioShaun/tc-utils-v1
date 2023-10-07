@@ -3,6 +3,7 @@ import typer
 
 import pandas as pd
 from pandarallel import pandarallel
+from tqdm import tqdm
 
 
 GT_COLUMN_PREFIX = ["chrom", "pos", "ref", "alt", "filter"]
@@ -33,6 +34,7 @@ def main(
     control_va_count: int = 10,
     test: bool = False,
     threads: int = 4,
+    chunck_size: int = 100_000,
 ):
     pandarallel.initialize(progress_bar=True, nb_workers=threads)
     all_sample_list = [each.strip() for each in all_sample_path.open()]
@@ -41,28 +43,36 @@ def main(
         each for each in all_sample_list if each not in case_sample_list
     ]
     if test:
-        gt_df = pd.read_table(
+        gt_df_list = pd.read_table(
             gt_file,
             header=None,
             names=[*GT_COLUMN_PREFIX, *all_sample_list],
             index_col=[0, 1, 2, 3, 4],
             nrows=100,
+            chunksize=chunck_size,
         )
     else:
-        gt_df = pd.read_table(
+        gt_df_list = pd.read_table(
             gt_file,
             header=None,
             names=[*GT_COLUMN_PREFIX, *all_sample_list],
             index_col=[0, 1, 2, 3, 4],
+            chunksize=chunck_size,
         )
-    case_df = gt_df[case_sample_list]
-    case_stats_df = get_gt_stats(case_df, case_name)
-    control_name = f"non_{case_name}"
-    control_df = gt_df[control_sample_list]
-    control_stats_df = get_gt_stats(control_df, control_name)
-    merged_df = case_stats_df.merge(control_stats_df, left_index=True, right_index=True)
+    stats_df_list = []
+    for gt_df in tqdm(gt_df_list):
+        case_df = gt_df[case_sample_list]
+        case_stats_df = get_gt_stats(case_df, case_name)
+        control_name = f"non_{case_name}"
+        control_df = gt_df[control_sample_list]
+        control_stats_df = get_gt_stats(control_df, control_name)
+        merged_df = case_stats_df.merge(
+            control_stats_df, left_index=True, right_index=True
+        )
+        stats_df_list.append(merged_df)
+    stats_df = pd.concat(stats_df_list)
     gt_stats_file = gt_file.with_suffix(".stats")
-    merged_df.to_csv(gt_stats_file, sep="\t")
+    stats_df.to_csv(gt_stats_file, sep="\t")
 
 
 if __name__ == "__main__":
