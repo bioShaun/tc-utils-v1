@@ -90,7 +90,7 @@ def gt_stats_filter(
         filter_columns.append("het")
     for col in filter_columns:
         case_col = f"{case_name}_{col}"
-        control_col = f"none_{case_name}_{col}"
+        control_col = f"non_{case_name}_{col}"
         filter1 = stats_df[case_col] >= case_va_portion
         filter2 = stats_df[control_col] < contral_va_portion
         filter_df = stats_df[filter1 & filter2]
