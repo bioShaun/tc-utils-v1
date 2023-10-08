@@ -14,13 +14,18 @@ GT_COLUMN_PREFIX = ["chrom", "pos", "ref", "alt", "filter"]
 GT_MAP = {
     "./.": "miss",
     "0/0": "ref",
-    "1/1": "alt",
     "0/1": "het",
+    "1/1": "alt",
 }
 
 
 def get_gt_stats(df: pd.DataFrame, name: str) -> pd.DataFrame:
     stats_df = pd.DataFrame(df.apply(lambda x: x.value_counts() / df.shape[1], axis=1))  # type: ignore
+    gt_list = list(GT_MAP.keys())
+    for gt in gt_list:
+        if gt not in stats_df.columns:
+            stats_df[gt] = 0
+    stats_df = stats_df[gt_list]
     stats_df.columns = [f"{name}_{GT_MAP[each]}" for each in stats_df.columns]
     stats_df.fillna(0, inplace=True)
     return stats_df
