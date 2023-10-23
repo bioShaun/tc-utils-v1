@@ -90,7 +90,7 @@ def gt_stats_filter(
     allow_het: bool = True,
 ):
     stats_df = pd.read_table(stats_file)
-    filter_columns = ["alt"]
+    filter_columns = ["alt", "ref"]
     if allow_het:
         filter_columns.append("het")
     for col in filter_columns:
