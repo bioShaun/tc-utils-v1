@@ -70,7 +70,7 @@ def main(
         df_matrix_bool = df_matrix >= cov
         cover_df = df_matrix_bool.sum()
         cover_ratio_df = cover_df / df_matrix_bool.shape[0]
-        cover_ratio_df.name = f"coverage_x{cov}"
+        cover_ratio_df.name = f"coverage_{cov}x"
         df_list.append(cover_ratio_df)
     merged_df = pd.concat(df_list, axis=1)
     merged_df.to_csv(out_file)
