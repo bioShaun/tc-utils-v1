@@ -57,7 +57,6 @@ def load_bed_files(
 def main(
     cds_cov_dir: Path,
     out_file: Path,
-    min_reads: int = 100,
     transcript_id: bool = False,
 ) -> None:
     if transcript_id:
