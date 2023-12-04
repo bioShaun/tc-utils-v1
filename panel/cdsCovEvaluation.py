@@ -92,7 +92,7 @@ def main(
     if not split_bed is None:
         bed_df = merge_chr(bed_df, split_bed)
     cover_ratio_df = pd.concat([bed_df, stats_df, *cov_df_list], axis=1)
-    cover_ratio_df.to_csv(out_file, index=False)
+    cover_ratio_df.to_csv(out_file, index=False, float_format="%.3f")
 
 
 if __name__ == "__main__":
