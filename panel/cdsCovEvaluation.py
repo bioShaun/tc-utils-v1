@@ -75,13 +75,14 @@ def main(
     else:
         loci_columns = BED_COLUMNS[:-1]
     bed_df, df_matrix = load_bed_files(cds_cov_dir, loci_columns)
+    df_matrix = df_matrix / span
     stats_df = get_stats_df(df_matrix)
     # df_matrix.to_csv("test.tsv", index=False, sep="\t")
     # print('set index')
     # df_matrix = df_matrix.set_index(loci_columns)
     cov_df_list = []
     for cov_i in cov:
-        cov_i_df_matrix = df_matrix >= (cov_i * span)
+        cov_i_df_matrix = df_matrix >= cov_i
         print("coverd samples")
         cover_df = cov_i_df_matrix.sum(1)
         print("cover ratio")
