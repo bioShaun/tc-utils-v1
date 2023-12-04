@@ -40,16 +40,18 @@ def main(interpro_file: Path, gene2tr: Path, out_dir: Path) -> None:
 
     gene_kegg_df = gene_interpro_df[["gene_id", "kegg"]].dropna().copy()
     gene_kegg_df = gene_kegg_df.explode("kegg").drop_duplicates()
-    gene_kegg_df.columns = ["ensembl", "ncbi"]
-    gene_kegg_df["gene"] = gene_kegg_df["ncbi"]
-    gene_kegg_df["term"] = gene_kegg_df["ncbi"]
+    # gene_kegg_df.columns = ["ensembl", "ncbi"]
+    gene_kegg_df.columns = ["gene", "term"]
+    gene_kegg_df["ensembl"] = gene_kegg_df["gene"]
+    gene_kegg_df["ncbi"] = gene_kegg_df["gene"]
     id_map_df = gene_kegg_df[["gene", "term"]].drop_duplicates()
 
     kegg_id_map = out_dir / "kegg.idmap.csv"
     kegg_gene_map = out_dir / "ncbi.idmap.csv"
 
     id_map_df.to_csv(kegg_id_map, index=False)
-    gene_kegg_df.to_csv(kegg_gene_map, index=False, columns=["ensembl", "ncbi"])
+    ncbi_map_df = gene_kegg_df[["ensembl", "ncbi"]].drop_duplicates()
+    ncbi_map_df.to_csv(kegg_gene_map, index=False, columns=["ensembl", "ncbi"])
 
 
 if __name__ == "__main__":
