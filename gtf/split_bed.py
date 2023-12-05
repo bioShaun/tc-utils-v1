@@ -17,7 +17,11 @@ def main(bed: Path, split_bed: Path) -> None:
     merge_df["new_end"] = merge_df["end"] - merge_df["split_start"]
     out_bed = bed.with_suffix(".split.bed")
     merge_df.to_csv(
-        out_bed, header=False, columns=["new_chrom", "new_start", "new_end"]
+        out_bed,
+        header=False,
+        columns=["new_chrom", "new_start", "new_end"],
+        sep="\t",
+        index=False,
     )
 
 
