@@ -58,6 +58,7 @@ def main(
     cds_cov_dir: Path,
     out_file: Path,
     transcript_id: bool = False,
+    span: int = 120,
 ) -> None:
     if transcript_id:
         loci_columns = BED_COLUMNS[:]
@@ -67,7 +68,7 @@ def main(
     df_matrix = cds_df.set_index(loci_columns)
     df_list = []
     for cov in READS_COV:
-        df_matrix_bool = df_matrix >= cov
+        df_matrix_bool = df_matrix >= (cov * span)
         cover_df = df_matrix_bool.sum()
         cover_ratio_df = cover_df / df_matrix_bool.shape[0]
         cover_ratio_df.name = f"coverage_{cov}x"
