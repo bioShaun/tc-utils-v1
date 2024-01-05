@@ -42,10 +42,10 @@ def load_bed_files(
         logger.info(f"Load {bed_i} ...")
         sample_name = bed_i.stem.rstrip(".cov")
         bed_i_columns = [*bed_cols, sample_name]
-        df_i = pd.read_table(bed_i, header=None, names=bed_i_columns)
+        df_i = pd.read_table(bed_i, header=None, names=[sample_name], usecols=[3])
         df_list.append(df_i)
     df = reduce(
-        lambda x, y: pd.merge(x, y),
+        lambda x, y: pd.merge(x, y, left_index=True, right_index=True),
         df_list,
     )
     if split_bed is None:
@@ -65,10 +65,9 @@ def main(
     else:
         loci_columns = BED_COLUMNS[:-1]
     cds_df = load_bed_files(cds_cov_dir, loci_columns)
-    df_matrix = cds_df.set_index(loci_columns)
     df_list = []
     for cov in READS_COV:
-        df_matrix_bool = df_matrix >= (cov * span)
+        df_matrix_bool = cds_df >= (cov * span)
         cover_df = df_matrix_bool.sum()
         cover_ratio_df = cover_df / df_matrix_bool.shape[0]
         cover_ratio_df.name = f"coverage_{cov}x"
