@@ -41,13 +41,16 @@ class MissFmt(str, Enum):
 
 
 def npConvertGT(row: pd.Series, miss_fmt: str) -> str:
-    GT_MAP = {
-        GT_VALUE.ALT.value: f"{row[TableColumn.ALT.value]}{row[TableColumn.ALT.value]}",
-        GT_VALUE.REF.value: f"{row[TableColumn.REF.value]}{row[TableColumn.REF.value]}",
-        GT_VALUE.HET.value: f"{row[TableColumn.REF.value]}{row[TableColumn.ALT.value]}",
-        GT_VALUE.NA.value: miss_fmt,
-    }
-    return GT_MAP[row[TableColumn.GENOTYPE.value]]
+    if row[TableColumn.GENOTYPE.value] == GT_VALUE.NA.value:
+        return miss_fmt
+    allele1, allele2 = [
+        int(each) for each in row[TableColumn.GENOTYPE.value].split("/")
+    ]
+    allele_list = [
+        row[TableColumn.REF.value],
+        *row[TableColumn.ALT.value].split(","),
+    ]
+    return f"{allele_list[allele1]}{allele_list[allele2]}"
 
 
 def gt2seq(gt_df: pd.DataFrame, miss_fmt: str):
@@ -93,8 +96,10 @@ def main(
     seq_dfs = []
     gt_concat_dfs = []
     for i, gt_df in enumerate(gt_dfs):
+        gt_df = gt_df.set_index(LOCATION_COLS)
         gt_df.replace(".", "./.", inplace=True)
         gt_df.replace("1/0", "0/1", inplace=True)
+        gt_df = gt_df.reset_index()
         logger.info(f"Transforming {i}")
         seq_df = gt2seq(gt_df, miss_fmt)
         seq_dfs.append(seq_df)
