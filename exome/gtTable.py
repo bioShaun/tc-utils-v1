@@ -62,10 +62,10 @@ def gt2seq(gt_df: pd.DataFrame, miss_fmt: str):
         value_name=TableColumn.GENOTYPE.value,
     )
     myConvertGT = partial(npConvertGT, miss_fmt=miss_fmt)
-    # melt_gt_df[TableColumn.GENOTYPE.value] = melt_gt_df.parallel_apply(
-    #     myConvertGT, axis=1
-    # )
-    melt_gt_df[TableColumn.GENOTYPE.value] = melt_gt_df.apply(myConvertGT, axis=1)
+    melt_gt_df[TableColumn.GENOTYPE.value] = melt_gt_df.parallel_apply(
+        myConvertGT, axis=1
+    )
+    # melt_gt_df[TableColumn.GENOTYPE.value] = melt_gt_df.apply(myConvertGT, axis=1)
 
     convert_df = melt_gt_df.set_index(
         [*LOCATION_COLS, TableColumn.SAMPLE_NAME.value]
@@ -104,10 +104,17 @@ def main(
         seq_df = gt2seq(gt_df, miss_fmt)
         seq_dfs.append(seq_df)
         gt_concat_dfs.append(gt_df)
-    seq_df = pd.concat(seq_dfs)
-    gt_df = pd.concat(gt_concat_dfs)
-    gt_df.to_csv(f"{out_file}.gt.txt.gz", index=False, sep="\t")
-    seq_df.to_csv(f"{out_file}.seq.txt.gz", sep="\t")
+        # seq_df = pd.concat(seq_dfs)
+        # gt_df = pd.concat(gt_concat_dfs)
+        mode = "w"
+        header = True
+        if i > 0:
+            mode = "a"
+            header = False
+        gt_df.to_csv(
+            f"{out_file}.gt.txt.gz", index=False, sep="\t", header=header, mode=mode
+        )
+        seq_df.to_csv(f"{out_file}.seq.txt.gz", sep="\t", header=header, mode=mode)
 
 
 if __name__ == "__main__":
