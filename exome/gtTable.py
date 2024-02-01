@@ -56,6 +56,7 @@ def npConvertGT(row: pd.Series, miss_fmt: str) -> str:
 def gt2seq(gt_df: pd.DataFrame, miss_fmt: str):
     # transform
     gt_df.drop_duplicates(subset=LOCATION_COLS, inplace=True)
+    loc_df = gt_df[LOCATION_COLS].copy()
     melt_gt_df = gt_df.melt(
         id_vars=LOCATION_COLS,
         var_name=TableColumn.SAMPLE_NAME.value,
@@ -73,7 +74,8 @@ def gt2seq(gt_df: pd.DataFrame, miss_fmt: str):
     convert_df.columns = convert_df.columns.droplevel()
 
     out_cols = [each for each in gt_df.columns if each not in [*LOCATION_COLS]]
-    return convert_df[out_cols]
+    out_df = convert_df[out_cols].reset_index()
+    return loc_df.merge(out_df)
 
 
 def main(
@@ -100,10 +102,8 @@ def main(
         gt_df.replace(".", "./.", inplace=True)
         gt_df.replace("1/0", "0/1", inplace=True)
         gt_df = gt_df.reset_index()
-        print(gt_df)
         logger.info(f"Transforming {i}")
         seq_df = gt2seq(gt_df, miss_fmt)
-        print(seq_df)
         seq_dfs.append(seq_df)
         gt_concat_dfs.append(gt_df)
         # seq_df = pd.concat(seq_dfs)
@@ -116,7 +116,7 @@ def main(
         gt_df.to_csv(
             f"{out_file}.gt.txt.gz", index=False, sep="\t", header=header, mode=mode
         )
-        seq_df.to_csv(f"{out_file}.seq.txt.gz", sep="\t", header=header, mode=mode)
+        seq_df.to_csv(f"{out_file}.seq.txt.gz", sep="\t", header=header, mode=mode, index=False)
 
 
 if __name__ == "__main__":
