@@ -50,7 +50,7 @@ def npConvertGT(row: pd.Series, miss_fmt: str) -> str:
         row[TableColumn.REF.value],
         *row[TableColumn.ALT.value].split(","),
     ]
-    return f"{allele_list[allele1]}{allele_list[allele2]}"
+    return f"{allele_list[allele1]}{allele_list[allele2]}".replace('*', 'N')
 
 
 def gt2seq(gt_df: pd.DataFrame, miss_fmt: str):
@@ -100,8 +100,10 @@ def main(
         gt_df.replace(".", "./.", inplace=True)
         gt_df.replace("1/0", "0/1", inplace=True)
         gt_df = gt_df.reset_index()
+        print(gt_df)
         logger.info(f"Transforming {i}")
         seq_df = gt2seq(gt_df, miss_fmt)
+        print(seq_df)
         seq_dfs.append(seq_df)
         gt_concat_dfs.append(gt_df)
         # seq_df = pd.concat(seq_dfs)

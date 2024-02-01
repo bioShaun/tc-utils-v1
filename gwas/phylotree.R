@@ -32,6 +32,7 @@ if (tree$Nnode <= 50) {
   linear_x_max = original_x_xmax + original_x_xmax * 2 / (linear_width - 2)
   linear_tree <- ggtree(tree, branch.length="none") + geom_tiplab(size=text_size) + geom_rootedge() + xlim(0, linear_x_max)
   ggsave(linear_tree, filename = paste(argv$output, 'linear.png', sep = '.'), dpi = 300, width = linear_width, height = linear_height)
+  ggsave(linear_tree, filename = paste(argv$output, 'linear.pdf', sep = '.'), width = linear_width, height = linear_height)
 }
 circular_height <- (0.015 * tree$Nnode) + 5
 circular_tree <- ggtree(tree, branch.length="none", layout='circular') + geom_tiplab(size=text_size) + geom_rootedge()

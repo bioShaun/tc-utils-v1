@@ -60,11 +60,15 @@ def main(
         loci_columns = BED_COLUMNS[:]
     else:
         loci_columns = BED_COLUMNS[:-1]
-    cds_df = load_bed_files(cds_cov_dir, loci_columns)
-    df_matrix = cds_df.set_index(loci_columns)
-    df_matrix_bool = df_matrix >= min_reads
-    cover_df = df_matrix_bool.sum(1)
-    cover_ratio_df = cover_df / df_matrix_bool.shape[1]
+    df_matrix = load_bed_files(cds_cov_dir, loci_columns)    
+    print('set index')
+    df_matrix = df_matrix.set_index(loci_columns)
+    print('bool matrix')
+    df_matrix = df_matrix >= min_reads
+    print('coverd samples')
+    cover_df = df_matrix.sum(1)
+    print('cover ratio')
+    cover_ratio_df = cover_df / df_matrix.shape[1]
     cover_ratio_df.name = 'coverage'
     cover_ratio_df.to_csv(out_file)
 

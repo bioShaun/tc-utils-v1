@@ -23,7 +23,7 @@ snpgdsVCF2GDS(argv$vcf, "my.gds")
 genofile <- snpgdsOpen("my.gds")
 
 #dendogram
-dissMatrix  <-  snpgdsDiss(genofile,snp.id=NULL, autosome.only=TRUE,remove.monosnp=TRUE, maf=NaN, missing.rate=NaN, num.thread=10, verbose=TRUE)
+dissMatrix  <-  snpgdsDiss(genofile,snp.id=NULL, autosome.only=F, remove.monosnp=TRUE, maf=NaN, missing.rate=NaN, num.thread=10, verbose=TRUE)
 snpHCluster <-  snpgdsHCluster(dissMatrix, sample.id=sample.id[sample.id != DZ55-2018], need.mat=TRUE)
 cutTree <- snpgdsCutTree(snpHCluster, z.threshold=15, outlier.n=5, n.perm = 5000, samp.group=NULL,col.outlier=red, col.list=NULL, pch.outlier=4, pch.list=NULL,label.H=FALSE, label.Z=TRUE, verbose=TRUE)
 

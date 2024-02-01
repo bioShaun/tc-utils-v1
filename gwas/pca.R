@@ -1,6 +1,7 @@
 suppressMessages(library(RColorBrewer))
 suppressMessages(library(ggplot2))
 suppressMessages(library(stringr))
+suppressMessages(library(argparser))
 
 options(stringsAsFactors = F)
 

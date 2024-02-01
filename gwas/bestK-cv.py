@@ -15,7 +15,8 @@ def k_table(structure_dir: Path) -> pd.DataFrame:
         with structure_path.open("r") as f:
             for eachline in f:
                 if "CV error" in eachline:
-                    cv = float(eachline.split()[-1])
+                    cv = float(eachline.split(' = ')[-1].split(',')[0])
+                    #cv = float(eachline.split()[-1])
                     dict_list.append({"K": k_value, "cv": cv})
     return pd.DataFrame(dict_list)
 

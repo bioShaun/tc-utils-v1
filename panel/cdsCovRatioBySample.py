@@ -11,7 +11,7 @@ import numpy as np
 
 BED_COLUMNS = ["chrom", "start", "end", "transcript_id"]
 
-READS_COV = [1, 5, 10, 50, 100]
+READS_COV = [1, 5, 10, 30, 50, 100]
 
 
 def merge_chr(df: pd.DataFrame, split_bed: Path) -> pd.DataFrame:

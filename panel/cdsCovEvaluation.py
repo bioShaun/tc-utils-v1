@@ -19,6 +19,8 @@ def merge_chr(df: pd.DataFrame, split_bed: Path) -> pd.DataFrame:
         names=["new_chrom", "offset", "offset_end", "chrom"],
         sep="\t",
     )
+    print(df)
+    print(split_bed_df)
     merged_df = df.merge(split_bed_df)
     merged_df["new_start"] = merged_df["start"] + merged_df["offset"]
     merged_df["new_end"] = merged_df["end"] + merged_df["offset"]
