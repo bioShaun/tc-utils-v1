@@ -93,7 +93,7 @@ def split_fai(fai_file: Path, out_dir: Path, split_number: int) -> None:
     current_idx = 0
     for row in fai_df.itertuples():
         for i in range(0, row.chrom_length, step):
-            if current_length >= genome_split_length:
+            if current_length >= genome_split_length or (len(row_list) > 0 and row.chrom != row_list[-1].chrom):
                 current_idx += 1
                 current_idx_prefix = str(current_idx).zfill(prefix_pad_num)
                 save_current_bedrows(
