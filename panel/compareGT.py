@@ -20,7 +20,8 @@ def main(gt: Path, compare: Path, out: Path) -> None:
         out_list.append(
             {
                 "compare": compare_name,
-                "repeatability": consistent_rate,
+                "repeatability_count": consistent_count,
+                "repeatability_rate": consistent_rate,
             }
         )
     df = pd.DataFrame(out_list)

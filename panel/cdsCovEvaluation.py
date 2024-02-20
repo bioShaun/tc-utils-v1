@@ -67,7 +67,7 @@ def get_stats_df(df: pd.DataFrame) -> pd.DataFrame:
 def main(
     cds_cov_dir: Path,
     out_file: Path,
-    cov: List[int] = [1, 5, 10, 30, 50],
+    cov: List[int] = [1, 5, 10, 30, 50, 100],
     span: int = 1,
     transcript_id: bool = False,
     split_bed: Path = typer.Option(None),
