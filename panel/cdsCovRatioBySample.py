@@ -8,6 +8,8 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
 import numpy as np
+from typing_extensions import Annotated
+
 
 BED_COLUMNS = ["chrom", "start", "end", "transcript_id"]
 
@@ -34,38 +36,31 @@ def merge_chr(df: pd.DataFrame, split_bed: Path) -> pd.DataFrame:
     return merged_df
 
 
-def load_bed_files(
-    bed_dir: Path, bed_cols: List[str], split_bed: Optional[Path] = None
-) -> pd.DataFrame:
+def load_bed_files(bed_dir: Path) -> pd.DataFrame:
     df_list = []
     for bed_i in bed_dir.glob("*.bed"):
         logger.info(f"Load {bed_i} ...")
         sample_name = bed_i.stem.rstrip(".cov")
-        bed_i_columns = [*bed_cols, sample_name]
         df_i = pd.read_table(bed_i, header=None, names=[sample_name], usecols=[3])
         df_list.append(df_i)
     df = reduce(
         lambda x, y: pd.merge(x, y, left_index=True, right_index=True),
         df_list,
     )
-    if split_bed is None:
-        return df
-    else:
-        return merge_chr(df, split_bed)
+    return df
 
 
 def main(
     cds_cov_dir: Path,
     out_file: Path,
-    transcript_id: bool = False,
     span: int = 120,
+    mapping_summary: Annotated[
+        Optional[Path], typer.Option(help="fastp data summary")
+    ] = None,
 ) -> None:
-    if transcript_id:
-        loci_columns = BED_COLUMNS[:]
-    else:
-        loci_columns = BED_COLUMNS[:-1]
-    cds_df = load_bed_files(cds_cov_dir, loci_columns)
+    cds_df = load_bed_files(cds_cov_dir)
     df_list = []
+
     for cov in READS_COV:
         df_matrix_bool = cds_df >= (cov * span)
         cover_df = df_matrix_bool.sum()
@@ -73,7 +68,17 @@ def main(
         cover_ratio_df.name = f"coverage_{cov}x"
         df_list.append(cover_ratio_df)
     merged_df = pd.concat(df_list, axis=1)
-    merged_df.to_csv(out_file)
+    if mapping_summary is not None:
+        capture_df = pd.DataFrame(cds_df.sum(), columns=["target_bases"])
+        mapping_df = pd.read_table(mapping_summary)
+        mapping_df = mapping_df[["Name", "bases mapped (cigar)"]].copy()
+        mapping_df.columns = ["name", "mapped_bases"]
+        mapping_df = mapping_df.merge(capture_df, left_on="name", right_index=True)
+        mapping_df["efficiency"] = (
+            mapping_df["target_bases"] / mapping_df["mapped_bases"]
+        )
+        merged_df = mapping_df.merge(merged_df, left_on="name", right_index=True)
+    merged_df.to_excel(out_file, index=False)
 
 
 if __name__ == "__main__":
