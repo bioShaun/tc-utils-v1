@@ -55,7 +55,7 @@ def main(
     out_file_prefix: Path,
     span: int = 120,
     mapping_summary: Annotated[
-        Optional[Path], typer.Option(help="fastp data summary")
+        Optional[Path], typer.Option(help="fastp data summary", default=None)
     ] = None,
 ) -> None:
     cds_df = load_bed_files(cds_cov_dir)
