@@ -52,7 +52,7 @@ def load_bed_files(bed_dir: Path) -> pd.DataFrame:
 
 def main(
     cds_cov_dir: Path,
-    out_file: Path,
+    out_file_prefix: Path,
     span: int = 120,
     mapping_summary: Annotated[
         Optional[Path], typer.Option(help="fastp data summary")
@@ -78,7 +78,8 @@ def main(
             mapping_df["target_bases"] / mapping_df["mapped_bases"]
         )
         merged_df = mapping_df.merge(merged_df, left_on="name", right_index=True)
-    merged_df.to_excel(out_file, index=False)
+    merged_df.to_excel(f"{out_file_prefix}.xlsx", index=False)
+    merged_df.to_csv(f"{out_file_prefix}.tsv", index=False, sep="\t")
 
 
 if __name__ == "__main__":
