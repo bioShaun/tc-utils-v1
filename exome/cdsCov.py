@@ -211,6 +211,7 @@ def plot_probe_coverage(
     out_dir: Path,
     plot_type="miss",
     sample_name: Optional[str] = None,
+    plot: bool = True,
 ) -> None:
     df[["chrom", "start", "end"]] = df["region"].str.split("_", expand=True)
     df[["start", "end"]] = df[["start", "end"]].astype("int")
@@ -236,12 +237,13 @@ def plot_probe_coverage(
         index=False,
         columns=["chrom", "start", "end", plot_type],
     )
-    density_plot(
-        density_df=df,
-        density_path=out_prefix,
-        plot_title=plot_title,
-        plot_type=plot_type,
-    )
+    if plot:
+        density_plot(
+            density_df=df,
+            density_path=out_prefix,
+            plot_title=plot_title,
+            plot_type=plot_type,
+        )
 
 
 def main(
@@ -256,6 +258,7 @@ def main(
     region_ratio_cutoff: float = 0.5,
     split_bed: Optional[Path] = None,
     plot_all: bool = False,
+    plot: bool = True,
 ) -> None:
     out_dir.mkdir(exist_ok=True, parents=True)
     # cds_df = load_bed_files(cds_cov_dir, cov_sample_size, split_bed)
@@ -328,6 +331,7 @@ def main(
             out_dir=out_dir,
             plot_type="coverage",
             sample_name=sample_i,
+            plot=plot,
         )
 
 
