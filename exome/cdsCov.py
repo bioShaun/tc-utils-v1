@@ -14,6 +14,55 @@ from tqdm import tqdm
 BED_COLUMNS = ["chrom", "start", "end"]
 
 
+# def merge_chr(df: pd.DataFrame, split_bed: Path) -> pd.DataFrame:
+#     split_bed_df = pd.read_csv(
+#         split_bed,
+#         header=None,
+#         names=["new_chrom", "offset", "offset_end", "chrom"],
+#         sep="\t",
+#     )
+#     merged_df = df.merge(split_bed_df)
+#     merged_df["new_start"] = merged_df["start"] + merged_df["offset"]
+#     merged_df["new_end"] = merged_df["end"] + merged_df["offset"]
+#     merged_df.drop(
+#         ["chrom", "offset", "offset_end", "start", "end"], axis=1, inplace=True
+#     )
+#     merged_df.rename(
+#         columns={"new_chrom": "chrom", "new_start": "start", "new_end": "end"},
+#         inplace=True,
+#     )
+#     return merged_df
+
+
+def load_sample_data_dir(cov_dir: Path, sample_path: Optional[Path]) -> List[Path]:
+    if sample_path is not None:
+        with open(sample_path, "r") as f:
+            sample_list = [x.strip() for x in f.readlines()]
+            return [cov_dir / f"{each}.cov.bed" for each in sample_list]
+    return list(cov_dir.glob("*.bed"))
+
+
+# def load_bed_files(
+#     bed_dir: Path, sample_size: int, split_bed: Optional[Path] = None
+# ) -> pd.DataFrame:
+#     df_list = []
+#     bed_files = list(bed_dir.glob("*.bed"))[:sample_size]
+#     for bed_i in tqdm(bed_files):
+#         # logger.info(f"Load {bed_i} ...")
+#         sample_name = bed_i.stem.rstrip(".cov")
+#         bed_i_columns = [*BED_COLUMNS, sample_name]
+#         df_i = pd.read_table(bed_i, header=None, names=bed_i_columns)
+#         df_list.append(df_i)
+#     df = reduce(
+#         lambda x, y: pd.merge(x, y),
+#         df_list,
+#     )
+#     if split_bed is None:
+#         return df
+#     else:
+#         return merge_chr(df, split_bed)
+
+
 def merge_chr(df: pd.DataFrame, split_bed: Path) -> pd.DataFrame:
     split_bed_df = pd.read_csv(
         split_bed,
@@ -21,6 +70,8 @@ def merge_chr(df: pd.DataFrame, split_bed: Path) -> pd.DataFrame:
         names=["new_chrom", "offset", "offset_end", "chrom"],
         sep="\t",
     )
+    print(df)
+    print(split_bed_df)
     merged_df = df.merge(split_bed_df)
     merged_df["new_start"] = merged_df["start"] + merged_df["offset"]
     merged_df["new_end"] = merged_df["end"] + merged_df["offset"]
@@ -34,33 +85,25 @@ def merge_chr(df: pd.DataFrame, split_bed: Path) -> pd.DataFrame:
     return merged_df
 
 
-def load_sample_data_dir(cov_dir: Path, sample_path: Optional[Path]) -> List[Path]:
-    if sample_path is not None:
-        with open(sample_path, "r") as f:
-            sample_list = [x.strip() for x in f.readlines()]
-            return [cov_dir / f"{each}.cov.bed" for each in sample_list]
-    return list(cov_dir.glob("*.bed"))
-
-
 def load_bed_files(
-    bed_dir: Path, sample_size: int, split_bed: Optional[Path] = None
-) -> pd.DataFrame:
+    bed_dir: Path,
+    sample_size: int,
+) -> Tuple[pd.DataFrame, pd.DataFrame]:
     df_list = []
-    bed_files = list(bed_dir.glob("*.bed"))[:sample_size]
-    for bed_i in tqdm(bed_files):
-        # logger.info(f"Load {bed_i} ...")
+    bed_list = list(bed_dir.glob("*.bed"))[:sample_size]
+    bed_df = pd.read_table(
+        bed_list[0], header=None, names=["chrom", "start", "end"], usecols=[0, 1, 2]
+    )
+    for bed_i in bed_list:
+        logger.info(f"Load {bed_i} ...")
         sample_name = bed_i.stem.rstrip(".cov")
-        bed_i_columns = [*BED_COLUMNS, sample_name]
-        df_i = pd.read_table(bed_i, header=None, names=bed_i_columns)
+        df_i = pd.read_table(bed_i, header=None, names=[sample_name], usecols=[3])
         df_list.append(df_i)
     df = reduce(
-        lambda x, y: pd.merge(x, y),
+        lambda x, y: pd.merge(x, y, left_index=True, right_index=True),
         df_list,
     )
-    if split_bed is None:
-        return df
-    else:
-        return merge_chr(df, split_bed)
+    return bed_df, df
 
 
 def add_region(df: pd.DataFrame, chr_size: Path, region_size: int) -> pd.DataFrame:
@@ -107,9 +150,7 @@ def get_plot_xaxis(df: pd.DataFrame) -> Tuple[List[int], List[str]]:
     chrom_max_length = df["end"].max()
     mega_base = np.floor(np.log10(chrom_max_length))
     max_chr_show_length = np.ceil(chrom_max_length / 10**mega_base)
-    x_axis_ticks = [
-        int(i * 10**mega_base) for i in range(int(max_chr_show_length) + 1)
-    ]
+    x_axis_ticks = [int(i * 10**mega_base) for i in range(int(max_chr_show_length) + 1)]
     x_axis_labels = [
         f"{int(i * 10**mega_base / 1e6)}M" for i in range(int(max_chr_show_length) + 1)
     ]
@@ -217,48 +258,53 @@ def main(
     plot_all: bool = False,
 ) -> None:
     out_dir.mkdir(exist_ok=True, parents=True)
-    cds_df = load_bed_files(cds_cov_dir, cov_sample_size, split_bed)
+    # cds_df = load_bed_files(cds_cov_dir, cov_sample_size, split_bed)
+    bed_df, df_matrix = load_bed_files(cds_cov_dir, cov_sample_size)
     # df_matrix = cds_df.set_index(["chrom", "start", "end", "transcript"])
-    df_matrix = cds_df.set_index(["chrom", "start", "end"])
+    # df_matrix = cds_df.set_index(["chrom", "start", "end"])
+
     df_matrix_bool = df_matrix >= min_reads
     cover_df = df_matrix_bool.sum(1)
     cover_ratio_df = cover_df / df_matrix_bool.shape[1]
     passed_df_matrix_bool = df_matrix_bool.loc[
         cover_ratio_df[cover_ratio_df >= sample_ratio_cutoff].index
     ].copy()
-    passed_df_matrix_loci = passed_df_matrix_bool.reset_index()[BED_COLUMNS]
-    if plot_all:
-        cover_ratio_df.name = "cover_ratio"
-        cover_ratio_df = pd.DataFrame(cover_ratio_df).reset_index()
-        cover_ratio_df["pos"] = (cover_ratio_df["start"] + cover_ratio_df["end"]) // 2
-        cover_ratio_df["cover_passed"] = (
-            cover_ratio_df["cover_ratio"] >= sample_ratio_cutoff
-        )
-        cover_ratio_df = add_region(cover_ratio_df, chr_size, region_size)
-        region_passed = cover_ratio_df.groupby("region")["cover_passed"].sum()
-        region_cds_count = cover_ratio_df.groupby("region").size()
-        region_ratio = region_passed / region_cds_count
-        region_ratio.dropna(inplace=True)
-        region_ratio.name = "coverage"
-        region_miss = region_ratio.map(lambda x: 0 if x >= region_ratio_cutoff else 1)
-        region_miss.name = "miss"
-        region_ratio_df = pd.DataFrame(region_ratio).reset_index()
-        region_miss_df = pd.DataFrame(region_miss).reset_index()
-        plot_probe_coverage(df=region_miss_df, region_size=region_size, out_dir=out_dir)
-        plot_probe_coverage(
-            df=region_ratio_df,
-            region_size=region_size,
-            out_dir=out_dir,
-            plot_type="coverage",
-        )
+    # passed_df_matrix_loci = passed_df_matrix_bool.reset_index()[BED_COLUMNS]
+    # if plot_all:
+    #     cover_ratio_df.name = "cover_ratio"
+    #     cover_ratio_df = pd.DataFrame(cover_ratio_df).reset_index()
+    #     cover_ratio_df["pos"] = (cover_ratio_df["start"] + cover_ratio_df["end"]) // 2
+    #     cover_ratio_df["cover_passed"] = (
+    #         cover_ratio_df["cover_ratio"] >= sample_ratio_cutoff
+    #     )
+    #     cover_ratio_df = add_region(cover_ratio_df, chr_size, region_size)
+    #     region_passed = cover_ratio_df.groupby("region")["cover_passed"].sum()
+    #     region_cds_count = cover_ratio_df.groupby("region").size()
+    #     region_ratio = region_passed / region_cds_count
+    #     region_ratio.dropna(inplace=True)
+    #     region_ratio.name = "coverage"
+    #     region_miss = region_ratio.map(lambda x: 0 if x >= region_ratio_cutoff else 1)
+    #     region_miss.name = "miss"
+    #     region_ratio_df = pd.DataFrame(region_ratio).reset_index()
+    #     region_miss_df = pd.DataFrame(region_miss).reset_index()
+    #     plot_probe_coverage(df=region_miss_df, region_size=region_size, out_dir=out_dir)
+    #     plot_probe_coverage(
+    #         df=region_ratio_df,
+    #         region_size=region_size,
+    #         out_dir=out_dir,
+    #         plot_type="coverage",
+    #     )
     sample_data_list = load_sample_data_dir(cds_cov_dir, sample_path)
     for sample_data_i in tqdm(sample_data_list):
         sample_i = sample_data_i.stem.rstrip(".cov")
         logger.info(f"Processing {sample_i}")
         sampe_i_df = pd.read_table(
-            sample_data_i, header=None, names=[*BED_COLUMNS, sample_i]
+            sample_data_i, header=None, names=[sample_i], usecols=[3]
         )
-        sampe_i_df = sampe_i_df.merge(passed_df_matrix_loci)
+        sampe_i_df = sampe_i_df.merge(
+            passed_df_matrix_bool, left_index=True, right_index=True
+        )
+        sampe_i_df = bed_df.merge(sampe_i_df, left_index=True, right_index=True)
         sampe_i_df["pos"] = (sampe_i_df["start"] + sampe_i_df["end"]) // 2
         cover_ratio_df = add_region(sampe_i_df, chr_size, region_size)
         region_passed = cover_ratio_df.groupby("region")[sample_i].sum()
