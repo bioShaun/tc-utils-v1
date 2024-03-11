@@ -262,13 +262,15 @@ def main(
     bed_df, df_matrix = load_bed_files(cds_cov_dir, cov_sample_size)
     # df_matrix = cds_df.set_index(["chrom", "start", "end", "transcript"])
     # df_matrix = cds_df.set_index(["chrom", "start", "end"])
-
+    if not split_bed is None:
+        bed_df = merge_chr(bed_df, split_bed)
     df_matrix_bool = df_matrix >= min_reads
     cover_df = df_matrix_bool.sum(1)
     cover_ratio_df = cover_df / df_matrix_bool.shape[1]
     passed_df_matrix_bool = df_matrix_bool.loc[
         cover_ratio_df[cover_ratio_df >= sample_ratio_cutoff].index
     ].copy()
+
     # passed_df_matrix_loci = passed_df_matrix_bool.reset_index()[BED_COLUMNS]
     # if plot_all:
     #     cover_ratio_df.name = "cover_ratio"
