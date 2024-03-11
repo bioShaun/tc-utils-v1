@@ -303,9 +303,7 @@ def main(
         sampe_i_df = pd.read_table(
             sample_data_i, header=None, names=[sample_i], usecols=[3]
         )
-        sampe_i_df = sampe_i_df.merge(
-            passed_df_matrix_bool, left_index=True, right_index=True
-        )
+        sampe_i_df = sampe_i_df.loc[passed_df_matrix_bool.index].copy()
         sampe_i_df = bed_df.merge(sampe_i_df, left_index=True, right_index=True)
         sampe_i_df["pos"] = (sampe_i_df["start"] + sampe_i_df["end"]) // 2
         cover_ratio_df = add_region(sampe_i_df, chr_size, region_size)
