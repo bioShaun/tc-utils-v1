@@ -11,7 +11,7 @@ def k_table(structure_dir: Path) -> pd.DataFrame:
     """
     dict_list = []
     for structure_path in structure_dir.glob("*.log"):
-        k_value = int(structure_path.name.split(".")[0])
+        k_value = int(structure_path.name.split(".")[2])
         with structure_path.open("r") as f:
             for eachline in f:
                 if "CV error" in eachline:
