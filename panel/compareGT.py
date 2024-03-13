@@ -3,13 +3,18 @@ import typer
 from pathlib import Path
 
 
-def main(gt: Path, compare: Path, out: Path) -> None:
+def main(gt: Path, compare: Path, out: Path, dp: Path, min_depth: int = 10) -> None:
     gt_df = pd.read_table(gt)
+    dp_df = pd.read_table(dp, header=None, names=list(gt_df.columns))
     out_list = []
     compare_df = pd.read_table(compare, header=None, names=["comp1", "comp2"])
     for i in compare_df.itertuples():
         compare_name = f"{i.comp1}|{i.comp2}"
         compare_df = gt_df[[i.comp1, i.comp2]].copy()
+        rm_low_dp_df = dp_df[
+            (dp_df[i.comp1] >= min_depth) & (dp_df[i.comp2] >= min_depth)
+        ]
+        compare_df = compare_df.loc[rm_low_dp_df.index]
         rm_na_df = compare_df[
             (compare_df[i.comp1] != "./.") & (compare_df[i.comp1] != "./.")
         ].copy()
