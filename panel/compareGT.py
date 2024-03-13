@@ -6,6 +6,8 @@ from pathlib import Path
 def main(gt: Path, compare: Path, out: Path, dp: Path, min_depth: int = 10) -> None:
     gt_df = pd.read_table(gt)
     dp_df = pd.read_table(dp, header=None, names=list(gt_df.columns))
+    dp_df.replace(".", 0)
+    dp_df = dp_df.astype("int")
     out_list = []
     compare_df = pd.read_table(compare, header=None, names=["comp1", "comp2"])
     for i in compare_df.itertuples():
