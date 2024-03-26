@@ -33,7 +33,7 @@ def main(uniref_fasta: Path, tax_table: Path, out_prefix: Path) -> None:
         for record in tqdm(SeqIO.parse(handle, "fasta")):
             record_info = parseSwissprotDescription(record.description)
             if record_info:
-                tax_id = int(record_info["ox"])
+                tax_id = int(record_info["swissprot_taxid"])
                 if tax_id in tax_df.index:
                     species_fa_list.append(record)
                     fa_info_list.append(record_info)
