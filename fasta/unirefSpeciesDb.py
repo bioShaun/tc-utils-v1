@@ -6,7 +6,7 @@ from typing import Dict, Optional
 import re
 from tqdm import tqdm
 import gzip
-import loguru
+from loguru import logger
 
 
 def parseUnirefDescription(description: str) -> Optional[Dict[str, str]]:
@@ -47,7 +47,7 @@ def main(uniref_fasta: Path, tax_table: Path, out_prefix: Path) -> None:
             columns=["uniref_id", "uniref_description"],
         )
     else:
-        loguru.info("No uniref species found")
+        logger.warning("No uniref species found")
 
 
 if __name__ == "__main__":
