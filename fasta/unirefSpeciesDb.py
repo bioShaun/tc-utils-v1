@@ -27,7 +27,7 @@ def main(uniref_fasta: Path, tax_table: Path, out_prefix: Path) -> None:
     species_fa_list = []
     fa_info_list = []
 
-    with gzip.open("uniref90.fasta.gz", "rt") as handle:
+    with gzip.open(uniref_fasta, "rt") as handle:
         for record in tqdm(SeqIO.parse(handle, "fasta")):
             record_info = parseUnirefDescription(record.description)
             if record_info:
@@ -39,7 +39,7 @@ def main(uniref_fasta: Path, tax_table: Path, out_prefix: Path) -> None:
     SeqIO.write(species_fa_list, out_prefix.with_suffix(".fa"), "fasta")
     fa_info_df = pd.DataFrame(fa_info_list)
     fa_info_df.to_csv(
-        out_prefix.with_suffix(".csv"),
+        out_prefix.with_suffix(".tsv"),
         index=False,
         sep="\t",
         columns=["uniref_id", "uniref_description"],
