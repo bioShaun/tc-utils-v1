@@ -23,7 +23,7 @@ def parseUnirefDescription(description: str) -> Optional[Dict[str, str]]:
 
 
 def main(uniref_fasta: Path, tax_table: Path, out_prefix: Path) -> None:
-    tax_df = pd.read_table(tax_table)
+    tax_df = pd.read_table(tax_table, index_col=0)
     species_fa_list = []
     fa_info_list = []
 
@@ -32,7 +32,7 @@ def main(uniref_fasta: Path, tax_table: Path, out_prefix: Path) -> None:
             record_info = parseUnirefDescription(record.description)
             if record_info:
                 tax_id = int(record_info["uniref_taxid"])
-                if tax_id in tax_df["Taxon Id"].values:
+                if tax_id in tax_df.index:
                     species_fa_list.append(record)
                     fa_info_list.append(record_info)
 
