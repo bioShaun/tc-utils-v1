@@ -6,6 +6,7 @@ from typing import Dict, Optional
 import re
 from tqdm import tqdm
 import gzip
+import loguru
 
 
 def parseUnirefDescription(description: str) -> Optional[Dict[str, str]]:
@@ -37,13 +38,16 @@ def main(uniref_fasta: Path, tax_table: Path, out_prefix: Path) -> None:
                     fa_info_list.append(record_info)
 
     SeqIO.write(species_fa_list, out_prefix.with_suffix(".fa"), "fasta")
-    fa_info_df = pd.DataFrame(fa_info_list)
-    fa_info_df.to_csv(
-        out_prefix.with_suffix(".tsv"),
-        index=False,
-        sep="\t",
-        columns=["uniref_id", "uniref_description"],
-    )
+    if fa_info_list:
+        fa_info_df = pd.DataFrame(fa_info_list)
+        fa_info_df.to_csv(
+            out_prefix.with_suffix(".tsv"),
+            index=False,
+            sep="\t",
+            columns=["uniref_id", "uniref_description"],
+        )
+    else:
+        loguru.info("No uniref species found")
 
 
 if __name__ == "__main__":
