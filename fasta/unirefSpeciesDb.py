@@ -32,7 +32,7 @@ def main(uniref_fasta: Path, tax_table: Path, out_prefix: Path) -> None:
             record_info = parseUnirefDescription(record.description)
             if record_info:
                 tax_id = int(record_info["uniref_taxid"])
-                if tax_id in tax_df["Taxon Id"]:
+                if tax_id in tax_df["Taxon Id"].values:
                     species_fa_list.append(record)
                     fa_info_list.append(record_info)
 
