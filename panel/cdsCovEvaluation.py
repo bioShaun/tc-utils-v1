@@ -1,13 +1,14 @@
-import typer
-from pathlib import Path
-import pandas as pd
 from functools import reduce
+from pathlib import Path
 from typing import List, Optional, Tuple
-from loguru import logger
+
 import matplotlib as mpl
 import matplotlib.pyplot as plt
-from matplotlib.colors import ListedColormap
 import numpy as np
+import pandas as pd
+import typer
+from loguru import logger
+from matplotlib.colors import ListedColormap
 
 BED_COLUMNS = ["chrom", "start", "end", "transcript_id"]
 

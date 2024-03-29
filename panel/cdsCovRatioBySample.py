@@ -1,15 +1,15 @@
-import typer
-from pathlib import Path
-import pandas as pd
 from functools import reduce
+from pathlib import Path
 from typing import List, Optional, Tuple
-from loguru import logger
+
 import matplotlib as mpl
 import matplotlib.pyplot as plt
-from matplotlib.colors import ListedColormap
 import numpy as np
+import pandas as pd
+import typer
+from loguru import logger
+from matplotlib.colors import ListedColormap
 from typing_extensions import Annotated
-
 
 BED_COLUMNS = ["chrom", "start", "end", "transcript_id"]
 
@@ -57,6 +57,9 @@ def main(
     mapping_summary: Annotated[
         Optional[Path], typer.Option(help="fastp data summary", default=None)
     ] = None,
+    sample_map: Annotated[
+        Optional[Path], typer.Option(help="fastp data summary", default=None)
+    ] = None,
 ) -> None:
     cds_df = load_bed_files(cds_cov_dir)
     df_list = []
@@ -78,6 +81,12 @@ def main(
             mapping_df["target_bases"] / mapping_df["mapped_bases"]
         )
         merged_df = mapping_df.merge(merged_df, left_on="name", right_index=True)
+    if sample_map is not None:
+        sample_map_df = pd.read_table(
+            sample_map, header=None, usecols=[0, 1], names=["LibId", "name"]
+        )
+        sample_map_df.drop_duplicates(inplace=True)
+        merged_df = sample_map_df.merge(merged_df)
     merged_df.to_excel(f"{out_file_prefix}.xlsx", index=False)
     merged_df.to_csv(f"{out_file_prefix}.tsv", index=False, sep="\t")
 
