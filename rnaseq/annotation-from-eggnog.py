@@ -53,7 +53,22 @@ def go_ko_df(gene_eggnog: pd.DataFrame, name: str) -> pd.DataFrame:
     return term_df
 
 
-def main(eggnog_file: Path, gtf: Path, output_dir: Path) -> None:
+def main(
+    eggnog_file: Path,  # type: Path
+    gtf: str,  # type: str
+    output_dir: Path,  # type: Path
+) -> None:
+    """
+    Annotates gene information from eggNOGmapper output.
+
+    Args:
+        eggnog_file: eggNOGmapper output file.
+        gtf: GTF file used to obtain gene location information.
+        output_dir: Directory where to save output files.
+
+    Returns:
+        None
+    """
     eggnog_df = pd.read_table(eggnog_file, header=None, comment="#")
     tr2gene, gene_locations = gtf2gene_locations(gtf)
     eggnog_df = eggnog_df[[0, 8, 7, 9, 16]].copy()
