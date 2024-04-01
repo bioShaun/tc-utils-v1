@@ -28,7 +28,7 @@ def gtf2gene_locations(gtf_path: Path) -> Tuple[pd.DataFrame, pd.DataFrame]:
                 "Strand": genes["strand"].first(),
             }
         )
-        locations.loc[~locations["Strand"].isin(["+", "-"]), "Strand"] = "."
+        # locations.loc[~locations["Strand"].isin(["+", "-"]), "Strand"] = "."
         locations = locations.astype(str)
         locations["Locus"] = (
             locations["Chrom"]
