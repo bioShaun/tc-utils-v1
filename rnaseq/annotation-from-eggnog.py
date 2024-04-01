@@ -39,6 +39,7 @@ def gtf2gene_locations(gtf_path: Path) -> Tuple[pd.DataFrame, pd.DataFrame]:
             + "|"
             + locations["Strand"]
         )
+        locations = locations.reset_index()
         return tr2gene, locations
     raise ValueError(f"{gtf_path} is not a valid GTF file")
 
