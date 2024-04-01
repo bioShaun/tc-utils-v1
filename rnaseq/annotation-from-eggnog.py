@@ -87,7 +87,7 @@ def main(
     go_id_map.to_csv(output_dir / "go.idmap.csv", index=False)
     ko_id_map = go_ko_df(gene_egg, "ko")
     ko_id_map.to_csv(output_dir / "kegg.idmap.csv", index=False)
-    kegg_gene_map = ko_id_map[["gene_id", "gene_id"]]
+    kegg_gene_map = ko_id_map[["gene", "gene"]]
     kegg_gene_map.columns = ["ensembl", "ncbi"]
     kegg_gene_map.to_csv(output_dir / "ncbi.idmap.csv", index=False)
 
