@@ -74,11 +74,12 @@ def main(
     tr2gene, gene_locations = gtf2gene_locations(gtf)
     eggnog_df = eggnog_df[[0, 8, 7, 9, 16]].copy()
     eggnog_df.columns = ["transcript_id", "gene_name", "gene_description", "go", "ko"]
-    gene_egg = tr2gene.merge(eggnog_df)
+    gene_egg = tr2gene.merge(eggnog_df, how="left")
+    gene_egg.fillna("-", inplace=True)
     gene_egg.drop_duplicates(subset=["transcript_id"], inplace=True)
     gene_egg.drop("transcript_id", axis=1, inplace=True)
 
-    gene_description = gene_egg[["genen_id", "gene_name", "gene_description"]]
+    gene_description = gene_egg[["gene_id", "gene_name", "gene_description"]]
     gene_description = gene_locations.merge(gene_description)
     gene_description.to_csv(output_dir / "gene.description.txt", index=False, sep="\t")
 
