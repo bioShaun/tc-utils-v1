@@ -80,7 +80,7 @@ def plot_origin(
     both_patch = mpatches.Patch(color="#696969", label="BOTH")
 
     fig.legend(handles=[female_patch, male_patch, both_patch], ncol=3)
-    out_png = out_dir / f"p1-{p1}_p2-{p2}_child-{child_name}.png"
+    out_png = out_dir / f"{child_name}.png"
     out_pdf = out_png.with_suffix(".pdf")
     plot_title = f"{child_name}"
     plt.title(plot_title)
