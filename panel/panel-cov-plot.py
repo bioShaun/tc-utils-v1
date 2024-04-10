@@ -129,7 +129,7 @@ def main(
     output_dir.mkdir(parents=True, exist_ok=True)
     bed_files = list(input_dir.glob("*.bed"))
     chrom_df = pd.read_table(
-        chrom_sizes, header=None, names=["chrom", "length"], index_col=0
+        chrom_sizes, header=None, names=["chrom", "chrom_length"], index_col=0
     )
     for bed_file in tqdm(bed_files):
         sample_name = bed_file.stem.replace(".cov", "")
