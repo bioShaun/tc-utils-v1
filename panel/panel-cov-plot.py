@@ -140,8 +140,8 @@ def main(
         cov_df = pd.read_table(
             bed_file, header=None, names=["chrom", "start", "end", "cov"]
         )
-        cov_df["length"] = cov_df["end"] - cov_df["start"]
-        cov_df = cov_df[cov_df["cov"] >= min_coverage * cov_df["length"]]
+        cov_df["span"] = cov_df["end"] - cov_df["start"]
+        cov_df = cov_df[cov_df["cov"] >= min_coverage * cov_df["span"]]
         if split_bed:
             cov_df = merge_chr(cov_df, split_bed)
         plot_cov(cov_df, chrom_df, output_dir, sample_name)
