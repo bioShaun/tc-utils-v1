@@ -77,7 +77,8 @@ def plot_cov(
         plot_x = list(
             each_chrom_df.apply(lambda x: (int(x.start), int(x.span)), axis=1)
         )
-        plot_colors = list(each_chrom_df["Origin"].map(lambda x: COLOR_MAP[x]))
+        # plot_colors = list(each_chrom_df["Origin"].map(lambda x: COLOR_MAP[x]))
+        plot_colors = ["#43CD80"] * len(each_chrom_df)
         ax.broken_barh(plot_x, (y_pos, 6), facecolors=plot_colors)
     ax.set_yticks(
         [i * 10 + 7 for i in range(plot_height - 1)],
