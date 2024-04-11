@@ -95,7 +95,9 @@ def transformOneAlt(ref: str, alt: str) -> str:
         ins_part = re.sub(f"^{ref}", "", alt)
         return f"ins{ins_part}"
     else:
-        return alt
+        if len(ref) == 1:
+            return alt
+        return alt[0]
 
 
 def transformAlt(ref: str, alts: str):
