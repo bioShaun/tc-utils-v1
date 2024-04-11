@@ -134,9 +134,9 @@ def main(
         gt_df.replace(".", "./.", inplace=True)
         gt_df.replace("1/0", "0/1", inplace=True)
         gt_df = gt_df.reset_index()
-        gt_df = va_type_df.merge(va_type_df)
         logger.info(f"Transforming {i}")
         seq_df = gt2seq(gt_df, miss_fmt)
+        gt_df = va_type_df.merge(va_type_df)
         seq_df = va_type_df.merge(va_type_df)
         mode = "w"
         header = True
