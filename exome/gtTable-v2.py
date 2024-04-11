@@ -124,8 +124,7 @@ def main(
         names=columns,
         chunksize=10000,
     )
-    seq_dfs = []
-    gt_concat_dfs = []
+    va_type_df = pd.read_table(va_type)
     for i, gt_df in enumerate(gt_dfs):
         gt_df["ALT"] = gt_df.parallel_apply(
             lambda x: transformAlt(x.REF, x.ALT), axis=1
@@ -135,12 +134,10 @@ def main(
         gt_df.replace(".", "./.", inplace=True)
         gt_df.replace("1/0", "0/1", inplace=True)
         gt_df = gt_df.reset_index()
+        gt_df = va_type_df.merge(va_type_df)
         logger.info(f"Transforming {i}")
         seq_df = gt2seq(gt_df, miss_fmt)
-        seq_dfs.append(seq_df)
-        gt_concat_dfs.append(gt_df)
-        # seq_df = pd.concat(seq_dfs)
-        # gt_df = pd.concat(gt_concat_dfs)
+        seq_df = va_type_df.merge(va_type_df)
         mode = "w"
         header = True
         if i > 0:
