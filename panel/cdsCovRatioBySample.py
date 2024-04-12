@@ -81,6 +81,9 @@ def main(
             mapping_df["target_bases"] / mapping_df["mapped_bases"]
         )
         merged_df = mapping_df.merge(merged_df, left_on="name", right_index=True)
+    else:
+        merged_df.index.name = "name"
+        merged_df = merged_df.reset_index()
     if sample_map is not None:
         sample_map_df = pd.read_table(
             sample_map, header=None, usecols=[0, 1], names=["LibId", "name"]
