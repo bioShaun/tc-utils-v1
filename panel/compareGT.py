@@ -51,7 +51,7 @@ def main(gt: Path, compare: Path, out: Path, dp: Path, min_depth: int = 10) -> N
     site_df = site_df.astype("int")
     df = pd.DataFrame(out_list)
     df.to_excel(out, index=False)
-    site_df.to_csv(out.with_suffix(".sites.tsv"), index=False, sep="\t")
+    site_df.to_csv(out.with_suffix(".sites.tsv"), sep="\t")
 
 
 if __name__ == "__main__":
