@@ -46,7 +46,9 @@ def main(gt: Path, compare: Path, out: Path, dp: Path, min_depth: int = 10) -> N
     in_consist_df = pd.concat(in_consist_df_list)
     in_consist_df = pd.DataFrame(in_consist_df.groupby(["CHROM", "POS"]).size())
     in_consist_df.columns = ["in_consist_count"]
-    site_df = consist_df.merge(in_consist_df, left_index=True, right_index=True)
+    site_df = consist_df.merge(
+        in_consist_df, left_index=True, right_index=True, how="outer"
+    )
     site_df.fillna(0, inplace=True)
     site_df = site_df.astype("int")
     df = pd.DataFrame(out_list)
