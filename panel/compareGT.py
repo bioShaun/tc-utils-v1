@@ -13,7 +13,7 @@ def main(gt: Path, compare: Path, out: Path, dp: Path, min_depth: int = 10) -> N
     compare_df = pd.read_table(compare, header=None, names=["comp1", "comp2"])
     for i in compare_df.itertuples():
         compare_name = f"{i.comp1}|{i.comp2}"
-        compare_df = gt_df[[i.comp1, i.comp2]].copy()
+        compare_df = gt_df[["CHROM", "POS", i.comp1, i.comp2]].copy()
         compare_dp_df = dp_df[[i.comp1, i.comp2]].astype("int")
         rm_low_dp_df = compare_dp_df[
             (compare_dp_df[i.comp1] >= min_depth)
