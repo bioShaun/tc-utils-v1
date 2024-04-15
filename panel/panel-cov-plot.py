@@ -66,8 +66,8 @@ def plot_cov(
     failed_df = cov_df[cov_df["cov"] < min_cov * cov_df["span"]]
 
     for n, (chrom, chrom_length) in enumerate(chr_df.itertuples()):
-        each_chrom_df = passed_cov_df[cov_df["chrom"] == str(chrom)]
-        each_failed_df = failed_df[cov_df["chrom"] == str(chrom)]
+        each_chrom_df = passed_cov_df[passed_cov_df["chrom"] == str(chrom)]
+        each_failed_df = failed_df[failed_df["chrom"] == str(chrom)]
         y_pos = (plot_height - n - 2) * 10 + 4
         ax.broken_barh(
             [(0, chrom_length)],
