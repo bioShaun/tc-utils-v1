@@ -51,7 +51,7 @@ def get_plot_xaxis(df: pd.DataFrame) -> Tuple[List[int], List[str]]:
 
 
 def plot_cov(
-    cov_df: pd.DataFrame, chr_df: pd.DataFrame, out_dir: Path, name: str
+    cov_df: pd.DataFrame, chr_df: pd.DataFrame, out_dir: Path, name: str, min_cov: int
 ) -> None:
     plt.rcParams["font.size"] = 24
     cov_df["chrom"] = cov_df["chrom"].astype("str")
@@ -62,8 +62,12 @@ def plot_cov(
     fig.set_figheight(plot_height)
     fig.set_figwidth(plot_width)
 
+    passed_cov_df = cov_df[cov_df["cov"] >= min_cov * cov_df["span"]]
+    failed_df = cov_df[cov_df["cov"] < min_cov * cov_df["span"]]
+
     for n, (chrom, chrom_length) in enumerate(chr_df.itertuples()):
-        each_chrom_df = cov_df[cov_df["chrom"] == str(chrom)]
+        each_chrom_df = passed_cov_df[cov_df["chrom"] == str(chrom)]
+        each_failed_df = failed_df[cov_df["chrom"] == str(chrom)]
         y_pos = (plot_height - n - 2) * 10 + 4
         ax.broken_barh(
             [(0, chrom_length)],
@@ -74,9 +78,14 @@ def plot_cov(
         if each_chrom_df.empty:
             continue
 
+        plot_x_failed = list(
+            each_failed_df.apply(lambda x: (int(x.start), span), axis=1)
+        )
         plot_x = list(each_chrom_df.apply(lambda x: (int(x.start), span), axis=1))
         # plot_colors = list(each_chrom_df["Origin"].map(lambda x: COLOR_MAP[x]))
         plot_colors = ["#43CD80"] * len(each_chrom_df)
+        failed_colors = ["#A9A9A9"] * len(each_failed_df)
+        ax.broken_barh(plot_x_failed, (y_pos, 6), facecolors=failed_colors)
         ax.broken_barh(plot_x, (y_pos, 6), facecolors=plot_colors)
     ax.set_yticks(
         [i * 10 + 7 for i in range(plot_height - 1)],
@@ -139,10 +148,10 @@ def main(
             bed_file, header=None, names=["chrom", "start", "end", "cov"]
         )
         cov_df["span"] = cov_df["end"] - cov_df["start"]
-        cov_df = cov_df[cov_df["cov"] >= min_coverage * cov_df["span"]]
+        # cov_df = cov_df[cov_df["cov"] >= min_coverage * cov_df["span"]]
         if split_bed:
             cov_df = merge_chr(cov_df, split_bed)
-        plot_cov(cov_df, chrom_df, output_dir, sample_name)
+        plot_cov(cov_df, chrom_df, output_dir, sample_name, min_coverage)
 
 
 if __name__ == "__main__":
