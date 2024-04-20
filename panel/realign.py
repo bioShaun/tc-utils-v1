@@ -14,7 +14,9 @@ def main(paf: Path, id_map: Path) -> None:
     filter_df["pos"] = filter_df[7] + 60 + 1 - filter_df[2]
     filter_df["id"] = filter_df.apply(lambda x: f'{x[5]}_{x["pos"]}', axis=1)
     filter_df.rename(columns={0: "old_id"}, inplace=True)
-    filter_df.to_csv(id_map, header=False, index=False, columns=["old_id", "id"])
+    filter_df.to_csv(
+        id_map, header=False, index=False, columns=["old_id", "id"], sep="\t"
+    )
 
 
 if __name__ == "__main__":
