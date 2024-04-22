@@ -14,9 +14,7 @@ def get_pos(row: pd.Series) -> int:
     return row["match_start"] + row["offset_end"] + 1 - row["probe_start"]
 
 
-def paf2idmap(
-    paf: Path, id_map: Path, flank_size: int, offset_df: pd.DataFrame
-) -> None:
+def paf2idmap(paf: Path, flank_size: int, offset_df: pd.DataFrame) -> None:
     paf_df = pd.read_table(
         paf,
         header=None,
@@ -37,8 +35,19 @@ def paf2idmap(
     filter_df = filter_df.merge(offset_df, on="id")
     filter_df["pos"] = filter_df.apply(get_pos, axis=1)
     filter_df["new_id"] = filter_df.apply(lambda x: f'{x["chrom"]}_{x["pos"]}', axis=1)
+    filter_df["pos_0"] = filter_df["pos"] - 1
+    id_map = paf.with_suffix(".idmap.tsv")
     filter_df.to_csv(
         id_map, header=False, index=False, columns=["id", "new_id"], sep="\t"
+    )
+    id_map_target_bed = id_map.with_suffix(".target.bed")
+    filter_df.sort_values(["chrom", "pos"], inplace=True)
+    filter_df.to_csv(
+        id_map_target_bed,
+        sep="\t",
+        index=False,
+        header=False,
+        columns=["chrom", "pos_0", "pos"],
     )
 
 
@@ -85,7 +94,10 @@ def generate_offset_df(target_bed: Path, flank_bed: Path) -> pd.DataFrame:
 
 
 def main(
-    target_bed: Path, genome: Path, genome_sr_idx: Path, id_map: Path, threads: int = 16
+    target_bed: Path,
+    genome: Path,
+    genome_sr_idx: Path,
+    threads: int = 16,
 ) -> None:
     """
     Main function to perform a series of operations based on the input parameters.
@@ -113,7 +125,7 @@ def main(
     )
     offset_df = generate_offset_df(target_bed=target_bed, flank_bed=flank_bed)
     logger.info(f"Generating {FLANK_SIZE} bp flanks id map...")
-    paf2idmap(paf=flank_paf, id_map=id_map, offset_df=offset_df, flank_size=FLANK_SIZE)
+    paf2idmap(paf=flank_paf, offset_df=offset_df, flank_size=FLANK_SIZE)
 
 
 if __name__ == "__main__":
