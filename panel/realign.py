@@ -63,7 +63,7 @@ def generate_flank_bed(target_bed: Path, flank_size: int, genome_fai: Path) -> P
 def generate_flank_fa(flank_bed: Path, genome_fa: Path) -> Path:
     flank_fa = flank_bed.with_suffix(".fa")
     cmd_line = (
-        f"bedtools getfasta {genome_fa} -fo {flank_fa} -bed {flank_bed} -nameOnly"
+        f"bedtools getfasta -fi {genome_fa} -fo {flank_fa} -bed {flank_bed} -nameOnly"
     )
     delegator.run(cmd_line)
     return flank_fa
