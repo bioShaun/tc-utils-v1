@@ -3,6 +3,7 @@ from pathlib import Path
 import delegator
 import pandas as pd
 import typer
+from loguru import logger
 
 FLANK_SIZE = 60
 
@@ -19,8 +20,16 @@ def paf2idmap(
     paf_df = pd.read_table(
         paf,
         header=None,
-        usecols=[0, 2, 5, 7, 9, 11],
-        names=["id", "probe_start", "chrom", "match_start", "match_length", "mapq"],
+        usecols=[0, 2, 4, 5, 7, 9, 11],
+        names=[
+            "id",
+            "probe_start",
+            "strand",
+            "chrom",
+            "match_start",
+            "match_length",
+            "mapq",
+        ],
     )
     paf_df.sort_values(["mapq", "match_length"], ascending=False, inplace=True)
     paf_df.drop_duplicates(subset=["id"], inplace=True)
@@ -78,15 +87,32 @@ def generate_offset_df(target_bed: Path, flank_bed: Path) -> pd.DataFrame:
 def main(
     target_bed: Path, genome: Path, genome_sr_idx: Path, id_map: Path, threads: int = 16
 ) -> None:
+    """
+    Main function to perform a series of operations based on the input parameters.
+
+    Parameters:
+        target_bed (Path): Path to the target bed file.
+        genome (Path): Path to the genome file.
+        genome_sr_idx (Path): Path to the genome index file.
+        id_map (Path): Path to the ID mapping file.
+        threads (int, optional): Number of threads to use. Defaults to 16.
+
+    Returns:
+        None
+    """
     genome_fai = genome.parent / f"{genome.name}.fai"
+    logger.info(f"Generating {FLANK_SIZE} bp flanks bed...")
     flank_bed = generate_flank_bed(
         target_bed=target_bed, flank_size=FLANK_SIZE, genome_fai=genome_fai
     )
+    logger.info(f"Generating {FLANK_SIZE} bp flanks fasta...")
     flank_fa = generate_flank_fa(flank_bed=flank_bed, genome_fa=genome)
+    logger.info(f"Generating {FLANK_SIZE} bp flanks paf...")
     flank_paf = generate_flank_paf(
         flank_fa=flank_fa, genome_sr_idx=genome_sr_idx, threads=threads
     )
     offset_df = generate_offset_df(target_bed=target_bed, flank_bed=flank_bed)
+    logger.info(f"Generating {FLANK_SIZE} bp flanks id map...")
     paf2idmap(paf=flank_paf, id_map=id_map, offset_df=offset_df, flank_size=FLANK_SIZE)
 
 
