@@ -90,7 +90,7 @@ def main(
             sample_map, header=None, usecols=[0, 1], names=["LibId", "name"]
         )
         sample_map_df["name"] = sample_map_df["name"].map(
-            lambda x: re.sub("[^a-zA-Z0-9_-]", "_", str(x))
+            lambda x: re.sub("[^a-zA-Z0-9_-]", "_", str(x).strip())
         )
         sample_map_df.drop_duplicates(inplace=True)
         merged_df = sample_map_df.merge(merged_df)
