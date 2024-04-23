@@ -57,6 +57,9 @@ def main(
     mapping_summary: Annotated[
         Optional[Path], typer.Option(help="fastp data summary", default=None)
     ] = None,
+    sample_map: Annotated[
+        Optional[Path], typer.Option(help="library-sampleid map file", default=None)
+    ] = None,
 ) -> None:
     cds_df = load_bed_files(cds_cov_dir)
     df_list = []
@@ -78,6 +81,8 @@ def main(
             mapping_df["target_bases"] / mapping_df["mapped_bases"]
         )
         merged_df = mapping_df.merge(merged_df, left_on="name", right_index=True)
+    if sample_map is not None:
+        sample_map_df = pd.read
     merged_df.to_excel(f"{out_file_prefix}.xlsx", index=False)
     merged_df.to_csv(f"{out_file_prefix}.tsv", index=False, sep="\t")
 
