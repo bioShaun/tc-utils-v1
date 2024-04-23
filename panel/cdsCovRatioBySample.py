@@ -1,3 +1,4 @@
+import re
 from functools import reduce
 from pathlib import Path
 from typing import List, Optional, Tuple
@@ -87,6 +88,9 @@ def main(
     if sample_map is not None:
         sample_map_df = pd.read_table(
             sample_map, header=None, usecols=[0, 1], names=["LibId", "name"]
+        )
+        sample_map_df["name"] = sample_map_df["name"].map(
+            lambda x: re.sub("[^a-zA-Z0-9_-]", "_", str(x))
         )
         sample_map_df.drop_duplicates(inplace=True)
         merged_df = sample_map_df.merge(merged_df)
