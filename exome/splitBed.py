@@ -1,10 +1,10 @@
+from dataclasses import dataclass
 from pathlib import Path
 from typing import List
-import pandas as pd
-import numpy as np
-import typer
-from dataclasses import dataclass
 
+import numpy as np
+import pandas as pd
+import typer
 
 OUT_COLUMNS = ["chrom", "start", "end"]
 
@@ -21,8 +21,11 @@ def save_current_bedrows(rows, out_dir: Path, pad_num: int, prefix_idx: str) -> 
     end_loci = rows[-1]
     start_site = str(start_loci.start)
     end_site = str(end_loci.end)
+
     start_pos = f"{start_loci.chrom}_{start_site}"
-    end_pos = f"{end_site}"
+    end_pos = str(end_loci.end)
+    if start_loci.chrom != end_loci.chrom:
+        end_pos = f"{end_loci.chrom}_{end_site}"
     out_file = out_dir / f"{prefix_idx}_{start_pos}_{end_pos}.bed"
     df = pd.DataFrame(rows)
     df.to_csv(out_file, sep="\t", index=False, header=False, columns=OUT_COLUMNS)
@@ -41,10 +44,10 @@ def split_bed(bed_file: Path, out_dir: Path, split_number: int) -> None:
     current_bed_size = 0
     max_size = bed_df["end"].max()
     pad_num = int(np.ceil(np.log10(max_size)))
-    prefix_pad_num = int(np.ceil(np.log10(split_number)))
+    prefix_pad_num = int(np.ceil(np.log10(split_number))) + 1
     current_idx = 0
     for row in bed_df.itertuples():
-        if current_bed_size > bed_length_per_file or (len(current_bed_list) > 0 and row.chrom != current_bed_list[-1].chrom):
+        if current_bed_size > bed_length_per_file:
             current_idx += 1
             current_idx_prefix = str(current_idx).zfill(prefix_pad_num)
             save_current_bedrows(
@@ -85,7 +88,7 @@ def split_fai(fai_file: Path, out_dir: Path, split_number: int) -> None:
     max_size = fai_df["chrom_length"].max()
     pad_num = int(np.ceil(np.log10(max_size)))
 
-    prefix_pad_num = int(np.ceil(np.log10(split_number)))
+    prefix_pad_num = int(np.ceil(np.log10(split_number))) + 1
 
     row_list = []
     current_length = 0
@@ -93,7 +96,7 @@ def split_fai(fai_file: Path, out_dir: Path, split_number: int) -> None:
     current_idx = 0
     for row in fai_df.itertuples():
         for i in range(0, row.chrom_length, step):
-            if current_length >= genome_split_length or (len(row_list) > 0 and row.chrom != row_list[-1].chrom):
+            if current_length >= genome_split_length:
                 current_idx += 1
                 current_idx_prefix = str(current_idx).zfill(prefix_pad_num)
                 save_current_bedrows(
