@@ -1,9 +1,9 @@
-import typer
-import pandas as pd
 from pathlib import Path
 
-from tqdm import tqdm
+import pandas as pd
+import typer
 from loguru import logger
+from tqdm import tqdm
 
 TESTS = ["wald", "lrt", "score"]
 PVALUE = [1e-5, 5e-8]
@@ -44,6 +44,7 @@ def main(output_dir: Path, annotation_file: Path) -> None:
         lambda row: f"{row['chrom']}_{row['pos']}", axis=1
     )
     annotation_df.drop(columns=["chrom", "pos"], inplace=True)
+    annotation_df.drop_duplicates(subset="rs", inplace=True)
 
     # Iterate over the association files in the output directory.
     for association_file in tqdm(output_dir.glob("*.assoc.txt")):
@@ -51,8 +52,9 @@ def main(output_dir: Path, annotation_file: Path) -> None:
         logger.info(f"annotating: {association_file}...")
         df = pd.read_table(association_file)
         df = df.merge(annotation_df, on="rs")
-        df["transcript_start"] = df["transcript_start"].astype("Int64")
-        df["transcript_end"] = df["transcript_end"].astype("Int64")
+        if "transcript_start" in df.columns:
+            df["transcript_start"] = df["transcript_start"].astype("Int64")
+            df["transcript_end"] = df["transcript_end"].astype("Int64")
 
         # Save the annotated results to a file.
         annotated_file = association_file.with_suffix(".anno.txt")
