@@ -59,7 +59,7 @@ def main(
         Optional[Path], typer.Option(help="fastp data summary", default=None)
     ] = None,
     sample_map: Annotated[
-        Optional[Path], typer.Option(help="fastp data summary", default=None)
+        Optional[Path], typer.Option(help="library-sampleid map file", default=None)
     ] = None,
 ) -> None:
     cds_df = load_bed_files(cds_cov_dir)
