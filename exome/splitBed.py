@@ -24,9 +24,9 @@ def save_current_bedrows(rows, out_dir: Path, pad_num: int, prefix_idx: str) -> 
 
     start_pos = f"{start_loci.chrom}_{start_site}"
     end_pos = str(end_loci.end)
-    if start_loci.chrom == end_loci.chrom:
+    if start_loci.chrom != end_loci.chrom:
         end_pos = f"{end_loci.chrom}_{end_site}"
-    out_file = out_dir / f"{prefix_idx}_{start_pos}__{end_pos}.bed"
+    out_file = out_dir / f"{prefix_idx}_{start_pos}_{end_pos}.bed"
     df = pd.DataFrame(rows)
     df.to_csv(out_file, sep="\t", index=False, header=False, columns=OUT_COLUMNS)
 
