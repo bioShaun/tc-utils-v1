@@ -41,7 +41,7 @@ def split_bed(bed_file: Path, out_dir: Path, split_number: int) -> None:
     current_bed_size = 0
     max_size = bed_df["end"].max()
     pad_num = int(np.ceil(np.log10(max_size)))
-    prefix_pad_num = int(np.ceil(np.log10(split_number)))
+    prefix_pad_num = int(np.ceil(np.log10(split_number))) + 1
     current_idx = 0
     for row in bed_df.itertuples():
         if current_bed_size > bed_length_per_file:
@@ -85,7 +85,7 @@ def split_fai(fai_file: Path, out_dir: Path, split_number: int) -> None:
     max_size = fai_df["chrom_length"].max()
     pad_num = int(np.ceil(np.log10(max_size)))
 
-    prefix_pad_num = int(np.ceil(np.log10(split_number)))
+    prefix_pad_num = int(np.ceil(np.log10(split_number))) + 1
 
     row_list = []
     current_length = 0
