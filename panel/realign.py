@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import delegator
+import numpy as np
 import pandas as pd
 import typer
 from loguru import logger
@@ -14,7 +15,7 @@ def get_pos(row: pd.Series) -> int:
     return row["match_start"] + row["offset_end"] + 1 - row["probe_start"]
 
 
-def paf2idmap(paf: Path, flank_size: int, offset_df: pd.DataFrame) -> None:
+def paf2idmap(paf: Path, match_cutoff: int, offset_df: pd.DataFrame) -> None:
     paf_df = pd.read_table(
         paf,
         header=None,
@@ -31,7 +32,7 @@ def paf2idmap(paf: Path, flank_size: int, offset_df: pd.DataFrame) -> None:
     )
     paf_df.sort_values(["mapq", "match_length"], ascending=False, inplace=True)
     paf_df.drop_duplicates(subset=["id"], inplace=True)
-    filter_df = paf_df[paf_df["match_length"] > flank_size].copy()
+    filter_df = paf_df[paf_df["match_length"] > match_cutoff].copy()
     filter_df = filter_df.merge(offset_df, on="id")
     filter_df["pos"] = filter_df.apply(get_pos, axis=1)
     filter_df["new_id"] = filter_df.apply(lambda x: f'{x["chrom"]}_{x["pos"]}', axis=1)
@@ -98,6 +99,7 @@ def main(
     genome: Path,
     genome_sr_idx: Path,
     threads: int = 16,
+    cut_off: float = 0.5,
 ) -> None:
     """
     Main function to perform a series of operations based on the input parameters.
@@ -125,7 +127,8 @@ def main(
     )
     offset_df = generate_offset_df(target_bed=target_bed, flank_bed=flank_bed)
     logger.info(f"Generating {FLANK_SIZE} bp flanks id map...")
-    paf2idmap(paf=flank_paf, offset_df=offset_df, flank_size=FLANK_SIZE)
+    match_cutoff = np.ceil(cut_off * 2 * FLANK_SIZE)
+    paf2idmap(paf=flank_paf, offset_df=offset_df, match_cutoff=match_cutoff)
 
 
 if __name__ == "__main__":
