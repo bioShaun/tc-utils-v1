@@ -1,11 +1,17 @@
-import pandas as pd
-import typer
 from pathlib import Path
 
+import pandas as pd
+import typer
 
-def main(gt: Path, compare: Path, out: Path, dp: Path, min_depth: int = 10) -> None:
-    gt_df = pd.read_table(gt)
-    dp_df = pd.read_table(dp, header=None, names=list(gt_df.columns))
+LOCATION_COLS = ["CHROM", "POS", "REF", "ALT"]
+
+
+def main(
+    gt: Path, dp: Path, sample: Path, compare: Path, out: Path, min_depth: int = 10
+) -> None:
+    sample_list = pd.read_table(sample, header=None)[0].tolist()
+    gt_df = pd.read_table(gt, header=None, names=[*LOCATION_COLS, *sample_list])
+    dp_df = pd.read_table(dp, header=None, names=[*LOCATION_COLS, *sample_list])
     dp_df.replace(".", 0, inplace=True)
     out_list = []
     consist_df_list = []
@@ -36,6 +42,7 @@ def main(gt: Path, compare: Path, out: Path, dp: Path, min_depth: int = 10) -> N
         out_list.append(
             {
                 "compare": compare_name,
+                "total_count(remove missing)": len(rm_na_df),
                 "repeatability_count": consistent_count,
                 "repeatability_rate": consistent_rate,
             }
