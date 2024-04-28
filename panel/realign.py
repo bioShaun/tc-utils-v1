@@ -9,6 +9,9 @@ from loguru import logger
 FLANK_SIZE = 60
 
 
+app = typer.Typer()
+
+
 def get_pos(row: pd.Series) -> int:
     if row["strand"] == "+":
         return row["match_start"] + row["offset_start"] + 1 - row["probe_start"]
@@ -94,7 +97,8 @@ def generate_offset_df(target_bed: Path, flank_bed: Path) -> pd.DataFrame:
     return offset_df
 
 
-def main(
+@app.command()
+def realign(
     target_bed: Path,
     genome: Path,
     genome_sr_idx: Path,
@@ -131,5 +135,24 @@ def main(
     paf2idmap(paf=flank_paf, offset_df=offset_df, match_cutoff=match_cutoff)
 
 
+@app.command()
+def adjust_annotation_by_realign(annotation: Path, id_map: Path) -> None:
+    anno_df = pd.read_table(annotation)
+    id_map_df = pd.read_table(id_map, header=None, names=["id", "new_id"])
+    re_id_df = (
+        id_map_df.merge(anno_df).drop("id", axis=1).rename(columns={"new_id": "id"})
+    )
+    re_id_df["chrom"] = re_id_df["id"].map(lambda x: "_".join(x.split("_")[:-1]))
+    re_id_df["pos"] = re_id_df["id"].map(lambda x: int(x.split("_")[-1]))
+    re_id_df["probe_length"] = re_id_df["probe_end"] - re_id_df["probe_start"]
+    re_id_df["probe_start"] = (
+        re_id_df["pos"] - 1 - (re_id_df["probe_length"] // 2) + re_id_df["offset"]
+    )
+    re_id_df["probe_end"] = re_id_df["probe_start"] + re_id_df["probe_length"]
+    re_id_df.drop(columns=["probe_length"], inplace=True)
+    realign_annotation = annotation.with_suffix(".realign.tsv")
+    re_id_df.to_csv(realign_annotation, sep="\t", index=False)
+
+
 if __name__ == "__main__":
-    typer.run(main)
+    app()
