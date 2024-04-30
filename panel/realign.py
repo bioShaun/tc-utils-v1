@@ -33,7 +33,14 @@ def paf2idmap(paf: Path, match_cutoff: int, offset_df: pd.DataFrame) -> None:
             "mapq",
         ],
     )
-    paf_df.sort_values(["mapq", "match_length"], ascending=False, inplace=True)
+    paf_df.sort_values(
+        [
+            "match_length",
+            "mapq",
+        ],
+        ascending=False,
+        inplace=True,
+    )
     paf_df.drop_duplicates(subset=["id"], inplace=True)
     filter_df = paf_df[paf_df["match_length"] > match_cutoff].copy()
     filter_df = filter_df.merge(offset_df, on="id")
