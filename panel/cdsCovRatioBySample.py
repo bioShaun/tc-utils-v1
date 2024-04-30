@@ -52,9 +52,9 @@ def load_bed_files(bed_dir: Path) -> pd.DataFrame:
 
 
 def main(
-    cds_cov_dir: Path,
+    panel_cov_dir: Path,
+    target_cov_dir: Path,
     out_file_prefix: Path,
-    span: int = 120,
     mapping_summary: Annotated[
         Optional[Path], typer.Option(help="fastp data summary", default=None)
     ] = None,
@@ -62,18 +62,19 @@ def main(
         Optional[Path], typer.Option(help="library-sampleid map file", default=None)
     ] = None,
 ) -> None:
-    cds_df = load_bed_files(cds_cov_dir)
+    panel_cov_df = load_bed_files(panel_cov_dir)
+    target_cov_df = load_bed_files(target_cov_dir)
     df_list = []
 
     for cov in READS_COV:
-        df_matrix_bool = cds_df >= (cov * span)
+        df_matrix_bool = target_cov_df >= cov
         cover_df = df_matrix_bool.sum()
         cover_ratio_df = cover_df / df_matrix_bool.shape[0]
         cover_ratio_df.name = f"coverage_{cov}x"
         df_list.append(cover_ratio_df)
     merged_df = pd.concat(df_list, axis=1)
     if mapping_summary is not None:
-        capture_df = pd.DataFrame(cds_df.sum(), columns=["target_bases"])
+        capture_df = pd.DataFrame(panel_cov_df.sum(), columns=["target_bases"])
         mapping_df = pd.read_table(mapping_summary)
         mapping_df = mapping_df[["Name", "bases mapped (cigar)"]].copy()
         mapping_df.columns = ["name", "mapped_bases"]
