@@ -71,19 +71,23 @@ def generate_flank_bed(target_bed: Path, flank_size: int, genome_fai: Path) -> P
     return flank_bed
 
 
-def generate_flank_fa(flank_bed: Path, genome_fa: Path) -> Path:
+def generate_flank_fa(flank_bed: Path, genome_fa: Path, force: bool) -> Path:
     flank_fa = flank_bed.with_suffix(".fa")
-    cmd_line = (
-        f"bedtools getfasta -fi {genome_fa} -fo {flank_fa} -bed {flank_bed} -nameOnly"
-    )
-    delegator.run(cmd_line)
+    if force or not flank_fa.is_file():
+        cmd_line = f"bedtools getfasta -fi {genome_fa} -fo {flank_fa} -bed {flank_bed} -nameOnly"
+        delegator.run(cmd_line)
     return flank_fa
 
 
-def generate_flank_paf(flank_fa: Path, genome_sr_idx: Path, threads: int) -> Path:
+def generate_flank_paf(
+    flank_fa: Path, genome_sr_idx: Path, threads: int, force: bool
+) -> Path:
     flank_paf = flank_fa.with_suffix(".paf")
-    cmd_line = f"minimap2 -t {threads} -cx sr {genome_sr_idx} {flank_fa} > {flank_paf}"
-    delegator.run(cmd_line)
+    if force or not flank_paf.is_file():
+        cmd_line = (
+            f"minimap2 -t {threads} -cx sr {genome_sr_idx} {flank_fa} > {flank_paf}"
+        )
+        delegator.run(cmd_line)
     return flank_paf
 
 
@@ -111,6 +115,7 @@ def realign(
     genome_sr_idx: Path,
     threads: int = 16,
     cut_off: float = 0.5,
+    force: bool = False,
 ) -> None:
     """
     Main function to perform a series of operations based on the input parameters.
@@ -131,10 +136,14 @@ def realign(
         target_bed=target_bed, flank_size=FLANK_SIZE, genome_fai=genome_fai
     )
     logger.info(f"Generating {FLANK_SIZE} bp flanks fasta...")
-    flank_fa = generate_flank_fa(flank_bed=flank_bed, genome_fa=genome)
+    flank_fa = generate_flank_fa(
+        flank_bed=flank_bed,
+        genome_fa=genome,
+        force=force,
+    )
     logger.info(f"Generating {FLANK_SIZE} bp flanks paf...")
     flank_paf = generate_flank_paf(
-        flank_fa=flank_fa, genome_sr_idx=genome_sr_idx, threads=threads
+        flank_fa=flank_fa, genome_sr_idx=genome_sr_idx, threads=threads, force=force
     )
     offset_df = generate_offset_df(target_bed=target_bed, flank_bed=flank_bed)
     logger.info(f"Generating {FLANK_SIZE} bp flanks id map...")
