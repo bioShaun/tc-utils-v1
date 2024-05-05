@@ -109,7 +109,7 @@ def transformAlt(ref: str, alts: str):
 def main(
     gt_file: Path,
     sample_file: Path,
-    va_type: Path,
+    # va_type: Path,
     out_file: Path,
     miss_fmt: str = "NN",
     threads: int = 4,
@@ -136,8 +136,8 @@ def main(
         gt_df = gt_df.reset_index()
         logger.info(f"Transforming {i}")
         seq_df = gt2seq(gt_df, miss_fmt)
-        gt_df = va_type_df.merge(gt_df)
-        seq_df = va_type_df.merge(seq_df)
+        # gt_df = va_type_df.merge(gt_df)
+        # seq_df = va_type_df.merge(seq_df)
         mode = "w"
         header = True
         if i > 0:
