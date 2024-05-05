@@ -124,7 +124,7 @@ def main(
         names=columns,
         chunksize=10000,
     )
-    va_type_df = pd.read_table(va_type)
+    # va_type_df = pd.read_table(va_type)
     for i, gt_df in enumerate(gt_dfs):
         gt_df["ALT"] = gt_df.parallel_apply(
             lambda x: transformAlt(x.REF, x.ALT), axis=1
