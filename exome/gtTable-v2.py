@@ -109,7 +109,7 @@ def transformAlt(ref: str, alts: str):
 def main(
     gt_file: Path,
     sample_file: Path,
-    va_type: Path,
+    # va_type: Path,
     out_file: Path,
     miss_fmt: str = "NN",
     threads: int = 4,
@@ -124,7 +124,7 @@ def main(
         names=columns,
         chunksize=10000,
     )
-    va_type_df = pd.read_table(va_type)
+    # va_type_df = pd.read_table(va_type)
     for i, gt_df in enumerate(gt_dfs):
         gt_df["ALT"] = gt_df.parallel_apply(
             lambda x: transformAlt(x.REF, x.ALT), axis=1
@@ -136,8 +136,8 @@ def main(
         gt_df = gt_df.reset_index()
         logger.info(f"Transforming {i}")
         seq_df = gt2seq(gt_df, miss_fmt)
-        gt_df = va_type_df.merge(gt_df)
-        seq_df = va_type_df.merge(seq_df)
+        # gt_df = va_type_df.merge(gt_df)
+        # seq_df = va_type_df.merge(seq_df)
         mode = "w"
         header = True
         if i > 0:
