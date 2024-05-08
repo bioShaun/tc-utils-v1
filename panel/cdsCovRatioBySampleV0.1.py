@@ -75,8 +75,22 @@ def main(
     if mapping_summary is not None:
         capture_df = pd.DataFrame(panel_cov_df.sum(), columns=["target_bases"])
         mapping_df = pd.read_table(mapping_summary)
-        mapping_df = mapping_df[["Name", "bases mapped (cigar)"]].copy()
-        mapping_df.columns = ["name", "mapped_bases"]
+        mapping_df = mapping_df[
+            [
+                "Name",
+                "sequences",
+                "bases mapped (cigar)",
+                "insert size average",
+                "percentage of properly paired reads (%)",
+            ]
+        ].copy()
+        mapping_df.columns = [
+            "name",
+            "total_bases",
+            "mapped_bases",
+            "insert_size",
+            "properly_paired_bases_percentage",
+        ]
         mapping_df = mapping_df.merge(capture_df, left_on="name", right_index=True)
         mapping_df["efficiency"] = (
             mapping_df["target_bases"] / mapping_df["mapped_bases"]
