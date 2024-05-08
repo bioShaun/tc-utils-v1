@@ -78,7 +78,7 @@ def main(
         mapping_df = mapping_df[
             [
                 "Name",
-                "sequences",
+                "total length",
                 "bases mapped (cigar)",
                 "insert size average",
                 "percentage of properly paired reads (%)",
