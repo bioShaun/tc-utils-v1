@@ -18,13 +18,14 @@ def get_pos(row: pd.Series) -> int:
     return row["match_start"] + row["offset_end"] + 1 - row["probe_start"]
 
 
-def paf2idmap(paf: Path, match_cutoff: int, offset_df: pd.DataFrame) -> None:
+def paf2idmap(paf: Path, match_cutoff: float, offset_df: pd.DataFrame) -> None:
     paf_df = pd.read_table(
         paf,
         header=None,
-        usecols=[0, 2, 4, 5, 7, 9, 11],
+        usecols=[0, 1, 2, 4, 5, 7, 9, 11],
         names=[
             "id",
+            "probe_length",
             "probe_start",
             "strand",
             "chrom",
@@ -42,6 +43,7 @@ def paf2idmap(paf: Path, match_cutoff: int, offset_df: pd.DataFrame) -> None:
         inplace=True,
     )
     paf_df.drop_duplicates(subset=["id"], inplace=True)
+    paf_df["match_ratio"] = paf_df["match_length"] / paf_df["probe_length"]
     filter_df = paf_df[paf_df["match_length"] > match_cutoff].copy()
     filter_df = filter_df.merge(offset_df, on="id")
     filter_df["pos"] = filter_df.apply(get_pos, axis=1)
@@ -147,6 +149,38 @@ def realign(
     )
     offset_df = generate_offset_df(target_bed=target_bed, flank_bed=flank_bed)
     logger.info(f"Generating {FLANK_SIZE} bp flanks id map...")
+    paf2idmap(paf=flank_paf, offset_df=offset_df, match_cutoff=cut_off)
+
+
+@app.command()
+def realign2(
+    fa: Path,
+    offset_table: Path,
+    genome_sr_idx: Path,
+    threads: int = 16,
+    cut_off: float = 0.5,
+    force: bool = False,
+) -> None:
+    """
+    Main function to perform a series of operations based on the input parameters.
+
+    Parameters:
+        fa (Path): Path to the fasta file.
+        offset_bed (Path): Path to the offset table file.
+        genome (Path): Path to the genome file.
+        genome_sr_idx (Path): Path to the genome index file.
+        id_map (Path): Path to the ID mapping file.
+        threads (int, optional): Number of threads to use. Defaults to 16.
+
+    Returns:
+        None
+    """
+    logger.info(f"map to genome ...")
+    flank_paf = generate_flank_paf(
+        flank_fa=fa, genome_sr_idx=genome_sr_idx, threads=threads, force=force
+    )
+    offset_df = pd.read_table(offset_table)
+    logger.info(f"Generating id map...")
     match_cutoff = np.ceil(cut_off * 2 * FLANK_SIZE)
     paf2idmap(paf=flank_paf, offset_df=offset_df, match_cutoff=match_cutoff)
 
