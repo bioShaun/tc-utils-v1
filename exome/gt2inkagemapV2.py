@@ -1,10 +1,10 @@
-import typer
+from enum import Enum
+from functools import partial
+from pathlib import Path
+from typing import List, Optional
 
 import pandas as pd
-from enum import Enum
-from typing import List, Optional
-from pathlib import Path
-from functools import partial
+import typer
 
 app = typer.Typer()
 
@@ -40,17 +40,11 @@ class OutFmt(str, Enum):
     GT = "GT"
     AB = "AB"
 
-    def __str__(self) -> str:
-        return self.value
-
 
 class MissFmt(str, Enum):
     N = "N"
     NN = "NN"
     DASH = "--"
-
-    def __str__(self) -> str:
-        return self.value
 
 
 def parentGT(row: pd.Series, cols: List[str]) -> Optional[str]:
