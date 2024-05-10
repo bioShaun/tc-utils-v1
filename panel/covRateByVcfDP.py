@@ -75,11 +75,9 @@ sample3"""
 
 def main(dp_file: Path, sample_file: Path, out_file_prefix: Path) -> None:
     samples = pd.read_table(sample_file, header=None)[0].tolist()
-    print(samples)
     dp_df = pd.read_table(
         dp_file, header=None, names=[*LOCATION_COLS, *samples]
     ).set_index(LOCATION_COLS)
-    print(dp_df)
     dp_df.replace(".", 0, inplace=True)
     dp_df = dp_df.astype("int")
     passed_df = dp_df.gt(0).sum().reset_index()
