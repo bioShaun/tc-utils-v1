@@ -54,7 +54,7 @@ def npConvertGT(row: pd.Series, miss_fmt: str, gt_sep: str) -> str:
     if allele1 == allele2:
         if len(allele_list[allele1]) > 1:
             return allele_list[allele1]
-        return f"{allele_list[allele1]}{allele_list[allele2]}"
+        return f"{allele_list[allele1]}{gt_sep}{allele_list[allele2]}"
     if len(allele_list[allele1]) > 1 or len(allele_list[allele2]) > 1:
         return f"{allele_list[allele1]}/{allele_list[allele2]}"
     return f"{allele_list[allele1]}{gt_sep}{allele_list[allele2]}"
