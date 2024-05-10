@@ -8,7 +8,7 @@ LOCATION_COLS = ["CHROM", "POS", "REF", "ALT"]
 
 COLUMN_MAP = {
     "sample": "样本",
-    "total_count": "群体位点数",
+    "total_count": "目标位点数",
     "missing_count": "缺失位点数",
     "missing_fraction": "缺失率",
     "fraction": "检出率",
@@ -37,8 +37,8 @@ sample3"""
     main(Path(dp_file.name), Path(sample_file.name), Path(out_file_prefix))
 
     # Read the output files and check their contents
-    depth_df = pd.read_excel(f"{out_file_prefix}_depth.xlsx")
-    stats_df = pd.read_excel(f"{out_file_prefix}_stats.xlsx")
+    depth_df = pd.read_excel(f"{out_file_prefix}.目标位点覆盖.xlsx")
+    stats_df = pd.read_excel(f"{out_file_prefix}.目标位点统计.xlsx")
     depth_df["CHROM"] = depth_df["CHROM"].astype("str")
     expected_depth_df = pd.DataFrame(
         {
@@ -69,8 +69,8 @@ sample3"""
 
     os.remove(dp_file.name)
     os.remove(sample_file.name)
-    os.remove(f"{out_file_prefix}_depth.xlsx")
-    os.remove(f"{out_file_prefix}_stats.xlsx")
+    os.remove(f"{out_file_prefix}.目标位点覆盖.xlsx")
+    os.remove(f"{out_file_prefix}.目标位点统计.xlsx")
 
 
 def main(dp_file: Path, sample_file: Path, out_file_prefix: Path) -> None:
@@ -89,14 +89,14 @@ def main(dp_file: Path, sample_file: Path, out_file_prefix: Path) -> None:
     passed_df["total_count"] = dp_df.shape[0]
     passed_df["missing_count"] = passed_df["total_count"] - passed_df["count"]
     dp_df = dp_df.reset_index()
-    dp_df.to_excel(f"{out_file_prefix}_depth.xlsx", index=False)
+    dp_df.to_excel(f"{out_file_prefix}.目标位点覆盖.xlsx", index=False)
     passed_df.rename(columns=COLUMN_MAP, inplace=True)
     passed_df.to_excel(
-        f"{out_file_prefix}_stats.xlsx",
+        f"{out_file_prefix}.目标位点统计.xlsx",
         index=False,
         columns=[
             "样本",
-            "群体位点数",
+            "目标位点数",
             "缺失位点数",
             "缺失率",
             "检出率",
