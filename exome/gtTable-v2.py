@@ -41,7 +41,7 @@ class MissFmt(str, Enum):
         return self.value
 
 
-def npConvertGT(row: pd.Series, miss_fmt: str) -> str:
+def npConvertGT(row: pd.Series, miss_fmt: str, gt_sep: str) -> str:
     if row[TableColumn.GENOTYPE.value] == GT_VALUE.NA.value:
         return miss_fmt
     allele1, allele2 = [
@@ -57,10 +57,10 @@ def npConvertGT(row: pd.Series, miss_fmt: str) -> str:
         return f"{allele_list[allele1]}{allele_list[allele2]}"
     if len(allele_list[allele1]) > 1 or len(allele_list[allele2]) > 1:
         return f"{allele_list[allele1]}/{allele_list[allele2]}"
-    return f"{allele_list[allele1]}{allele_list[allele2]}"
+    return f"{allele_list[allele1]}{gt_sep}{allele_list[allele2]}"
 
 
-def gt2seq(gt_df: pd.DataFrame, miss_fmt: str):
+def gt2seq(gt_df: pd.DataFrame, miss_fmt: str, gt_sep: str):
     # transform
     gt_df.drop_duplicates(subset=LOCATION_COLS, inplace=True)
     loc_df = gt_df[LOCATION_COLS].copy()
@@ -69,10 +69,10 @@ def gt2seq(gt_df: pd.DataFrame, miss_fmt: str):
         var_name=TableColumn.SAMPLE_NAME.value,
         value_name=TableColumn.GENOTYPE.value,
     )
-    myConvertGT = partial(npConvertGT, miss_fmt=miss_fmt)
+    myConvertGT = partial(npConvertGT, miss_fmt=miss_fmt, gt_sep=gt_sep)
     melt_gt_df[TableColumn.GENOTYPE.value] = melt_gt_df.parallel_apply(
         myConvertGT, axis=1
-    )
+    )  # type: ignore
     # melt_gt_df[TableColumn.GENOTYPE.value] = melt_gt_df.apply(myConvertGT, axis=1)
 
     convert_df = melt_gt_df.set_index(
@@ -113,6 +113,7 @@ def main(
     out_file: Path,
     miss_fmt: str = "NN",
     threads: int = 4,
+    gt_sep: str = "",
 ):
     pandarallel.initialize(progress_bar=True, nb_workers=threads)
     sample_list = pd.read_csv(sample_file, header=None)[0].tolist()
@@ -135,7 +136,7 @@ def main(
         gt_df.replace("1/0", "0/1", inplace=True)
         gt_df = gt_df.reset_index()
         logger.info(f"Transforming {i}")
-        seq_df = gt2seq(gt_df, miss_fmt)
+        seq_df = gt2seq(gt_df, miss_fmt, gt_sep)
         # gt_df = va_type_df.merge(gt_df)
         # seq_df = va_type_df.merge(seq_df)
         mode = "w"
