@@ -6,7 +6,7 @@ import typer
 
 def main(bsr_dir: Path, snp_file: Path, snp_only: bool = False) -> None:
     df_list = []
-    for data_i in bsr_dir.glob(f"*/data/.*gz"):
+    for data_i in bsr_dir.glob(f"data/*.gz"):
         if "ed.refFreq" in data_i.name:
             continue
         vcf_df = pd.read_csv(data_i)
