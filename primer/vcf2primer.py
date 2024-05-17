@@ -1,8 +1,8 @@
-import typer
-
-from Bio import SeqIO
 from pathlib import Path
+
 import pandas as pd
+import typer
+from Bio import SeqIO
 from loguru import logger
 from tqdm import tqdm
 
@@ -25,9 +25,11 @@ def main(vcf_file: Path, ref: Path, out_file: Path, flank_size: int = 200) -> No
             pos = row.pos - 1
             start = pos - flank_size if pos >= flank_size else 0
             left_seq = str(record.seq[start:pos])
-            right_seq = str(record.seq[pos + 1 : pos + 1 + flank_size])
-            target_seq = str(record.seq[pos])
-            primer_seq = f"{left_seq}[{target_seq}/{row.alt}]{right_seq}"
+            right_seq = str(
+                record.seq[pos + len(row.ref) : pos + len(row.ref) + flank_size]
+            )
+            # target_seq = str(record.seq[pos])
+            primer_seq = f"{left_seq}[{row.ref}/{row.alt}]{right_seq}"
             out_list.append({"name": f"{row.chrom}_{row.pos}", "sequence": primer_seq})
     out_df = pd.DataFrame(out_list)
     out_df.to_csv(out_file, sep="\t", index=False)

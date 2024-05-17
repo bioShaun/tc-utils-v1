@@ -39,8 +39,6 @@ class MissFmt(str, Enum):
 
     def __str__(self) -> str:
         return self.value
-
-
 def npConvertGT(row: pd.Series, miss_fmt: str, gt_sep: str) -> str:
     if row[TableColumn.GENOTYPE.value] == GT_VALUE.NA.value:
         return miss_fmt
