@@ -38,12 +38,12 @@ def main(
     snpeff_vcf: Path,
     eggnog_anno: Path,
     out_file: Path,
-    snpeff_path: Path,
+    snpeff_dir: Path,
     force: bool = False,
 ) -> None:
     logger.info("extract snpeff annotation ...")
     snpeff_anno_file = extract_snpeff_anno(
-        vcf_path=snpeff_vcf, snpeff_path=snpeff_path, force=force
+        vcf_path=snpeff_vcf, snpeff_dir=snpeff_dir, force=force
     )
     eggnog_df = pd.read_table(eggnog_anno, sep="\t", skiprows=4, usecols=[0, 7])
     eggnog_df.columns = ["transcript_id", "description"]
