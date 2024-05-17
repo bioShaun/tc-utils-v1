@@ -18,11 +18,16 @@ def main(bed: Path, gtf: Path):
     with gtf.open() as gtf_info:
         for eachline in gtf_info:
             eachline = eachline.strip()
+            if not eachline:
+                continue
             if eachline.startswith("#"):
                 print(eachline)
                 continue
             output_line = eachline.split("\t")
-            chrom, *_, start, end = output_line[:5]
+            try:
+                chrom, *_, start, end = output_line[:5]
+            except ValueError:
+                raise ValueError(eachline)
             if chrom in chr_dict:
                 for each_inter in chr_dict[chrom]:
                     if int(start) >= each_inter[0] and int(end) <= each_inter[1]:

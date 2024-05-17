@@ -55,10 +55,10 @@ def main(
     panel_cov_dir: Path,
     out_file_prefix: Path,
     mapping_summary: Annotated[
-        Optional[Path], typer.Option(help="fastp data summary", default=None)
+        Optional[Path], typer.Option(help="fastp data summary")
     ] = None,
     sample_map: Annotated[
-        Optional[Path], typer.Option(help="library-sampleid map file", default=None)
+        Optional[Path], typer.Option(help="library-sampleid map file")
     ] = None,
     span: int = 240,
 ) -> None:

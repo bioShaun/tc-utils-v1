@@ -45,19 +45,21 @@ def npConvertGT(row: pd.Series, miss_fmt: str, gt_sep: str) -> str:
     if row[TableColumn.GENOTYPE.value] == GT_VALUE.NA.value:
         return miss_fmt
     allele1, allele2 = [
-        int(each) for each in row[TableColumn.GENOTYPE.value].split("/")
+        each for each in row[TableColumn.GENOTYPE.value].split("/")
     ]
     allele_list = [
         row[TableColumn.REF.value],
         *row[TableColumn.ALT.value].split(","),
     ]
+    allele1_seq = 'N' if allele1 == '.' else allele_list[int(allele1)]
+    allele2_seq = 'N' if allele2 == '.' else allele_list[int(allele2)]
     if allele1 == allele2:
-        if len(allele_list[allele1]) > 1:
-            return allele_list[allele1]
-        return f"{allele_list[allele1]}{gt_sep}{allele_list[allele2]}"
-    if len(allele_list[allele1]) > 1 or len(allele_list[allele2]) > 1:
-        return f"{allele_list[allele1]}/{allele_list[allele2]}"
-    return f"{allele_list[allele1]}{gt_sep}{allele_list[allele2]}"
+        if len(allele1_seq) > 1:
+            return allele1_seq
+        return f"{allele1_seq}{gt_sep}{allele2_seq}"
+    if len(allele1_seq) > 1 or len(allele2_seq) > 1:
+        return f"{allele1_seq}/{allele2_seq}"
+    return f"{allele1_seq}{gt_sep}{allele2_seq}"
 
 
 def gt2seq(gt_df: pd.DataFrame, miss_fmt: str, gt_sep: str):
