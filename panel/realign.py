@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Tuple
 
 import delegator
 import numpy as np
@@ -110,6 +111,26 @@ def generate_offset_df(target_bed: Path, flank_bed: Path) -> pd.DataFrame:
     return offset_df
 
 
+def probe_sequence_from_flank(flank: str) -> str:
+    left = flank.split("[")[0]
+    center = flank.split("[")[1][0]
+    right = flank.split("]")[1]
+    return f"{left}{center}{right}"
+
+
+def fasta_from_probe_table(probe_table: Path) -> Tuple[pd.DataFrame, Path]:
+    probe_df = pd.read_table(probe_table)
+    probe_fasta = probe_table.with_suffix(".fa")
+    probe_df["sequence"] = probe_df["Flank"].map(probe_sequence_from_flank)
+    with open(probe_fasta, "w", encoding="utf-8") as f:
+        for row in probe_df.itertuples():
+            f.write(f">{row.id}\n{row.sequence}\n")
+    probe_df["seq_length"] = probe_df["sequence"].map(len)
+    probe_df["offset_start"] = probe_df["Flank"].map(lambda x: x.index("["))
+    probe_df["offset_end"] = probe_df["seq_length"] - probe_df["offset_start"] - 1
+    return probe_df[["id", "offset_start", "offset_end"]].copy(), probe_fasta
+
+
 @app.command()
 def realign(
     target_bed: Path,
@@ -154,8 +175,7 @@ def realign(
 
 @app.command()
 def realign2(
-    fa: Path,
-    offset_table: Path,
+    probe_table: Path,
     genome_sr_idx: Path,
     threads: int = 16,
     cut_off: float = 0.5,
@@ -175,11 +195,12 @@ def realign2(
     Returns:
         None
     """
+    logger.info(f"generate fa and offset ...")
+    offset_df, flank_fa = fasta_from_probe_table(probe_table=probe_table)
     logger.info(f"map to genome ...")
     flank_paf = generate_flank_paf(
-        flank_fa=fa, genome_sr_idx=genome_sr_idx, threads=threads, force=force
+        flank_fa=flank_fa, genome_sr_idx=genome_sr_idx, threads=threads, force=force
     )
-    offset_df = pd.read_table(offset_table)
     logger.info(f"Generating id map...")
     match_cutoff = np.ceil(cut_off * 2 * FLANK_SIZE)
     paf2idmap(paf=flank_paf, offset_df=offset_df, match_cutoff=match_cutoff)
