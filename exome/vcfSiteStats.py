@@ -88,7 +88,7 @@ def vcf2gt(vcf_file: Path, force: bool = False) -> Path:
 
 def vcfStats(vcf: Path, vcf_stats: Path, threads: int = 4, force: bool = False) -> None:
     pandarallel.initialize(nb_workers=threads)
-    gt_table = vcf2gt(vcf_file=vcf)
+    gt_table = vcf2gt(vcf_file=vcf, force=force)
     dfs = pd.read_table(gt_table, chunksize=100_000, header=None)
     for n, df in tqdm(enumerate(dfs)):
         mode = "w" if n == 0 else "a"
