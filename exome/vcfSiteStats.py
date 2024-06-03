@@ -3,8 +3,8 @@ from typing import Tuple
 
 import pandas as pd
 import typer
-from tqdm import tqdm
 from pandarallel import pandarallel
+from tqdm import tqdm
 
 
 def allele_stats(row: pd.Series) -> Tuple[str, float, float, float]:
@@ -16,8 +16,9 @@ def allele_stats(row: pd.Series) -> Tuple[str, float, float, float]:
     het_rate = het_count / real_sample_count
     alt_count = allele_count.get("1/1", 0)
     alt_rate = (alt_count * 2 + het_count) / (real_sample_count * 2)
+    maf = min(alt_rate, 1 - alt_rate)
     alleles = f'{row["REF"]},{row["ALT"]}'
-    return alleles, miss_rate, het_rate, alt_rate
+    return alleles, miss_rate, het_rate, maf
 
 
 def transform_one(df: pd.DataFrame) -> pd.DataFrame:
@@ -43,7 +44,7 @@ def vcfStats(gt_table: Path, vcf_stats: Path, threads: int = 4) -> None:
             mode=mode,
             index=False,
             header=False,
-            columns=["CHROM", "POS", "alleles", "missing", "het", "af"],
+            columns=["CHROM", "POS", "alleles", "missing", "het", "maf"],
             float_format="%.3f",
         )
 
