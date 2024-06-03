@@ -106,12 +106,7 @@ def vcfStats(vcf: Path, vcf_stats: Path, threads: int = 4, force: bool = False) 
             "maf",
             "indel_length",
         ]
-        out_df.to_csv(
-            vcf_stats,
-            mode=mode,
-            index=False,
-            float_format="%.3f",
-        )
+        out_df.to_csv(vcf_stats, mode=mode, index=False, float_format="%.3f", sep="\t")
 
 
 if __name__ == "__main__":
