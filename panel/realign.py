@@ -185,11 +185,12 @@ def realign(
         None
     """
     genome_fai = genome.parent / f"{genome.name}.fai"
-    logger.info(f"Generating {FLANK_SIZE} bp flanks bed...")
     if target_type == TargetType.vcf:
+        logger.info(f"Generating bed file from vcf...")
         target_bed = generate_bed_from_vcf(target_file)
     else:
         target_bed = target_file
+    logger.info(f"Generating {FLANK_SIZE} bp flanks bed...")
     flank_bed = generate_flank_bed(
         target_bed=target_bed, flank_size=FLANK_SIZE, genome_fai=genome_fai
     )
