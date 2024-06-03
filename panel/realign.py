@@ -1,3 +1,4 @@
+from enum import Enum
 from pathlib import Path
 from typing import Tuple
 
@@ -11,6 +12,11 @@ FLANK_SIZE = 60
 
 
 app = typer.Typer()
+
+
+class TargetType(str, Enum):
+    bed = "bed"
+    vcf = "vcf"
 
 
 def get_pos(row: pd.Series) -> int:
@@ -63,6 +69,30 @@ def paf2idmap(paf: Path, match_cutoff: float, offset_df: pd.DataFrame) -> None:
         header=False,
         columns=["chrom", "pos_0", "pos"],
     )
+
+
+def generate_bed_from_vcf(vcf: Path) -> Path:
+    vcf_df = pd.read_table(
+        vcf,
+        header=None,
+        usecols=[
+            0,
+            1,
+        ],
+        comment="#",
+        names=["chrom", "end"],
+    )
+    vcf_df["start"] = vcf_df["end"] - 1
+    vcf_df["id"] = vcf_df.apply(lambda x: f'{x["chrom"]}_{x["end"]}', axis=1)
+    bed_file = vcf.with_suffix(".bed")
+    vcf_df.to_csv(
+        bed_file,
+        sep="\t",
+        index=False,
+        header=False,
+        columns=["chrom", "start", "end", "id"],
+    )
+    return bed_file
 
 
 def generate_flank_bed(target_bed: Path, flank_size: int, genome_fai: Path) -> Path:
@@ -133,12 +163,13 @@ def fasta_from_probe_table(probe_table: Path) -> Tuple[pd.DataFrame, Path]:
 
 @app.command()
 def realign(
-    target_bed: Path,
+    target_file: Path,
     genome: Path,
     genome_sr_idx: Path,
     threads: int = 16,
     cut_off: float = 0.5,
     force: bool = False,
+    target_type: TargetType = TargetType.bed,
 ) -> None:
     """
     Main function to perform a series of operations based on the input parameters.
@@ -155,6 +186,10 @@ def realign(
     """
     genome_fai = genome.parent / f"{genome.name}.fai"
     logger.info(f"Generating {FLANK_SIZE} bp flanks bed...")
+    if target_type == TargetType.vcf:
+        target_bed = generate_bed_from_vcf(target_file)
+    else:
+        target_bed = target_file
     flank_bed = generate_flank_bed(
         target_bed=target_bed, flank_size=FLANK_SIZE, genome_fai=genome_fai
     )
