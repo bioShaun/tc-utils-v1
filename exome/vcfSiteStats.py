@@ -39,8 +39,11 @@ def transform_one(df: pd.DataFrame) -> pd.DataFrame:
     sample_count = len(df.columns) - len(vcf_columns)
     sample_columns = [f"genotype" for i in range(sample_count)]
     df.columns = [*vcf_columns, *sample_columns]
+    df["indel_length"] = df.parallel_apply(get_index_len, axis=1)  # type: ignore
+    df["ALT"] = df.parallel_apply(lambda x: transformAlt(x.REF, x.ALT), axis=1)  # type: ignore
+    df["id"] = df.apply(lambda x: f"{x['CHROM']}_{x['POS']}", axis=1)
     df["stats_info"] = df.parallel_apply(allele_stats, axis=1)  # type: ignore
-    df[["alleles", "missing", "het", "af"]] = pd.DataFrame(
+    df[["alleles", "missing", "het", "maf"]] = pd.DataFrame(
         df["stats_info"].tolist(), index=df.index
     )
     return df
@@ -77,9 +80,6 @@ def vcfStats(gt_table: Path, vcf_stats: Path, threads: int = 4) -> None:
     dfs = pd.read_table(gt_table, chunksize=100_000, header=None)
     for n, df in tqdm(enumerate(dfs)):
         mode = "w" if n == 0 else "a"
-        df["indel_length"] = df.parallel_apply(get_index_len, axis=1)
-        df["ALT"] = df.parallel_apply(lambda x: transformAlt(x.REF, x.ALT), axis=1)
-        df["id"] = df.apply(lambda x: f"{x['CHROM']}_{x['POS']}", axis=1)
         stats_df = transform_one(df)
         out_df = stats_df[
             ["id", "CHROM", "POS", "alleles", "missing", "het", "maf" "indel_length"]
