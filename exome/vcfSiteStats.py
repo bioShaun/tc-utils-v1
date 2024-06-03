@@ -72,8 +72,10 @@ def transformAlt(ref: str, alts: str):
 
 
 def get_index_len(row: pd.Series) -> int:
-    ref_len, alt_len = len(row.REF), max(len(x) for x in row.ALT.split(","))
-    return abs(ref_len - alt_len)
+    ref_len = len(row.REF)
+    alt_list = [len(x) for x in row.ALT.split(",")]
+    alt_len_max, alt_len_min = max(alt_list), min(alt_list)
+    return max(abs(ref_len - alt_len_max), abs(ref_len - alt_len_min))
 
 
 def vcf2gt(vcf_file: Path, force: bool = False) -> Path:
