@@ -251,12 +251,13 @@ def adjust_annotation_by_realign(annotation: Path, id_map: Path) -> None:
     )
     re_id_df["chrom"] = re_id_df["id"].map(lambda x: "_".join(x.split("_")[:-1]))
     re_id_df["pos"] = re_id_df["id"].map(lambda x: int(x.split("_")[-1]))
-    re_id_df["probe_length"] = re_id_df["probe_end"] - re_id_df["probe_start"]
-    re_id_df["probe_start"] = (
-        re_id_df["pos"] - 1 - (re_id_df["probe_length"] // 2) + re_id_df["offset"]
-    )
-    re_id_df["probe_end"] = re_id_df["probe_start"] + re_id_df["probe_length"]
-    re_id_df.drop(columns=["probe_length"], inplace=True)
+    if "probe_start" in re_id_df.columns:
+        re_id_df["probe_length"] = re_id_df["probe_end"] - re_id_df["probe_start"]
+        re_id_df["probe_start"] = (
+            re_id_df["pos"] - 1 - (re_id_df["probe_length"] // 2) + re_id_df["offset"]
+        )
+        re_id_df["probe_end"] = re_id_df["probe_start"] + re_id_df["probe_length"]
+        re_id_df.drop(columns=["probe_length"], inplace=True)
     realign_annotation = annotation.with_suffix(".realign.tsv")
     re_id_df.to_csv(realign_annotation, sep="\t", index=False)
 
