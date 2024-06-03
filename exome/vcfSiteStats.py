@@ -92,9 +92,10 @@ def vcfStats(vcf: Path, vcf_stats: Path, threads: int = 4, force: bool = False) 
     dfs = pd.read_table(gt_table, chunksize=100_000, header=None)
     for n, df in tqdm(enumerate(dfs)):
         mode = "w" if n == 0 else "a"
+        header = True if n == 0 else False
         stats_df = transform_one(df)
         out_df = stats_df[
-            ["id", "CHROM", "POS", "alleles", "missing", "het", "maf" "indel_length"]
+            ["id", "CHROM", "POS", "alleles", "missing", "het", "maf", "indel_length"]
         ].copy()
         out_df.columns = [
             "id",
@@ -106,7 +107,14 @@ def vcfStats(vcf: Path, vcf_stats: Path, threads: int = 4, force: bool = False) 
             "maf",
             "indel_length",
         ]
-        out_df.to_csv(vcf_stats, mode=mode, index=False, float_format="%.3f", sep="\t")
+        out_df.to_csv(
+            vcf_stats,
+            mode=mode,
+            index=False,
+            float_format="%.3f",
+            sep="\t",
+            header=header,
+        )
 
 
 if __name__ == "__main__":
