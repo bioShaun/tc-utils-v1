@@ -111,12 +111,13 @@ def density_plot(
     density_df: pd.DataFrame,
     density_path: Path,
     plot_title: str,
+    max_coverage: int,
     color_map: ColorMap = ColorMap.RdYlGn,
     min_coverage: int = 1,
 ) -> None:
     plt.rcParams["font.size"] = 24
     cmap = mpl.colormaps[color_map].with_extremes(over="0.25", under="0.75")  # type: ignore
-    norm = mpl.colors.Normalize(vmin=min_coverage, vmax=density_df["coverage"].max())
+    norm = mpl.colors.Normalize(vmin=min_coverage, vmax=max_coverage)
     fig, ax = plt.subplots()
     plot_width, plot_height = get_plot_size(density_df)
     fig.set_figheight(plot_height)
@@ -153,35 +154,23 @@ def plot_probe_coverage(
     chr_size_df: pd.DataFrame,
     out_dir: Path,
     probe_name: str,
-    probe_tag: str,
     color_map: ColorMap,
-    show_coverage: bool = True,
+    max_coverage: int,
     min_coverage: int = 0,
 ) -> None:
     region_count_df = cal_region_coverage(
         probe_df=probe_df, chr_df=chr_size_df, region_size=region_size
     )
     region_tag = probe_count_tag(region_size)
-    if probe_tag:
-        region_count_file = (
-            out_dir / f"{probe_name}.{probe_tag}.{region_tag}-window.coverage.tsv"
-        )
-    else:
-        region_count_file = out_dir / f"{probe_name}.{region_tag}-window.coverage.tsv"
+    region_count_file = out_dir / f"{probe_name}.{region_tag}-window.coverage.tsv"
     region_count_df.to_csv(region_count_file, sep="\t", index=False)
-    coverage_rate = get_coverage_rate(region_count_df)
-    if probe_tag:
-        plot_title = f"{probe_name} {probe_tag} panel ({region_tag} window coverage: {coverage_rate}%)"
-    else:
-        if show_coverage:
-            plot_title = f"{region_tag} window coverage: {coverage_rate}%"
-        else:
-            plot_title = f"{region_tag} window"
+    plot_title = f"{probe_name} ({region_tag} window coverage)"
     density_plot(
         density_df=region_count_df,
         density_path=region_count_file,
         plot_title=plot_title,
         color_map=color_map,
+        max_coverage=max_coverage,
         min_coverage=min_coverage,
     )
 
@@ -190,6 +179,7 @@ def main(
     cov_file_dir: Path,
     chr_size_file: Path,
     region_size: int,
+    region_count: int,
     out_dir: Path,
     color_map: ColorMap = ColorMap.RdYlGn,
     coverage_cutoff: int = 10,
@@ -229,9 +219,8 @@ def main(
             out_dir=out_dir,
             probe_name=sample_name,
             color_map=color_map,
-            show_coverage=False,
             min_coverage=min_coverage,
-            probe_tag="",
+            max_coverage=region_count,
         )
 
 
