@@ -116,10 +116,14 @@ def density_plot(
     min_coverage: int = 1,
 ) -> None:
     plt.rcParams["font.size"] = 24
+    density_df["coverage"] = density_df["coverage"].map(
+        lambda x: x if x < max_coverage else max_coverage
+    )
     cmap = mpl.colormaps[color_map].with_extremes(over="0.25", under="0.75")  # type: ignore
     norm = mpl.colors.Normalize(vmin=min_coverage, vmax=max_coverage)
     fig, ax = plt.subplots()
     plot_width, plot_height = get_plot_size(density_df)
+
     fig.set_figheight(plot_height)
     fig.set_figwidth(plot_width)
 
@@ -181,7 +185,7 @@ def main(
     region_size: int,
     region_count: int,
     out_dir: Path,
-    color_map: ColorMap = ColorMap.RdYlGn,
+    color_map: ColorMap = ColorMap.Greens,
     coverage_cutoff: int = 10,
     min_coverage: int = 0,
 ) -> None:
