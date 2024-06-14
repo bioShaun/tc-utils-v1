@@ -105,9 +105,6 @@ def main(
         gt_df = gt_df.reset_index()
         logger.info(f"Transforming {i}")
         seq_df = gt2seq(gt_df, miss_fmt)
-
-        # seq_df = pd.concat(seq_dfs)
-        # gt_df = pd.concat(gt_concat_dfs)
         mode = "w"
         header = True
         if i > 0:
