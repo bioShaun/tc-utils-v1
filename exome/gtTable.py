@@ -50,7 +50,7 @@ def npConvertGT(row: pd.Series, miss_fmt: str) -> str:
         row[TableColumn.REF.value],
         *row[TableColumn.ALT.value].split(","),
     ]
-    return f"{allele_list[allele1]}{allele_list[allele2]}".replace('*', 'N')
+    return f"{allele_list[allele1]}{allele_list[allele2]}".replace("*", "N")
 
 
 def gt2seq(gt_df: pd.DataFrame, miss_fmt: str):
@@ -84,6 +84,7 @@ def main(
     out_file: Path,
     miss_fmt: str = "NN",
     threads: int = 4,
+    xlsx: bool = False,
 ):
     pandarallel.initialize(progress_bar=True, nb_workers=threads)
     sample_list = pd.read_csv(sample_file, header=None)[0].tolist()
@@ -104,8 +105,7 @@ def main(
         gt_df = gt_df.reset_index()
         logger.info(f"Transforming {i}")
         seq_df = gt2seq(gt_df, miss_fmt)
-        seq_dfs.append(seq_df)
-        gt_concat_dfs.append(gt_df)
+
         # seq_df = pd.concat(seq_dfs)
         # gt_df = pd.concat(gt_concat_dfs)
         mode = "w"
@@ -113,10 +113,26 @@ def main(
         if i > 0:
             mode = "a"
             header = False
-        gt_df.to_csv(
-            f"{out_file}.gt.txt.gz", index=False, sep="\t", header=header, mode=mode
-        )
-        seq_df.to_csv(f"{out_file}.seq.txt.gz", sep="\t", header=header, mode=mode, index=False)
+        if xlsx:
+            seq_dfs.append(seq_df)
+            gt_concat_dfs.append(gt_df)
+        else:
+            gt_df.to_csv(
+                f"{out_file}.gt.txt.gz", index=False, sep="\t", header=header, mode=mode
+            )
+            seq_df.to_csv(
+                f"{out_file}.seq.txt.gz",
+                sep="\t",
+                header=header,
+                mode=mode,
+                index=False,
+            )
+
+    if xlsx:
+        merged_gt_df = pd.concat(gt_concat_dfs)
+        merged_seq_df = pd.concat(seq_dfs)
+        merged_gt_df.to_excel(f"{out_file}.gt.xlsx", index=False)
+        merged_seq_df.to_excel(f"{out_file}.seq.xlsx", index=False)
 
 
 if __name__ == "__main__":
