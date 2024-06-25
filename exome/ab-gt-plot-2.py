@@ -48,6 +48,7 @@ def plot_origin(
     chr_file: Path,
     p1_color: str = "#B22222",
     p2_color: str = "#A9A9A9",
+    both_color: str = "#696969",
     plot_both: bool = False,
     vertical: bool = False,
 ) -> None:
@@ -112,7 +113,7 @@ def plot_origin(
     p1_patch = mpatches.Patch(color=p1_color, label=p1)
     p2_patch = mpatches.Patch(color=p2_color, label=p2)
     if plot_both:
-        both_patch = mpatches.Patch(color="#696969", label="BOTH")
+        both_patch = mpatches.Patch(color=both_color, label="BOTH")
         fig.legend(handles=[p1_patch, p2_patch, both_patch], ncol=3)
     else:
         fig.legend(handles=[p1_patch, p2_patch], ncol=2)
@@ -132,6 +133,9 @@ def main(
     p1: str,
     p2: str,
     child: Path,
+    p1_color: str = "#B22222",
+    p2_color: str = "#A9A9A9",
+    both_color: str = "#696969",
     vertical: bool = False,
 ) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -143,7 +147,17 @@ def main(
     for child_name in tqdm(child_list):
         child_df = gt_df[["CHROM", "POS", p1, p2, child_name]]
         plot_origin(
-            chr_df, child_df, out_dir, p1, p2, child_name, chr_size, vertical=vertical
+            chr_df,
+            child_df,
+            out_dir,
+            p1,
+            p2,
+            child_name,
+            chr_size,
+            vertical=vertical,
+            p1_color=p1_color,
+            p2_color=p2_color,
+            both_color=both_color,
         )
 
 
