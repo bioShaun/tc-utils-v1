@@ -61,7 +61,7 @@ def plot_origin(
     if not plot_both:
         origin_df = origin_df[origin_df["origin"] != "Both"]
 
-    color_map = {p1: p1_color, p2: p2_color}
+    color_map = {p1: p1_color, p2: p2_color, "Both": both_color}
 
     if vertical:
         out_table = out_dir / f"{child_name}.plot.tsv"
