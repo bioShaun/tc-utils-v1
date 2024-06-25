@@ -137,6 +137,7 @@ def main(
     p2_color: str = "#A9A9A9",
     both_color: str = "#696969",
     vertical: bool = False,
+    plot_both: bool = False,
 ) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     child_list = [each.strip() for each in child.open()]
@@ -158,6 +159,7 @@ def main(
             p1_color=p1_color,
             p2_color=p2_color,
             both_color=both_color,
+            plot_both=plot_both,
         )
 
 
