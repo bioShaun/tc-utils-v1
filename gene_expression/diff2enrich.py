@@ -4,6 +4,8 @@ import delegator
 import pandas as pd
 import typer
 
+ENRICH_PY = Path(__file__).parent / "enrichment.py"
+
 
 def filter_diff_genes(
     diff_df: pd.DataFrame,
@@ -39,7 +41,9 @@ def filter_diff_genes(
 def go_enrichment(
     diff_gene_list: Path, out_prefix: Path, go_id_map: Path, go_des: Path
 ) -> None:
-    cmd = f"python enrichment.py go ${diff_gene_list}  ${go_id_map} ${go_des} ${out_prefix}"
+    cmd = (
+        f"python {ENRICH_PY} go ${diff_gene_list}  ${go_id_map} ${go_des} ${out_prefix}"
+    )
     delegator.run(cmd)
 
 
