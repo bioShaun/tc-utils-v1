@@ -23,6 +23,7 @@ raw.data$END <- raw.data$POS + 100000
 raw.data$CHROM <- factor(raw.data$CHROM, levels = chr_df$CHROM)
 chr_df$CHROM<- factor(chr_df$CHROM, levels = chr_df$CHROM)
 out_prefix <- argv$out_prefix
+raw.data$origin <- factor(raw.data$origin, levels = c(argv$p1_name, argv$p2_name, "Both"))
 
 p <- ggplot(raw.data) +
   geom_rect(aes(
