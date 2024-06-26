@@ -48,10 +48,17 @@ def go_enrichment(
 
 
 def kegg_enrichment(
-    diff_gene_list: Path, out_prefix: Path, kegg_id_map: Path, kegg_des: Path, kegg_abbr: str, ncbi_id_map: Path)
+    diff_gene_list: Path,
+    out_prefix: Path,
+    kegg_id_map: Path,
+    kegg_des: Path,
+    kegg_abbr: str,
+    ncbi_id_map: Path,
+):
     cmd = f"python {ENRICH_PY} kegg {diff_gene_list} {kegg_id_map} {kegg_des} {out_prefix} {kegg_abbr} --ncbi-map {ncbi_id_map}"
     print(cmd)
-    delegator.run(cmd)    
+    delegator.run(cmd)
+
 
 def main(
     diff_dir: Path,
@@ -101,7 +108,7 @@ def main(
                     kegg_id_map,
                     kegg_des,
                     kegg_abbr,
-                    ncbi_id_map
+                    ncbi_id_map,
                 )
 
 
