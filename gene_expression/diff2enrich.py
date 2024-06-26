@@ -3,6 +3,7 @@ from pathlib import Path
 import delegator
 import pandas as pd
 import typer
+from loguru import logger
 
 ENRICH_PY = Path(__file__).parent / "enrichment.py"
 
@@ -65,6 +66,7 @@ def main(
         if not diff_file.exists():
             raise ValueError(f"{diff_file} not exists")
         diff_df = pd.read_csv(diff_file, sep="\t")
+        logger.info(f"run {compare_name}")
         filter_diff_genes(diff_df, compare_name, out_dir, logFc, pval, is_adjust_p)
         for reg in ["ALL", "UP", "DOWN"]:
             diff_dir = out_dir / "diff"
