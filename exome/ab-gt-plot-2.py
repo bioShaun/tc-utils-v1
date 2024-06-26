@@ -68,7 +68,7 @@ def plot_origin(
         out_plot_prefix = out_dir / f"{child_name}"
         origin_df["color"] = origin_df["origin"].map(color_map)
         origin_df.to_csv(out_table, sep="\t", index=False)
-        plot_cmd = f'Rscript {VERTICAL_PLOT_R} -p {out_table} -c {chr_file} --p1_name {p1} --p2_name {p2} --p1_color "{p1_color}" --p2_color "{p2_color}" -o {out_plot_prefix}'
+        plot_cmd = f'Rscript {VERTICAL_PLOT_R} -p {out_table} -c {chr_file} --p1_name {p1} --p2_name {p2} --p1_color "{p1_color}" --p2_color "{p2_color}" --both_color "{both_color}" -o {out_plot_prefix}'
         print(plot_cmd)
         delegator.run(plot_cmd)
         out_table.unlink()

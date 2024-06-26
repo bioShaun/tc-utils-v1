@@ -8,6 +8,7 @@ p <- add_argument(p, "--p1_name", help = "p1 name")
 p <- add_argument(p, "--p2_name", help = "p2 name")
 p <- add_argument(p, "--p1_color", help = "p1 color")
 p <- add_argument(p, "--p2_color", help = "p2 color")
+p <- add_argument(p, "--both_color", help = "both color")
 p <- add_argument(p, "--out_prefix", help = "output plot prefix")
 argv <- parse_args(p)
 
@@ -15,8 +16,8 @@ raw.data <- read.delim(argv$plot_file, check.names = F)
 chr_df <- read.table(argv$chr_size, header = F)
 colnames(chr_df) <- c("CHROM", "chrom_length")
 
-plot_color <- c(argv$p1_color, argv$p2_color)
-names(plot_color) <- c(argv$p1_name, argv$p2_name)
+plot_color <- c(argv$p1_color, argv$p2_color, argv$both_color)
+names(plot_color) <- c(argv$p1_name, argv$p2_name, "Both")
 
 raw.data$END <- raw.data$POS + 100000
 raw.data$CHROM <- factor(raw.data$CHROM, levels = chr_df$CHROM)
