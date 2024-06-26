@@ -47,14 +47,26 @@ def go_enrichment(
     delegator.run(cmd)
 
 
+def kegg_enrichment(
+    diff_gene_list: Path, out_prefix: Path, kegg_id_map: Path, kegg_des: Path, kegg_abbr: str, ncbi_id_map: Path)
+    cmd = f"python {ENRICH_PY} kegg {diff_gene_list} {kegg_id_map} {kegg_des} {out_prefix} {kegg_abbr} --ncbi-map {ncbi_id_map}"
+    print(cmd)
+    delegator.run(cmd)    
+
 def main(
     diff_dir: Path,
     out_dir: Path,
     go_id_map: Path,
     go_des: Path,
+    kegg_id_map: Path,
+    kegg_des: Path,
+    kegg_abbr: str,
+    ncbi_id_map: Path,
     logFc: float = 1,
     pval: float = 0.05,
     is_adjust_p: bool = True,
+    run_go: bool = True,
+    run_kegg: bool = True,
 ) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     for diff_dir_i in diff_dir.iterdir():
@@ -70,15 +82,27 @@ def main(
         for reg in ["ALL", "UP", "DOWN"]:
             diff_dir = out_dir / "diff"
             go_enrich_dir = out_dir / "enrichment" / "go" / compare_name
+            kegg_enrich_dir = out_dir / "enrichment" / "kegg" / compare_name
             go_enrich_dir.mkdir(parents=True, exist_ok=True)
             diff_gene_list = diff_dir / f"{compare_name}.UP.diff_genes.txt"
             go_out = go_enrich_dir / f"{compare_name}.{reg}.go_enrichment"
-            go_enrichment(
-                diff_gene_list,
-                go_out,
-                go_id_map,
-                go_des,
-            )
+            kegg_out = kegg_enrich_dir / f"{compare_name}.{reg}.kegg_enrichment"
+            if run_go:
+                go_enrichment(
+                    diff_gene_list,
+                    go_out,
+                    go_id_map,
+                    go_des,
+                )
+            if run_kegg:
+                kegg_enrichment(
+                    diff_gene_list,
+                    kegg_out,
+                    kegg_id_map,
+                    kegg_des,
+                    kegg_abbr,
+                    ncbi_id_map
+                )
 
 
 if __name__ == "__main__":
