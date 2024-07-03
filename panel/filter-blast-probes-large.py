@@ -22,12 +22,9 @@ def main(
         id_count_df = blast_df["id"].value_counts()
         filter_id_df = id_count_df[id_count_df <= max_match_count].reset_index()
         filter_id_df.columns = ["id", "blast_match"]
-        if n == 0:
-            result_df = filter_id_df
-        else:
-            result_df = result_df.append(filter_id_df, ignore_index=True)
-
-    result_df.to_csv(out_file, sep="\t", index=False)
+        mode = "w" if n == 0 else "a"
+        header = True if n == 0 else False
+        filter_id_df.to_csv(out_file, sep="\t", index=False, mode=mode, header=header)
 
 
 if __name__ == "__main__":
