@@ -133,9 +133,9 @@ def main(
     p1: str,
     p2: str,
     child: Path,
-    p1_color: str = "#B22222",
-    p2_color: str = "#A9A9A9",
-    both_color: str = "#696969",
+    p1_color: str = "#0987ed",
+    p2_color: str = "#0ec950",
+    both_color: str = "#E41A1C",
     vertical: bool = False,
     plot_both: bool = False,
 ) -> None:
