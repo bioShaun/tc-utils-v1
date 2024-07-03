@@ -92,7 +92,7 @@ def main(
             kegg_enrich_dir = out_dir / "enrichment" / "kegg" / compare_name
             go_enrich_dir.mkdir(parents=True, exist_ok=True)
             kegg_enrich_dir.mkdir(parents=True, exist_ok=True)
-            diff_gene_list = diff_dir / f"{compare_name}.UP.diff_genes.txt"
+            diff_gene_list = diff_dir / f"{compare_name}.{reg}.diff_genes.txt"
             go_out = go_enrich_dir / f"{compare_name}.{reg}.go_enrichment"
             kegg_out = kegg_enrich_dir / f"{compare_name}.{reg}.kegg_enrichment"
             if run_go:
