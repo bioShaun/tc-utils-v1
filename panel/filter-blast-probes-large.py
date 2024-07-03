@@ -12,7 +12,6 @@ def main(
     max_match_count: int = 1,
 ) -> None:
     blast_files = sorted(blast_dir.glob("./*"))
-    result_df = pd.DataFrame()
 
     for n, blast_file in enumerate(tqdm(blast_files)):
         blast_df = pd.read_table(
