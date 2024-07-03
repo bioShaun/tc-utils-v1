@@ -146,7 +146,10 @@ def main(
     )
     gt_df = pd.read_table(gt_file)
     for child_name in tqdm(child_list):
-        child_df = gt_df[["CHROM", "POS", p1, p2, child_name]]
+        if child_name in [p1, p2]:
+            child_df = gt_df[["CHROM", "POS", p1, p2]]
+        else:
+            child_df = gt_df[["CHROM", "POS", p1, p2, child_name]]
         plot_origin(
             chr_df,
             child_df,

@@ -14,7 +14,7 @@ from typing_extensions import Annotated
 
 BED_COLUMNS = ["chrom", "start", "end", "transcript_id"]
 
-READS_COV = [1, 5, 10, 30, 50, 100]
+READS_COV = [1,3, 5, 10, 30, 50, 100]
 
 
 def merge_chr(df: pd.DataFrame, split_bed: Path) -> pd.DataFrame:
@@ -56,10 +56,10 @@ def main(
     target_cov_dir: Path,
     out_file_prefix: Path,
     mapping_summary: Annotated[
-        Optional[Path], typer.Option(help="fastp data summary", default=None)
+        Optional[Path], typer.Option(help="fastp data summary")
     ] = None,
     sample_map: Annotated[
-        Optional[Path], typer.Option(help="library-sampleid map file", default=None)
+        Optional[Path], typer.Option(help="library-sampleid map file")
     ] = None,
 ) -> None:
     panel_cov_df = load_bed_files(panel_cov_dir)

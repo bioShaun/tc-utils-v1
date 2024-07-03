@@ -5,7 +5,7 @@ import typer
 
 
 def main(
-    blast_dir: Path, out_file: Path, min_len: int = 30, max_match_count: int = 3
+    blast_dir: Path, out_file: Path, min_len: int = 25, max_match_count: int = 1
 ) -> None:
     df_list = [
         pd.read_table(each, usecols=[0, 2, 3], names=["id", "identity", "match_len"])
