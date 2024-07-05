@@ -10,9 +10,6 @@ import pandas as pd
 import typer
 from tqdm import tqdm
 
-COLOR_MAP = {"AA": "#E41A1C", "BB": "#000080", "AB": "#696969"}
-VERTICAL_PLOT_R = Path(__file__).parent / "ab-gt-plot-2-vertical-plot.R"
-
 
 def get_plot_size(df: pd.DataFrame) -> Tuple[float, int]:
     height = len(df) + 1
@@ -45,10 +42,10 @@ def plot_gt(
     origin_df: pd.DataFrame,
     sample_name: str,
     out_dir: Path,
-    ref_color: str = "#E41A1C",
-    alt_color: str = "#000080",
-    het_color: str = "#696969",
-    miss_color: str = "#FFFFFF",
+    ref_color: str = "#0E820A",
+    alt_color: str = "#202E76",
+    het_color: str = "#BA0303",
+    miss_color: str = "#898888",
 ) -> None:
     origin_df["CHROM"] = origin_df["CHROM"].astype("str")
     origin_df = origin_df[origin_df["CHROM"].isin(chr_df.index.astype("str"))]
