@@ -25,7 +25,7 @@ def main(
         id_count_df = id_count_df.reset_index()
         id_count_df.columns = ["id", "blast_match"]
         mode = "w" if n == 0 else "a"
-        header = True if n == 0 else False
+        header = n == 0
         id_count_df.to_csv(out_file, sep="\t", index=False, mode=mode, header=header)
 
 
