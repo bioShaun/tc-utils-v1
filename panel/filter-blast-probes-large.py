@@ -18,14 +18,15 @@ def main(
         blast_df = pd.read_table(
             blast_file, usecols=[0, 2, 3], names=["id", "identity", "match_len"]
         )
-        if not output_all:
-            blast_df = blast_df[blast_df["match_len"] >= min_match_length]
+        blast_df = blast_df[blast_df["match_len"] >= min_match_length]
         id_count_df = blast_df["id"].value_counts()
-        filter_id_df = id_count_df[id_count_df <= max_match_count].reset_index()
-        filter_id_df.columns = ["id", "blast_match"]
+        if not output_all:
+            id_count_df = id_count_df[id_count_df <= max_match_count]
+        id_count_df = id_count_df.reset_index()
+        id_count_df.columns = ["id", "blast_match"]
         mode = "w" if n == 0 else "a"
         header = True if n == 0 else False
-        filter_id_df.to_csv(out_file, sep="\t", index=False, mode=mode, header=header)
+        id_count_df.to_csv(out_file, sep="\t", index=False, mode=mode, header=header)
 
 
 if __name__ == "__main__":
