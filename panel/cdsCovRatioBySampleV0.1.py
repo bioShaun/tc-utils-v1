@@ -42,8 +42,12 @@ def load_bed_files(bed_dir: Path) -> pd.DataFrame:
     for bed_i in bed_dir.glob("*.bed"):
         logger.info(f"Load {bed_i} ...")
         sample_name = bed_i.stem.rstrip(".cov")
-        df_i = pd.read_table(bed_i, header=None, names=[sample_name], usecols=[3])
-        df_list.append(df_i)
+        df_i = pd.read_table(
+            bed_i, header=None, names=["start", "end", "depth"], usecols=[1, 2, 3]
+        )
+        df_i["span"] = df_i["end"] - df_i["start"]
+        df_i["sample"] = df_i["depth"] / df_i["span"]
+        df_list.append(df_i[[sample_name]])
     df = reduce(
         lambda x, y: pd.merge(x, y, left_index=True, right_index=True),
         df_list,
@@ -60,13 +64,13 @@ def main(
     sample_map: Annotated[
         Optional[Path], typer.Option(help="library-sampleid map file")
     ] = None,
-    span: int = 240,
 ) -> None:
     panel_cov_df = load_bed_files(panel_cov_dir)
     df_list = []
 
+    panel_cov_df.to_csv(f"{out_file_prefix}.panel.cov.tsv")
     for cov in READS_COV:
-        df_matrix_bool = panel_cov_df >= (cov * span)
+        df_matrix_bool = panel_cov_df >= cov
         cover_df = df_matrix_bool.sum()
         cover_ratio_df = cover_df / df_matrix_bool.shape[0]
         cover_ratio_df.name = f"coverage_{cov}x"
