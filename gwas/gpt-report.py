@@ -111,7 +111,7 @@ def generate_report(gwas_results_path: Path, bestK: int):
     section_height = 60
     image_height = 100
 
-    gwasItems = GwasReportItems(bestK=bestK)
+    gwasItems = GwasReportItems(bestK=bestK, gwas_results_path=gwas_results_path)
 
     for section in gwasItems.sections:
         title = section["title"]
