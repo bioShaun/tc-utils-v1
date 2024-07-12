@@ -84,7 +84,7 @@ def plot_gt(
             continue
 
         plot_x = list(each_chrom_df.apply(lambda x: (int(x.POS), span), axis=1))
-        plot_colors = list(each_chrom_df["origin"].map(lambda x: color_map[x]))
+        plot_colors = list(each_chrom_df["genotype"].map(lambda x: color_map[x]))
         ax.broken_barh(plot_x, (y_pos, 6), facecolors=plot_colors)
     ax.set_yticks(
         [i * 10 + 7 for i in range(plot_height - 1)],
@@ -113,10 +113,10 @@ def main(
     gt_file: Path,
     chr_size: Path,
     out_dir: Path,
-    ref_color: str = "#0987ed",
-    alt_color: str = "#0ec950",
-    het_color: str = "#E41A1C",
-    miss_color: str = "#E41A1C",
+    ref_color: str = "#0E820A",
+    alt_color: str = "#202E76",
+    het_color: str = "#BA0303",
+    miss_color: str = "#898888",
 ) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     chr_df = pd.read_table(

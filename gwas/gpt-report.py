@@ -14,7 +14,7 @@ LOGO_PATH = DATA_PATH / "logo.png"
 # 创建PDF文档类
 class PDF(FPDF):
     def header(self):
-        self.image(LOGO_PATH, 10, 8, 33)
+        self.image(str(LOGO_PATH), 10, 8, 33)
         self.set_font("SimHei", "", 12)
         self.set_text_color(128, 128, 128)  # 设置文字颜色为灰色
         # Moving cursor to the right:
@@ -60,7 +60,7 @@ class GwasReportItems:
                 "title": "1. 系统发育树分析",
                 "body": "IQ-TREE 2是一款高效的系统发育树构建软件，支持多种替换模型和快速计算。它通过最大似然法（Maximum Likelihood）来推断系统发育树，并使用快速自举分析来评估树节点的可靠性。",
                 "image_dir": "系统发育树分析",
-                "images": ["tree.png"],
+                "images": ["snp.circular.png"],
             },
             {
                 "title": "2. 主成分分析",
@@ -95,7 +95,7 @@ class GwasReportItems:
 # 生成PDF报告
 def generate_report(gwas_results_path: Path, bestK: int):
     pdf = PDF()
-    pdf.add_page()
+    pdf.add_font("SimHei", "", str(FONT_PATH), uni=True)
 
     section_height = 60
     image_height = 100
@@ -108,10 +108,11 @@ def generate_report(gwas_results_path: Path, bestK: int):
         image_dir = gwas_results_path / section["image_dir"]
         if not image_dir.exists() or not image_dir.is_dir():
             continue
-        images = [gwas_results_path / image_dir / img for img in section["images"]]
+        images = [str(image_dir / img) for img in section["images"]]
 
+        pdf.add_page()
         pdf.chapter_title(title)
-        pdf.check_page_break(section_height)  # 假设标题和内容占用60单位高度
+        ##pdf.check_page_break(section_height)  # 假设标题和内容占用60单位高度
         pdf.chapter_body(body)
         for image in images:
             pdf.check_page_break(image_height)  # 假设每张图片占用100单位高度

@@ -46,7 +46,7 @@ def load_bed_files(bed_dir: Path) -> pd.DataFrame:
             bed_i, header=None, names=["start", "end", "depth"], usecols=[1, 2, 3]
         )
         df_i["span"] = df_i["end"] - df_i["start"]
-        df_i["sample"] = df_i["depth"] / df_i["span"]
+        df_i[sample_name] = df_i["depth"] / df_i["span"]
         df_list.append(df_i[[sample_name]])
     df = reduce(
         lambda x, y: pd.merge(x, y, left_index=True, right_index=True),
