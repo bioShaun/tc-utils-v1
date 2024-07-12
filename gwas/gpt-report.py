@@ -121,11 +121,11 @@ def generate_report(gwas_results_path: Path, bestK: int):
     pdf.output(f"{output_pdf}")
 
 
-def main(gwas_results_path: Path, bestK: int):
+def main(gwas_results_path: Path, bestk: int):
     if not gwas_results_path.exists() or not gwas_results_path.is_dir():
         typer.echo(f"路径 {gwas_results_path} 不存在或不是一个目录", err=True)
         raise typer.Exit(code=1)
-    generate_report(gwas_results_path, bestK)
+    generate_report(gwas_results_path, bestk)
 
 
 if __name__ == "__main__":
