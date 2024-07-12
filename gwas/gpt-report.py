@@ -51,10 +51,13 @@ class PDF(FPDF):
 @define
 class GwasReportItems:
 
+    gwas_results_path: Path = field(factory=Path)
     bestK: int = field(factory=int)
     sections: list = field(init=False)
 
     def __attrs_post_init__(self):
+        asso_dir = self.gwas_results_path / "性状关联分析"
+        example_trait = list(asso_dir.glob("*"))[0].name
         self.sections = [
             {
                 "title": "1. 系统发育树分析",
@@ -91,8 +94,11 @@ class GwasReportItems:
             {
                 "title": "5. 性状关联分析",
                 "body": "GEMMA是一款用于基因组宽关联分析（GWAS）和混合线性模型分析的软件。它通过混合线性模型（MLM）控制群体结构和亲缘关系，识别与性状相关的遗传变异。",
-                "image_dir": "性状关联分析",
-                "images": ["manhatton.png", "qq.png"],
+                "image_dir": f"性状关联分析/{example_trait}",
+                "images": [
+                    f"{example_trait}_lmm_ltr.manhatton.png",
+                    f"{example_trait}_lmm_lrt.QQ.png",
+                ],
             },
         ]
 
