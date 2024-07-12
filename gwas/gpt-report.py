@@ -79,7 +79,7 @@ class GwasReportItems:
                     f"plot/snp.{self.bestK}.Q.png",
                 ],
                 "is_wide_image": [False, True],
-                "image_size": [120, 150],
+                "image_size": [100, 150],
             },
             {
                 "title": "4. 连锁不平衡分析",
@@ -120,14 +120,14 @@ def generate_report(gwas_results_path: Path, bestK: int):
         ##pdf.check_page_break(section_height)  # 假设标题和内容占用60单位高度
         pdf.chapter_body(body)
         for n, image in enumerate(images):
-            pdf.check_page_break(image_height)  # 假设每张图片占用100单位高度
+            # pdf.check_page_break(image_height)  # 假设每张图片占用100单位高度
             image_size = section["image_size"][n]
             if "is_wide_image" in section and section["is_wide_image"][n]:
                 pdf.add_wide_image(image, image_size)
             else:
                 pdf.add_image(image, image_size)
 
-    output_pdf = gwas_results_path / "analysis_report.pdf"
+    output_pdf = gwas_results_path / "分析说明.pdf"
     pdf.output(f"{output_pdf}")
 
 
