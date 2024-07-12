@@ -34,12 +34,12 @@ class PDF(FPDF):
         self.multi_cell(0, 10, body)
         self.ln()
 
-    def add_image(self, image_path):
-        self.image(image_path, x=10, h=150)
+    def add_image(self, image_path, height=150):
+        self.image(image_path, x=10, h=height)
         self.ln(10)
 
-    def add_wide_image(self, image_path):
-        self.image(image_path, x=10, w=150)
+    def add_wide_image(self, image_path, width=150):
+        self.image(image_path, x=10, w=width)
         self.ln(10)
 
     def check_page_break(self, h):
@@ -58,15 +58,17 @@ class GwasReportItems:
         self.sections = [
             {
                 "title": "1. 系统发育树分析",
-                "body": "IQ-TREE 2是一款高效的系统发育树构建软件，支持多种替换模型和快速计算。它通过最大似然法（Maximum Likelihood）来推断系统发育树，并使用快速自举分析来评估树节点的可靠性。",
+                "body": "IQ-TREE2是一款高效的系统发育树构建软件，支持多种替换模型和快速计算。它通过最大似然法（Maximum Likelihood）来推断系统发育树，并使用快速自举分析来评估树节点的可靠性。",
                 "image_dir": "系统发育树分析",
                 "images": ["snp.circular.png"],
+                "image_size": [150],
             },
             {
                 "title": "2. 主成分分析",
                 "body": "PLINK是一款常用的基因组数据分析工具，支持多种遗传统计分析。主成分分析（PCA）通过降维技术，将高维基因型数据投影到低维空间，以揭示样本间的遗传结构和群体分层。",
                 "image_dir": "主成分分析",
                 "images": ["pca.png"],
+                "image_size": [150],
             },
             {
                 "title": "3. 群体结构分析",
@@ -77,12 +79,14 @@ class GwasReportItems:
                     f"plot/snp.{self.bestK}.Q.png",
                 ],
                 "is_wide_image": [False, True],
+                "image_size": [120, 150],
             },
             {
                 "title": "4. 连锁不平衡分析",
                 "body": "PopLDdecay是一款专门用于大规模SNP数据的连锁不平衡（LD）分析工具。它通过计算SNP对之间的LD值（如r²），评估基因组范围内的LD衰减模式。",
                 "image_dir": "连锁不平衡分析",
                 "images": ["LDdecay.png"],
+                "image_size": [150],
             },
             {
                 "title": "5. 性状关联分析",
@@ -117,10 +121,11 @@ def generate_report(gwas_results_path: Path, bestK: int):
         pdf.chapter_body(body)
         for n, image in enumerate(images):
             pdf.check_page_break(image_height)  # 假设每张图片占用100单位高度
+            image_size = section["image_size"][n]
             if "is_wide_image" in section and section["is_wide_image"][n]:
-                pdf.add_wide_image(image)
+                pdf.add_wide_image(image, image_size)
             else:
-                pdf.add_image(image)
+                pdf.add_image(image, image_size)
 
     output_pdf = gwas_results_path / "analysis_report.pdf"
     pdf.output(f"{output_pdf}")
