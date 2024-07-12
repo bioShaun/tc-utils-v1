@@ -96,9 +96,11 @@ class GwasReportItems:
                 "body": "GEMMA是一款用于基因组宽关联分析（GWAS）和混合线性模型分析的软件。它通过混合线性模型（MLM）控制群体结构和亲缘关系，识别与性状相关的遗传变异。",
                 "image_dir": f"性状关联分析/{example_trait}",
                 "images": [
-                    f"{example_trait}_lmm_ltr.manhatton.png",
+                    f"{example_trait}_lmm_lrt.manhattan.png",
                     f"{example_trait}_lmm_lrt.QQ.png",
                 ],
+                "is_wide_image": [True, False],
+                "image_size": [150, 100],
             },
         ]
 
