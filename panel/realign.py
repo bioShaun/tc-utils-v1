@@ -364,6 +364,7 @@ def realign3(
     match_cut_off_bp = probe_length - miss_cut_off_bp
     blast_df = blast_df[blast_df["qlength"] >= match_cut_off_bp].copy()
     blast_df = blast_df[blast_df["mismatch"] <= miss_cut_off_bp].copy()
+    blast_df = blast_df[blast_df["gapopen"] == 0].copy()
     blast_df.drop_duplicates(subset=["qseqid"], inplace=True)
     paf_df = blast2paf(blast_df, probe_length)
     anno_df = pd.read_table(annotation)
