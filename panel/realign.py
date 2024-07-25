@@ -206,7 +206,8 @@ def realign(
     )
     offset_df = generate_offset_df(target_bed=target_bed, flank_bed=flank_bed)
     logger.info(f"Generating {FLANK_SIZE} bp flanks id map...")
-    paf2idmap(paf=flank_paf, offset_df=offset_df, match_cutoff=cut_off)
+    match_cutoff = np.ceil(cut_off * 2 * FLANK_SIZE)
+    paf2idmap(paf=flank_paf, offset_df=offset_df, match_cutoff=match_cutoff)
 
 
 @app.command()
@@ -247,10 +248,11 @@ def adjust_annotation_by_realign(annotation: Path, id_map: Path) -> None:
     anno_df = pd.read_table(annotation)
     id_map_df = pd.read_table(id_map, header=None, names=["id", "new_id"])
     re_id_df = (
-        id_map_df.merge(anno_df).drop("id", axis=1).rename(columns={"new_id": "id"})
+        id_map_df.merge(anno_df)
     )
-    re_id_df["chrom"] = re_id_df["id"].map(lambda x: "_".join(x.split("_")[:-1]))
-    re_id_df["pos"] = re_id_df["id"].map(lambda x: int(x.split("_")[-1]))
+    re_id_df["chrom"] = re_id_df["new_id"].map(lambda x: "_".join(x.split("_")[:-1]))
+    re_id_df["pos"] = re_id_df["new_id"].map(lambda x: int(x.split("_")[-1]))
+    re_id_df.drop(columns=["new_id"], inplace=True)
     if "probe_start" in re_id_df.columns:
         re_id_df["probe_length"] = re_id_df["probe_end"] - re_id_df["probe_start"]
         re_id_df["probe_start"] = (
@@ -260,6 +262,17 @@ def adjust_annotation_by_realign(annotation: Path, id_map: Path) -> None:
         re_id_df.drop(columns=["probe_length"], inplace=True)
     realign_annotation = annotation.with_suffix(".realign.tsv")
     re_id_df.to_csv(realign_annotation, sep="\t", index=False)
+
+
+# @app.command()
+# def realign3(
+#     annotation: Path,
+#     blast_dir: Path,
+#     cut_off: float = 0.9,
+#     force: bool = False,
+# ) -> None:
+#     blast_dfs = [pd.read_table(each) for each in blast_dir.glob("*")]
+#     blast_df = pd.concat(blast_dfs)
 
 
 if __name__ == "__main__":

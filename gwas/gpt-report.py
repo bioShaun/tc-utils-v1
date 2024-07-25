@@ -34,11 +34,16 @@ class PDF(FPDF):
         self.multi_cell(0, 10, body)
         self.ln()
 
-    def add_image(self, image_path, height=150):
+    def add_image(
+        self,
+        image_path,
+        page_width,
+        height=150,
+    ):
         self.image(image_path, x=10, h=height)
         self.ln(10)
 
-    def add_wide_image(self, image_path, width=150):
+    def add_wide_image(self, image_path, page_width, width=150):
         self.image(image_path, x=10, w=width)
         self.ln(10)
 
@@ -109,6 +114,7 @@ class GwasReportItems:
 def generate_report(gwas_results_path: Path, bestK: int):
     pdf = PDF()
     pdf.add_font("SimHei", "", str(FONT_PATH), uni=True)
+    page_width = pdf.w
 
     section_height = 60
     image_height = 100
