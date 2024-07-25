@@ -1,12 +1,13 @@
 from enum import Enum
 from pathlib import Path
-from typing import Tuple
+from typing import Optional, Tuple
 
 import delegator
 import numpy as np
 import pandas as pd
 import typer
 from loguru import logger
+from tqdm import tqdm
 
 FLANK_SIZE = 60
 
@@ -26,8 +27,12 @@ def get_pos(row: pd.Series) -> int:
 
 
 def paf2idmap(
-    paf_df: pd.DataFrame, match_cutoff: float, offset_df: pd.DataFrame, out_prefix: Path
-) -> None:
+    paf_df: pd.DataFrame,
+    match_cutoff: float,
+    offset_df: pd.DataFrame,
+    out_prefix: Path,
+    save_file: bool = True,
+) -> Optional[pd.DataFrame]:
 
     paf_df.sort_values(
         [
@@ -45,18 +50,22 @@ def paf2idmap(
     filter_df["new_id"] = filter_df.apply(lambda x: f'{x["chrom"]}_{x["pos"]}', axis=1)
     filter_df["pos_0"] = filter_df["pos"] - 1
     id_map = out_prefix.with_suffix(".idmap.tsv")
-    filter_df.to_csv(
-        id_map, header=False, index=False, columns=["id", "new_id"], sep="\t"
-    )
-    id_map_target_bed = id_map.with_suffix(".target.bed")
-    filter_df.sort_values(["chrom", "pos"], inplace=True)
-    filter_df.to_csv(
-        id_map_target_bed,
-        sep="\t",
-        index=False,
-        header=False,
-        columns=["chrom", "pos_0", "pos"],
-    )
+    id_map_df = filter_df[["id", "new_id"]].copy()
+    if save_file:
+        filter_df.to_csv(
+            id_map, header=False, index=False, columns=["id", "new_id"], sep="\t"
+        )
+        id_map_target_bed = id_map.with_suffix(".target.bed")
+        filter_df.sort_values(["chrom", "pos"], inplace=True)
+        filter_df.to_csv(
+            id_map_target_bed,
+            sep="\t",
+            index=False,
+            header=False,
+            columns=["chrom", "pos_0", "pos"],
+        )
+
+    return id_map_df
 
 
 def generate_bed_from_vcf(vcf: Path) -> Path:
@@ -339,9 +348,32 @@ def realign3(
     miss_cut_off_bp: int,
 ) -> None:
     # qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore
-    blast_dfs = [
-        pd.read_table(
-            each,
+    # blast_dfs = [
+    #     pd.read_table(
+    #         each,
+    #         header=None,
+    #         names=[
+    #             "qseqid",
+    #             "sseqid",
+    #             "pident",
+    #             "qlength",
+    #             "mismatch",
+    #             "gapopen",
+    #             "qstart",
+    #             "qend",
+    #             "sstart",
+    #             "send",
+    #             "evalue",
+    #             "bitscore",
+    #         ],
+    #     )
+    #     for each in blast_dir.glob("*")
+    # ]
+
+    blast_files = list(blast_dir.glob("*"))
+    for n, blast_file_i in enumerate(tqdm(blast_files)):
+        blast_df = pd.read_table(
+            blast_file_i,
             header=None,
             names=[
                 "qseqid",
@@ -358,25 +390,32 @@ def realign3(
                 "bitscore",
             ],
         )
-        for each in blast_dir.glob("*")
-    ]
-    blast_df = pd.concat(blast_dfs)
-    match_cut_off_bp = probe_length - miss_cut_off_bp
-    blast_df = blast_df[blast_df["qlength"] >= match_cut_off_bp].copy()
-    blast_df = blast_df[blast_df["mismatch"] <= miss_cut_off_bp].copy()
-    blast_df = blast_df[blast_df["gapopen"] == 0].copy()
-    blast_df.drop_duplicates(subset=["qseqid"], inplace=True)
-    paf_df = blast2paf(blast_df, probe_length)
-    anno_df = pd.read_table(annotation)
-    anno_df["offset_start"] = anno_df["pos"] - 1 - anno_df["probe_start"]
-    anno_df["offset_end"] = probe_length - anno_df["offset_start"] - 1
-    offset_table = anno_df[["id", "offset_start", "offset_end"]].copy()
-    paf2idmap(
-        paf_df=paf_df,
-        match_cutoff=0,
-        offset_df=offset_table,
-        out_prefix=annotation,
-    )
+        match_cut_off_bp = probe_length - miss_cut_off_bp
+        blast_df = blast_df[blast_df["qlength"] >= match_cut_off_bp].copy()
+        blast_df = blast_df[blast_df["mismatch"] <= miss_cut_off_bp].copy()
+        blast_df = blast_df[blast_df["gapopen"] == 0].copy()
+        blast_df.drop_duplicates(subset=["qseqid"], inplace=True)
+        paf_df = blast2paf(blast_df, probe_length)
+        anno_df = pd.read_table(annotation)
+        anno_df["offset_start"] = anno_df["pos"] - 1 - anno_df["probe_start"]
+        anno_df["offset_end"] = probe_length - anno_df["offset_start"] - 1
+        offset_table = anno_df[["id", "offset_start", "offset_end"]].copy()
+        id_map_df = paf2idmap(
+            paf_df=paf_df,
+            match_cutoff=0,
+            offset_df=offset_table,
+            out_prefix=annotation,
+            save_file=False,
+        )
+        mode = "w" if n == 0 else "a"
+        if id_map_df is not None:
+            id_map_df.to_csv(
+                annotation.with_suffix(".idmap.tsv"),
+                sep="\t",
+                header=False,
+                index=False,
+                mode=mode,
+            )
 
 
 if __name__ == "__main__":
