@@ -316,6 +316,7 @@ def blast2paf(blast_df: pd.DataFrame, probe_length: int) -> pd.DataFrame:
             "bitscore",
         ]
     ].copy()
+    paf_df["sstart"] = paf_df["sstart"] - 1
     paf_df.rename(
         columns={
             "qseqid": "id",
@@ -335,7 +336,7 @@ def realign3(
     annotation: Path,
     blast_dir: Path,
     probe_length: int,
-    cut_off_bp: int,
+    miss_cut_off_bp: int,
 ) -> None:
     # qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore
     blast_dfs = [
@@ -360,7 +361,9 @@ def realign3(
         for each in blast_dir.glob("*")
     ]
     blast_df = pd.concat(blast_dfs)
-    blast_df = blast_df[blast_df["qlength"] >= cut_off_bp].copy()
+    match_cut_off_bp = probe_length - miss_cut_off_bp
+    blast_df = blast_df[blast_df["qlength"] >= match_cut_off_bp].copy()
+    blast_df = blast_df[blast_df["mismatch"] <= miss_cut_off_bp].copy()
     blast_df.drop_duplicates(subset=["qseqid"], inplace=True)
     paf_df = blast2paf(blast_df, probe_length)
     anno_df = pd.read_table(annotation)
