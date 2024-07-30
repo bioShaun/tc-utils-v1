@@ -2,6 +2,7 @@ from pathlib import Path
 
 import typer
 from Bio import SeqIO
+from tqdm import tqdm
 
 
 def rewrite_fasta(input_file: Path, output_file: Path) -> None:
@@ -13,9 +14,8 @@ def rewrite_fasta(input_file: Path, output_file: Path) -> None:
         output_file (Path): Path to output fasta file.
     """
     complete_records = []
-    for record in SeqIO.parse(input_file, "fasta"):
-        if not record.seq.missing_data:
-            complete_records.append(record)
+    for record in tqdm(SeqIO.parse(input_file, "fasta")):
+        complete_records.append(record)
 
     SeqIO.write(complete_records, output_file, "fasta")
 
