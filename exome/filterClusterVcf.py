@@ -29,7 +29,7 @@ def main(
         end_pos = f"{df.iloc[-1][0]}-{df.iloc[-1][1]}"
         logger.info(f"Processing {start_pos} - {end_pos}")
         for row in tqdm(df.itertuples()):
-            if len(compare_rows) < snp_count - 1:
+            if len(compare_rows) <= snp_count:
                 compare_rows.append([row[0], row[1], row[2]])
                 continue
             compare_row = compare_rows[1 - snp_count]
