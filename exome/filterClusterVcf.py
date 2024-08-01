@@ -8,20 +8,21 @@ from loguru import logger
 from tqdm import tqdm
 
 
-def main(
-    vcf_file: Path, filter_vcf_file: Path, window_size: int = 120, snp_count: int = 4
+def filter_vcf(
+    vcf_file: Path,
+    output_file: Path,
+    window_size: int = 60,
+    snp_count: int = 2,
+    bgzip_bin_path: str = "/public/home/zxchen/software/miniconda3/envs/exome/bin/",
 ) -> None:
-    filter_vcf_info = open(filter_vcf_file, "w")
-    with gzip.open(vcf_file, "rt") as f:
-        for eachline in f:
-            if eachline.startswith("#"):
-                filter_vcf_info.write(eachline)
-            else:
-                break
-    filter_vcf_info.close()
-
+    with open(output_file, "w") as output_file_handle:
+        with gzip.open(vcf_file, "rt") as vcf_file_handle:
+            for line in vcf_file_handle:
+                if line.startswith("#"):
+                    output_file_handle.write(line)
+                else:
+                    break
     dfs = pd.read_table(vcf_file, comment="#", header=None, chunksize=100_000)
-    passed_dfs = []
     for df in dfs:
         cluster_rows = set()
         compare_rows = []
@@ -40,15 +41,12 @@ def main(
             compare_rows.append([row[0], row[1], row[2]])
             compare_rows = compare_rows[1:]
         cluster_row_indexes = list(cluster_rows)
-        filter_df = df[~df.index.isin(cluster_row_indexes)]
-        # passed_dfs.append(filter_df)
+        filtered_df = df[~df.index.isin(cluster_row_indexes)]
         logger.info(f"Writing {start_pos} - {end_pos}")
-        filter_df.to_csv(filter_vcf_file, sep="\t", index=False, header=False, mode="a")
-    logger.info(f"Compressing {filter_vcf_file}")
-    delegator.run(
-        f"/public/software/miniconda3/envs/plant-gmap/bin/bgzip -f {filter_vcf_file}"
-    )
+        filtered_df.to_csv(output_file, sep="\t", index=False, header=False, mode="a")
+    logger.info(f"Compressing {output_file}")
+    delegator.run(f"{bgzip_bin_path}/bgzip -f {output_file}")
 
 
 if __name__ == "__main__":
-    typer.run(main)
+    typer.run(filter_vcf)
