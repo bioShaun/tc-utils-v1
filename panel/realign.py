@@ -44,7 +44,7 @@ def paf2idmap(
     )
     paf_df.drop_duplicates(subset=["id"], inplace=True)
     paf_df["match_ratio"] = paf_df["match_length"] / paf_df["probe_length"]
-    filter_df = paf_df[paf_df["match_length"] > match_cutoff].copy()
+    filter_df = paf_df[paf_df["match_ratio"] > match_cutoff].copy()
     filter_df = filter_df.merge(offset_df, on="id")
     filter_df["pos"] = filter_df.apply(get_pos, axis=1)
     filter_df["new_id"] = filter_df.apply(lambda x: f'{x["chrom"]}_{x["pos"]}', axis=1)
@@ -203,7 +203,7 @@ def realign(
     )
     offset_df = generate_offset_df(target_bed=target_bed, flank_bed=flank_bed)
     logger.info(f"Generating {FLANK_SIZE} bp flanks id map...")
-    match_cutoff = np.ceil(cut_off * 2 * FLANK_SIZE)
+    # match_cutoff = np.ceil(cut_off * 2 * FLANK_SIZE)
     paf_df = pd.read_table(
         flank_paf,
         header=None,
@@ -222,7 +222,7 @@ def realign(
     paf2idmap(
         paf_df=paf_df,
         offset_df=offset_df,
-        match_cutoff=match_cutoff,
+        match_cutoff=cut_off,
         out_prefix=flank_paf,
     )
 
@@ -256,7 +256,6 @@ def realign2(
         flank_fa=flank_fa, genome_sr_idx=genome_sr_idx, threads=threads, force=force
     )
     logger.info(f"Generating id map...")
-    match_cutoff = np.ceil(cut_off * 2 * FLANK_SIZE)
     paf_df = pd.read_table(
         flank_paf,
         header=None,
@@ -275,7 +274,7 @@ def realign2(
     paf2idmap(
         paf_df=paf_df,
         offset_df=offset_df,
-        match_cutoff=match_cutoff,
+        match_cutoff=cut_off,
         out_prefix=flank_paf,
     )
 
