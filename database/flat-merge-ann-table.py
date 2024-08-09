@@ -34,6 +34,7 @@ def main(gt_table: Path, ann_table: Path, out_table: Path):
         header=None,
         names=["chrom", "pos", "refer", "alt", "accession"],
     )
+    flat_gt_df = flat_gt_df[~flat_gt_df["alt"].str.contains(",")]
     flat_gt_df["variant"] = flat_gt_df["chrom"].str.cat(
         flat_gt_df["pos"].astype("str"), sep="_"
     )
