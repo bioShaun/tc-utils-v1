@@ -23,7 +23,11 @@ def flat_gt_table(gt_table: Path) -> Path:
 def split_accession(accession: str) -> Tuple[str, str, int, int]:
     sample_id, allele_info = accession.split("=")
     genotype, allele_depth = allele_info.split(";")
-    reference_depth, alternate_depth = allele_depth.split(",")
+    if "." in genotype:
+        genotype = "./."
+        reference_depth, alternate_depth = 0, 0
+    else:
+        reference_depth, alternate_depth = allele_depth.split(",")
     return sample_id, genotype, int(reference_depth), int(alternate_depth)
 
 
@@ -41,6 +45,7 @@ def main(gt_table: Path, ann_table: Path, out_table: Path):
     flat_gt_df[["sample_id", "genotype", "ref_depth", "alt_depth"]] = (
         flat_gt_df["accession"].map(split_accession).to_list()  # type: ignore
     )
+    flat_gt_df = flat_gt_df[flat_gt_df["genotype"] != "./."]
     ann_df = pd.read_table(
         ann_table,
         header=None,
@@ -58,6 +63,7 @@ def main(gt_table: Path, ann_table: Path, out_table: Path):
         ],
         usecols=list(range(10)),
     )
+    ann_df.drop_duplicates(subset=["chrom", "pos", "refer", "alt"], inplace=True)
     add_ann_df = ann_df.merge(flat_gt_df).drop("accession", axis=1)
     add_ann_df.to_csv(out_table, sep="\t", index=False)
 

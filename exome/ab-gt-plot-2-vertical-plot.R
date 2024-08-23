@@ -6,6 +6,7 @@ p <- add_argument(p, "--plot_file", help = "plot file")
 p <- add_argument(p, "--chr_size", help = "chr size file")
 p <- add_argument(p, "--p1_name", help = "p1 name")
 p <- add_argument(p, "--p2_name", help = "p2 name")
+p <- add_argument(p, "--both_name", help = "both name")
 p <- add_argument(p, "--p1_color", help = "p1 color")
 p <- add_argument(p, "--p2_color", help = "p2 color")
 p <- add_argument(p, "--both_color", help = "both color")
@@ -17,7 +18,7 @@ chr_df <- read.table(argv$chr_size, header = F)
 colnames(chr_df) <- c("CHROM", "chrom_length")
 
 plot_color <- c(argv$p1_color, argv$p2_color, argv$both_color)
-names(plot_color) <- c(argv$p1_name, argv$p2_name, "Both")
+names(plot_color) <- c(argv$p1_name, argv$p2_name, argv$both_name)
 
 raw.data$POS_MB <- raw.data$POS / 1000000
 raw.data$END_MB <- raw.data$POS_MB + 0.1
@@ -25,7 +26,7 @@ raw.data$CHROM <- factor(raw.data$CHROM, levels = chr_df$CHROM)
 chr_df$CHROM<- factor(chr_df$CHROM, levels = chr_df$CHROM)
 chr_df$chrom_length_mb <- chr_df$chrom_length / 1000000
 out_prefix <- argv$out_prefix
-raw.data$origin <- factor(raw.data$origin, levels = c(argv$p1_name, argv$p2_name, "Both"))
+raw.data$origin <- factor(raw.data$origin, levels = c(argv$p1_name, argv$p2_name, argv$both_name))
 
 
 p <- ggplot(raw.data) +
