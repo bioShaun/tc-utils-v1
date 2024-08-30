@@ -10,9 +10,13 @@ from tqdm import tqdm
 
 
 def get_gt_type(gt: str) -> str:
-    if gt == "./.":
+    if gt in ["./.", '.']:
         return "miss"
-    allele1, allele2 = gt.split("/")[:2]
+    try:
+        allele1, allele2 = gt.split("/")[:2]
+    except ValueError:
+        print('error gt:', gt) 
+        raise ValueError(f'{gt} format error!')
     if allele1 != allele2:
         return "het"
     if allele1 == "0":

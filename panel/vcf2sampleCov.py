@@ -11,7 +11,8 @@ def vcf2depth(vcf_path: Path, force: bool = False) -> Path:
     dp_path = vcf_path.with_suffix(".dp.txt.gz")
     if dp_path.exists() and not force:
         return dp_path
-    cmd = f"bcftools query -f '%CHROM\\t%POS\\t[\\t%DP]\n' ${vcf_path} | gzip > ${dp_path}"
+    cmd = f"bcftools query -f '%CHROM\\t%POS\\t[\\t%DP]\\n' {vcf_path} | gzip > {dp_path}"
+    logger.info(cmd)
     delegator.run(cmd)
     return dp_path
 
