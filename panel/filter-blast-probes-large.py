@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Optional
 
 import pandas as pd
 import typer
@@ -11,14 +12,25 @@ def main(
     min_match_length: int = 24,
     max_match_count: int = 1,
     output_all: bool = False,
+    min_identity: Optional[int] = None,
+    max_mismatch_count: Optional[int] = None,
+    max_gap_count: Optional[int] = None,
 ) -> None:
     blast_files = sorted(blast_dir.glob("./*"))
 
     for n, blast_file in enumerate(tqdm(blast_files)):
         blast_df = pd.read_table(
-            blast_file, usecols=[0, 2, 3], names=["id", "identity", "match_len"]
+            blast_file,
+            usecols=[0, 2, 3, 4, 5],
+            names=["id", "identity", "match_len", "mismatch", "gapopen"],
         )
         blast_df = blast_df[blast_df["match_len"] >= min_match_length]
+        if min_identity is not None:
+            blast_df = blast_df[blast_df["identity"] >= min_identity]
+        if max_mismatch_count is not None:
+            blast_df = blast_df[blast_df["mismatch"] <= max_mismatch_count]
+        if max_gap_count is not None:
+            blast_df = blast_df[blast_df["gapopen"] <= max_gap_count]
         id_count_df = blast_df["id"].value_counts()
         if not output_all:
             id_count_df = id_count_df[id_count_df <= max_match_count]
