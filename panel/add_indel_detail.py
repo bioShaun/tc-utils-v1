@@ -41,29 +41,28 @@ def get_ref_alt_lengths(alleles: str) -> tuple[int, list[int]]:
     return ref_len, alt_lens
 
 
-def get_indel_type(alleles: str) -> IndelType:
+def get_indel_type(alleles: str) -> str:
     """
-    Determines the type of indel (insertion, deletion, or SNP) based on the provided alleles string.
+    Given a string of alleles, determine the type of indel.
 
     Args:
-        alleles (str): A string representing the reference and alternative alleles, separated by a forward slash (e.g. "A/T,C").
+        alleles: A string of alleles, separated by a forward slash and commas.
 
     Returns:
-        IndelType: An enum representing the type of indel, either IndelType.SNP, IndelType.DEL, or IndelType.INS.
+        A string indicating the type of indel, one of "SNP", "DEL" or "INS".
     """
-
     ref_len, alt_lens = get_ref_alt_lengths(alleles)
 
     # Determine if all alternative alleles are the same length as the reference
     if all(ref_len == alt_len for alt_len in alt_lens):
-        return IndelType.SNP
+        return IndelType.SNP.value
 
     # Check if any alternative allele is shorter than the reference
     if any(ref_len > alt_len for alt_len in alt_lens):
-        return IndelType.DEL
+        return IndelType.DEL.value
 
     # Otherwise, it's an insertion
-    return IndelType.INS
+    return IndelType.INS.value
 
 
 def get_indel_length(alleles: str) -> int:
@@ -106,10 +105,10 @@ def test_get_indel_length(alleles, expected):
 @pytest.mark.parametrize(
     "alleles, expected_type",
     [
-        ("A/T", IndelType.SNP),
-        ("G/C", IndelType.SNP),
-        ("AT/AT", IndelType.SNP),
-        ("A/A,T", IndelType.SNP),
+        ("A/T", IndelType.SNP.value),
+        ("G/C", IndelType.SNP.value),
+        ("AT/AT", IndelType.SNP.value),
+        ("A/A,T", IndelType.SNP.value),
     ],
 )
 def test_snp(alleles, expected_type):
@@ -119,12 +118,12 @@ def test_snp(alleles, expected_type):
 @pytest.mark.parametrize(
     "alleles, expected_type",
     [
-        ("A/-", IndelType.DEL),
-        ("A/del", IndelType.DEL),
-        ("AT/A", IndelType.DEL),
-        ("ATG/A", IndelType.DEL),
-        ("ATGC/AT", IndelType.DEL),
-        ("AT/A,ATG", IndelType.DEL),
+        ("A/-", IndelType.DEL.value),
+        ("A/del", IndelType.DEL.value),
+        ("AT/A", IndelType.DEL.value),
+        ("ATG/A", IndelType.DEL.value),
+        ("ATGC/AT", IndelType.DEL.value),
+        ("AT/A,ATG", IndelType.DEL.value),
     ],
 )
 def test_deletion(alleles, expected_type):
@@ -134,10 +133,10 @@ def test_deletion(alleles, expected_type):
 @pytest.mark.parametrize(
     "alleles, expected_type",
     [
-        ("A/AT", IndelType.INS),
-        ("G/GTT", IndelType.INS),
-        ("AT/ATG", IndelType.INS),
-        ("A/AT,ATG", IndelType.INS),
+        ("A/AT", IndelType.INS.value),
+        ("G/GTT", IndelType.INS.value),
+        ("AT/ATG", IndelType.INS.value),
+        ("A/AT,ATG", IndelType.INS.value),
     ],
 )
 def test_insertion(alleles, expected_type):
@@ -145,9 +144,9 @@ def test_insertion(alleles, expected_type):
 
 
 def test_complex_cases():
-    assert get_indel_type("A/T,AT,ATG") == IndelType.INS
-    assert get_indel_type("ATG/A,AT,ATGC") == IndelType.DEL
-    assert get_indel_type("AT/A,ATG,AT") == IndelType.DEL
+    assert get_indel_type("A/T,AT,ATG") == IndelType.INS.value
+    assert get_indel_type("ATG/A,AT,ATGC") == IndelType.DEL.value
+    assert get_indel_type("AT/A,ATG,AT") == IndelType.DEL.value
 
 
 def test_edge_cases():
@@ -161,7 +160,7 @@ def test_edge_cases():
         get_ref_alt_lengths("A/T/GG")
 
 
-def get_row_indel_type(row: pd.Series) -> IndelType:
+def get_row_indel_type(row: pd.Series) -> str:
     return get_indel_type(row["alleles"])
 
 
