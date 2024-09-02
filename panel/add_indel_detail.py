@@ -164,11 +164,22 @@ def get_row_indel_type(row: pd.Series) -> str:
     return get_indel_type(row["alleles"])
 
 
-def main(pos_file: Path, out_file: Path):
+def indel_right_pos(row: pd.Series) -> int:
+    if row["indel_type"] == IndelType.DEL.value:
+        return row["pos"] + row["indel_length"]
+    return row["pos"]
+
+
+def main(pos_file: Path):
     df = pd.read_table(pos_file)
     df["indel_type"] = df.apply(get_row_indel_type, axis=1)  # type: ignore
     df["indel_length"] = df.apply(get_row_indel_length, axis=1)  # type: ignore
-    df.to_csv(out_file, sep="\t", index=False)
+    right_df = df.copy()
+    left_file = pos_file.with_suffix(".left.tsv")
+    df.to_csv(left_file, sep="\t", index=False)
+    right_df["pos"] = right_df.apply(indel_right_pos, axis=1)
+    right_file = pos_file.with_suffix(".right.tsv")
+    right_df.to_csv(right_file, sep="\t", index=False)
 
 
 if __name__ == "__main__":
