@@ -1,3 +1,4 @@
+import re
 from enum import Enum
 from pathlib import Path
 
@@ -24,7 +25,7 @@ def get_ref_alt_lengths(alleles: str) -> tuple[int, list[int]]:
         A tuple where the first element is the length of the reference allele and the
         second element is a list of lengths of the alternative alleles.
     """
-    alleles = alleles.replace("-", "")
+    alleles = re.sub("-|del", "", alleles)
     if not alleles or "/" not in alleles:
         raise ValueError("Invalid alleles format")
     ref, alt = alleles.split("/")
@@ -115,6 +116,7 @@ def test_snp(alleles, expected_type):
     "alleles, expected_type",
     [
         ("A/-", IndelType.DEL),
+        ("A/del", IndelType.DEL),
         ("AT/A", IndelType.DEL),
         ("ATG/A", IndelType.DEL),
         ("ATGC/AT", IndelType.DEL),
