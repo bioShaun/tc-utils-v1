@@ -32,6 +32,10 @@ def get_ref_alt_lengths(alleles: str) -> tuple[int, list[int]]:
 
     if not ref and not alt:
         raise ValueError("Both reference and alternative alleles are empty")
+
+    if alleles.count("/") > 1:
+        raise ValueError("Invalid alleles format, more than one '/'")
+
     ref_len = len(ref)
     alt_lens = [len(a) for a in alt.split(",")]
     return ref_len, alt_lens
@@ -153,6 +157,8 @@ def test_edge_cases():
         get_ref_alt_lengths("A")
     with pytest.raises(ValueError):
         get_ref_alt_lengths("/")
+    with pytest.raises(ValueError):
+        get_ref_alt_lengths("A/T/GG")
 
 
 def get_row_indel_type(row: pd.Series) -> IndelType:
