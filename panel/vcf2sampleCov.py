@@ -9,7 +9,7 @@ from loguru import logger
 
 
 class OutType(str, Enum):
-    vcf = "vcf"
+    tsv = "tsv"
     xlsx = "xlsx"
 
 
