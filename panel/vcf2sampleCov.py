@@ -47,9 +47,9 @@ def main(
     cover_ratio_df = pd.concat([stats_df, *cov_df_list], axis=1)
     cover_ratio_df.index.names = ["chrom", "pos"]
     cover_ratio_df = cover_ratio_df.reset_index()
-    if out_file.with_suffix(".tsv"):
+    if out_file.suffix == ".tsv":
         cover_ratio_df.to_csv(out_file, sep="\t", index=False)
-    elif out_file.with_suffix(".xlsx"):
+    elif out_file.suffix == ".xlsx":
         cover_ratio_df.to_excel(out_file, index=False)
     else:
         logger.error(f"tsv or xlsx suffix required, {out_file.suffix} is not supported")
