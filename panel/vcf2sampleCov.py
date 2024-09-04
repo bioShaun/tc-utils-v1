@@ -84,11 +84,19 @@ def main(
     site_cover_ratio_file = f"{out_file_prefix}.site.coverage.{out_type.value}"
     sample_cover_ratio_file = f"{out_file_prefix}.sample.coverage.{out_type.value}"
     if out_type == "tsv":
-        site_cover_ratio_df.to_csv(site_cover_ratio_file, sep="\t", index=False)
-        sample_cover_ratio_df.to_csv(sample_cover_ratio_file, sep="\t", index=False)
+        site_cover_ratio_df.to_csv(
+            site_cover_ratio_file, sep="\t", index=False, float_format="%.3f"
+        )
+        sample_cover_ratio_df.to_csv(
+            sample_cover_ratio_file, sep="\t", index=False, float_format="%.3f"
+        )
     else:
-        site_cover_ratio_df.to_excel(site_cover_ratio_file, index=False)
-        sample_cover_ratio_df.to_excel(sample_cover_ratio_file, index=False)
+        site_cover_ratio_df.to_excel(
+            site_cover_ratio_file, index=False, float_format="%.3f"
+        )
+        sample_cover_ratio_df.to_excel(
+            sample_cover_ratio_file, index=False, float_format="%.3f"
+        )
 
 
 if __name__ == "__main__":
