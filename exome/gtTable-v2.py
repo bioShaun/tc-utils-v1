@@ -11,6 +11,11 @@ from pandarallel import pandarallel
 LOCATION_COLS = ["CHROM", "POS", "REF", "ALT"]
 
 
+class OutType(str, Enum):
+    txt = "txt"
+    xlsx = "xlsx"
+
+
 class TableColumn(Enum):
     CHROM = "CHROM"
     POS = "POS"
@@ -39,18 +44,18 @@ class MissFmt(str, Enum):
 
     def __str__(self) -> str:
         return self.value
+
+
 def npConvertGT(row: pd.Series, miss_fmt: str, gt_sep: str) -> str:
     if row[TableColumn.GENOTYPE.value] == GT_VALUE.NA.value:
         return miss_fmt
-    allele1, allele2 = [
-        each for each in row[TableColumn.GENOTYPE.value].split("/")
-    ]
+    allele1, allele2 = [each for each in row[TableColumn.GENOTYPE.value].split("/")]
     allele_list = [
         row[TableColumn.REF.value],
         *row[TableColumn.ALT.value].split(","),
     ]
-    allele1_seq = 'N' if allele1 == '.' else allele_list[int(allele1)]
-    allele2_seq = 'N' if allele2 == '.' else allele_list[int(allele2)]
+    allele1_seq = "N" if allele1 == "." else allele_list[int(allele1)]
+    allele2_seq = "N" if allele2 == "." else allele_list[int(allele2)]
     if allele1 == allele2:
         if len(allele1_seq) > 1:
             return allele1_seq
@@ -114,6 +119,7 @@ def main(
     miss_fmt: str = "NN",
     threads: int = 4,
     gt_sep: str = "",
+    out_type: OutType = OutType.xlsx,
 ):
     pandarallel.initialize(progress_bar=True, nb_workers=threads)
     sample_list = pd.read_csv(sample_file, header=None)[0].tolist()
@@ -150,6 +156,11 @@ def main(
         seq_df.to_csv(
             f"{out_file}.seq.txt.gz", sep="\t", header=header, mode=mode, index=False
         )
+    if out_type == OutType.xlsx:
+        gt_df = pd.read_csv(f"{out_file}.gt.txt.gz", sep="\t")
+        seq_df = pd.read_csv(f"{out_file}.seq.txt.gz", sep="\t")
+        gt_df.to_excel(f"{out_file}.genotype.01.xlsx", index=False)
+        seq_df.to_excel(f"{out_file}.genotype.seq.xlsx", index=False)
 
 
 if __name__ == "__main__":
