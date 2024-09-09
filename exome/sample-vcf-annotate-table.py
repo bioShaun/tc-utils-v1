@@ -52,18 +52,17 @@ def selectSampleVariants(
 
 def main(
     vcf_file: Path,
-    sample_name: str,
     snpeff_dir: Path,
     out_dir: Path,
     force: bool = False,
 ):
     out_dir.mkdir(parents=True, exist_ok=True)
     sample_list = get_sample_names(vcf_file)
-    for sample in sample_list:
-        sample_vcf = vcf_file.with_suffix(f".{sample}.vcf.gz")
+    for sample_name in sample_list:
+        sample_vcf = vcf_file.with_suffix(f".{sample_name}.vcf.gz")
         selectSampleVariants(
             vcf_file=vcf_file,
-            sample_name=sample,
+            sample_name=sample_name,
             out_file=sample_vcf,
             force=force,
         )
@@ -80,7 +79,7 @@ def main(
         df["Sample"] = sample_name
         df["Ref_Depth"] = df["AD"].map(lambda x: int(x[0]))
         df["Alt_Depth"] = df["AD"].map(lambda x: int(x[1]))
-        sample_vcf_table = out_dir / f"{sample}.variant.table.csv"
+        sample_vcf_table = out_dir / f"{sample_name}.variant.table.csv"
         df.to_csv(sample_vcf_table, index=False, quoting=csv.QUOTE_NONNUMERIC)
 
 
