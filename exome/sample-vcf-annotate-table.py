@@ -7,7 +7,7 @@ import typer
 from loguru import logger
 
 EXTRACT_VCF_FILEDS = (
-    'CHROM POS REF "ALT" ANN[*].ALLELE'
+    'CHROM POS REF "ALT" ANN[*].ALLELE '
     '"ANN[*].IMPACT" "ANN[*].EFFECT" "ANN[*].GENEID"  '
     '"ANN[*].HGVS_C" "ANN[*].HGVS_P" GEN[0].GT GEN[0].AD'
 )
