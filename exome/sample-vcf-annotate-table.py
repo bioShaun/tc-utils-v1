@@ -56,6 +56,8 @@ def main(
     df["Sample"] = sample_name
     df["Ref_Depth"] = df["AD"].map(lambda x: int(x[0]))
     df["Alt_Depth"] = df["AD"].map(lambda x: int(x[1]))
+    if out_file.suffix != ".csv":
+        raise ValueError(f"Output file should be .csv: {out_file}")
     df.to_csv(out_file, index=False, quoting=csv.QUOTE_NONNUMERIC)
 
 
