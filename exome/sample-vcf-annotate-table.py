@@ -1,3 +1,4 @@
+import csv
 from pathlib import Path
 
 import delegator
@@ -55,7 +56,7 @@ def main(
     df["Sample"] = sample_name
     df["Ref_Depth"] = df["AD"].map(lambda x: int(x[0]))
     df["Alt_Depth"] = df["AD"].map(lambda x: int(x[1]))
-    df.to_excel(out_file, index=False)
+    df.to_csv(out_file, index=False, quoting=csv.QUOTE_NONNUMERIC)
 
 
 if __name__ == "__main__":
