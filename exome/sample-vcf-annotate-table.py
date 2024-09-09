@@ -7,14 +7,13 @@ import typer
 from loguru import logger
 
 EXTRACT_VCF_FILEDS = (
-    'CHROM POS REF "ANN[*].ALLELE" '
+    'CHROM POS REF "ALT" '
     '"ANN[*].IMPACT" "ANN[*].EFFECT" "ANN[*].GENEID"  '
     '"ANN[*].HGVS_C" "ANN[*].HGVS_P" GEN[0].GT GEN[0].AD'
 )
 
 
 COLUMN_MAP = {
-    "ANN[*].ALLELE": "ALT",
     "ANN[*].IMPACT": "IMPACT",
     "ANN[*].EFFECT": "EFFECT",
     "ANN[*].GENEID": "GENEID",
@@ -78,11 +77,11 @@ def main(
             annotation_file=annotation_file,
         )
         df = pd.read_table(annotation_file)
-        df.drop_duplicates(subset=["CHROM", "POS", "REF", "ALT"], inplace=True)
         df.rename(columns=COLUMN_MAP, inplace=True)
+        df.drop_duplicates(subset=["CHROM", "POS", "REF", "HGVS_C"], inplace=True)
         df["Sample"] = sample_name
         df["Ref_Depth"] = df["AD"].map(lambda x: int(x[0]))
-        df["Alt_Depth"] = df["AD"].map(lambda x: int(x[1]))
+        df["Alt_Depth"] = df["AD"].map(lambda x: ",".join(x[1]))
         sample_vcf_table = out_dir / f"{sample_name}.variant.table.csv"
         df.to_csv(sample_vcf_table, index=False, quoting=csv.QUOTE_NONNUMERIC)
 
