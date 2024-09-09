@@ -54,9 +54,10 @@ def main(
     vcf_file: Path,
     sample_name: str,
     snpeff_dir: Path,
-    out_file: Path,
+    out_dir: Path,
     force: bool = False,
 ):
+    out_dir.mkdir(parents=True, exist_ok=True)
     sample_list = get_sample_names(vcf_file)
     for sample in sample_list:
         sample_vcf = vcf_file.with_suffix(f".{sample}.vcf.gz")
@@ -79,9 +80,8 @@ def main(
         df["Sample"] = sample_name
         df["Ref_Depth"] = df["AD"].map(lambda x: int(x[0]))
         df["Alt_Depth"] = df["AD"].map(lambda x: int(x[1]))
-        if out_file.suffix != ".csv":
-            raise ValueError(f"Output file should be .csv: {out_file}")
-        df.to_csv(out_file, index=False, quoting=csv.QUOTE_NONNUMERIC)
+        sample_vcf_table = out_dir / f"{sample}.variant.table.csv"
+        df.to_csv(sample_vcf_table, index=False, quoting=csv.QUOTE_NONNUMERIC)
 
 
 if __name__ == "__main__":
