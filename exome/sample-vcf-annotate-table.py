@@ -4,6 +4,7 @@ from pathlib import Path
 import delegator
 import pandas as pd
 import typer
+from loguru import logger
 
 EXTRACT_VCF_FILEDS = (
     'CHROM POS REF "ANN[*].ALLELE" '
@@ -34,11 +35,13 @@ def extract_snpeff_anno(
             f"java -jar {snpeff_dir}/SnpSift.jar extractFields - {EXTRACT_VCF_FILEDS} | "
             f"gzip > {annotation_file}"
         )
+        logger.info(f"run: {extract_cmd}")
         delegator.run(extract_cmd)
 
 
 def get_sample_names(vcf_file: Path) -> list:
     cmd = f"bcftools query -l {vcf_file}"
+    logger.info(f"run: {cmd}")
     return delegator.run(cmd).out.strip().split("\n")
 
 
@@ -47,6 +50,7 @@ def selectSampleVariants(
 ) -> None:
     if force or not out_file.is_file():
         cmd = f"gatk SelectVariants -V {vcf_file} --exclude-non-variants --sample-name {sample_name} -O {out_file}"
+        logger.info(f"run: {cmd}")
         delegator.run(cmd)
 
 
