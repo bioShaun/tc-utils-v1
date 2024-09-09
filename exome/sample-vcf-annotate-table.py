@@ -80,8 +80,8 @@ def main(
         df.rename(columns=COLUMN_MAP, inplace=True)
         df.drop_duplicates(subset=["CHROM", "POS", "REF", "HGVS_C"], inplace=True)
         df["Sample"] = sample_name
-        df["Ref_Depth"] = df["AD"].map(lambda x: int(x[0]))
-        df["Alt_Depth"] = df["AD"].map(lambda x: ",".join(x[1]))
+        df["Ref_Depth"] = df["AD"].map(lambda x: int(x.split(",")[0]))
+        df["Alt_Depth"] = df["AD"].map(lambda x: ",".join(x.split(",")[1:]))
         sample_vcf_table = out_dir / f"{sample_name}.variant.table.csv"
         df.to_csv(sample_vcf_table, index=False, quoting=csv.QUOTE_NONNUMERIC)
 
