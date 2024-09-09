@@ -52,6 +52,7 @@ def main(
         annotation_file=annotation_file,
     )
     df = pd.read_table(annotation_file)
+    df.drop_duplicates(subset=["CHROM", "POS", "REF", "ALT"], inplace=True)
     df.rename(columns=COLUMN_MAP, inplace=True)
     df["Sample"] = sample_name
     df["Ref_Depth"] = df["AD"].map(lambda x: int(x[0]))
