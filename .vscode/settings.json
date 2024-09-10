@@ -4,5 +4,6 @@
     "editor.defaultFormatter": "ms-python.black-formatter"
   },
   "CodeGPT.apiKey": "CodeGPT Plus Beta",
-  "cSpell.words": ["itertuples"]
+  "cSpell.words": ["Indel", "itertuples"],
+  "r.lsp.promptToInstall": false
 }

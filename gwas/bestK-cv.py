@@ -11,12 +11,12 @@ def k_table(structure_dir: Path) -> pd.DataFrame:
     """
     dict_list = []
     for structure_path in structure_dir.glob("*.log"):
-        k_value = int(structure_path.name.split(".")[2])
+        k_value = int(structure_path.name.split(".")[1])
         with structure_path.open("r") as f:
             for eachline in f:
                 if "CV error" in eachline:
-                    cv = float(eachline.split(' = ')[-1].split(',')[0])
-                    #cv = float(eachline.split()[-1])
+                    #cv = float(eachline.split(' = ')[-1].split(',')[0])
+                    cv = float(eachline.split()[-1])
                     dict_list.append({"K": k_value, "cv": cv})
     return pd.DataFrame(dict_list)
 

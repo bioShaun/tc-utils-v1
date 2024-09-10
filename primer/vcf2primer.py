@@ -8,6 +8,7 @@ from tqdm import tqdm
 
 
 def main(vcf_file: Path, ref: Path, out_file: Path, flank_size: int = 200) -> None:
+    """Generate primer sequences from VCF and reference files."""
     vcf_df = pd.read_table(
         vcf_file,
         comment="#",

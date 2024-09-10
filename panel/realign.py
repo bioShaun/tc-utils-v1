@@ -1,12 +1,13 @@
 from enum import Enum
 from pathlib import Path
-from typing import Tuple
+from typing import Optional, Tuple
 
 import delegator
 import numpy as np
 import pandas as pd
 import typer
 from loguru import logger
+from tqdm import tqdm
 
 FLANK_SIZE = 60
 
@@ -25,22 +26,14 @@ def get_pos(row: pd.Series) -> int:
     return row["match_start"] + row["offset_end"] + 1 - row["probe_start"]
 
 
-def paf2idmap(paf: Path, match_cutoff: float, offset_df: pd.DataFrame) -> None:
-    paf_df = pd.read_table(
-        paf,
-        header=None,
-        usecols=[0, 1, 2, 4, 5, 7, 9, 11],
-        names=[
-            "id",
-            "probe_length",
-            "probe_start",
-            "strand",
-            "chrom",
-            "match_start",
-            "match_length",
-            "mapq",
-        ],
-    )
+def paf2idmap(
+    paf_df: pd.DataFrame,
+    match_cutoff: float,
+    offset_df: pd.DataFrame,
+    out_prefix: Path,
+    save_file: bool = True,
+) -> Optional[pd.DataFrame]:
+
     paf_df.sort_values(
         [
             "match_length",
@@ -51,24 +44,28 @@ def paf2idmap(paf: Path, match_cutoff: float, offset_df: pd.DataFrame) -> None:
     )
     paf_df.drop_duplicates(subset=["id"], inplace=True)
     paf_df["match_ratio"] = paf_df["match_length"] / paf_df["probe_length"]
-    filter_df = paf_df[paf_df["match_length"] > match_cutoff].copy()
+    filter_df = paf_df[paf_df["match_ratio"] > match_cutoff].copy()
     filter_df = filter_df.merge(offset_df, on="id")
     filter_df["pos"] = filter_df.apply(get_pos, axis=1)
     filter_df["new_id"] = filter_df.apply(lambda x: f'{x["chrom"]}_{x["pos"]}', axis=1)
     filter_df["pos_0"] = filter_df["pos"] - 1
-    id_map = paf.with_suffix(".idmap.tsv")
-    filter_df.to_csv(
-        id_map, header=False, index=False, columns=["id", "new_id"], sep="\t"
-    )
-    id_map_target_bed = id_map.with_suffix(".target.bed")
-    filter_df.sort_values(["chrom", "pos"], inplace=True)
-    filter_df.to_csv(
-        id_map_target_bed,
-        sep="\t",
-        index=False,
-        header=False,
-        columns=["chrom", "pos_0", "pos"],
-    )
+    id_map = out_prefix.with_suffix(".idmap.tsv")
+    id_map_df = filter_df[["id", "new_id"]].copy()
+    if save_file:
+        filter_df.to_csv(
+            id_map, header=False, index=False, columns=["id", "new_id"], sep="\t"
+        )
+        id_map_target_bed = id_map.with_suffix(".target.bed")
+        filter_df.sort_values(["chrom", "pos"], inplace=True)
+        filter_df.to_csv(
+            id_map_target_bed,
+            sep="\t",
+            index=False,
+            header=False,
+            columns=["chrom", "pos_0", "pos", "id"],
+        )
+
+    return id_map_df
 
 
 def generate_bed_from_vcf(vcf: Path) -> Path:
@@ -206,7 +203,28 @@ def realign(
     )
     offset_df = generate_offset_df(target_bed=target_bed, flank_bed=flank_bed)
     logger.info(f"Generating {FLANK_SIZE} bp flanks id map...")
-    paf2idmap(paf=flank_paf, offset_df=offset_df, match_cutoff=cut_off)
+    # match_cutoff = np.ceil(cut_off * 2 * FLANK_SIZE)
+    paf_df = pd.read_table(
+        flank_paf,
+        header=None,
+        usecols=[0, 1, 2, 4, 5, 7, 9, 11],
+        names=[
+            "id",
+            "probe_length",
+            "probe_start",
+            "strand",
+            "chrom",
+            "match_start",
+            "match_length",
+            "mapq",
+        ],
+    )
+    paf2idmap(
+        paf_df=paf_df,
+        offset_df=offset_df,
+        match_cutoff=cut_off,
+        out_prefix=flank_paf,
+    )
 
 
 @app.command()
@@ -238,19 +256,37 @@ def realign2(
         flank_fa=flank_fa, genome_sr_idx=genome_sr_idx, threads=threads, force=force
     )
     logger.info(f"Generating id map...")
-    match_cutoff = np.ceil(cut_off * 2 * FLANK_SIZE)
-    paf2idmap(paf=flank_paf, offset_df=offset_df, match_cutoff=match_cutoff)
+    paf_df = pd.read_table(
+        flank_paf,
+        header=None,
+        usecols=[0, 1, 2, 4, 5, 7, 9, 11],
+        names=[
+            "id",
+            "probe_length",
+            "probe_start",
+            "strand",
+            "chrom",
+            "match_start",
+            "match_length",
+            "mapq",
+        ],
+    )
+    paf2idmap(
+        paf_df=paf_df,
+        offset_df=offset_df,
+        match_cutoff=cut_off,
+        out_prefix=flank_paf,
+    )
 
 
 @app.command()
 def adjust_annotation_by_realign(annotation: Path, id_map: Path) -> None:
     anno_df = pd.read_table(annotation)
     id_map_df = pd.read_table(id_map, header=None, names=["id", "new_id"])
-    re_id_df = (
-        id_map_df.merge(anno_df).drop("id", axis=1).rename(columns={"new_id": "id"})
-    )
-    re_id_df["chrom"] = re_id_df["id"].map(lambda x: "_".join(x.split("_")[:-1]))
-    re_id_df["pos"] = re_id_df["id"].map(lambda x: int(x.split("_")[-1]))
+    re_id_df = id_map_df.merge(anno_df)
+    re_id_df["chrom"] = re_id_df["new_id"].map(lambda x: "_".join(x.split("_")[:-1]))
+    re_id_df["pos"] = re_id_df["new_id"].map(lambda x: int(x.split("_")[-1]))
+    re_id_df.drop(columns=["new_id"], inplace=True)
     if "probe_start" in re_id_df.columns:
         re_id_df["probe_length"] = re_id_df["probe_end"] - re_id_df["probe_start"]
         re_id_df["probe_start"] = (
@@ -260,6 +296,125 @@ def adjust_annotation_by_realign(annotation: Path, id_map: Path) -> None:
         re_id_df.drop(columns=["probe_length"], inplace=True)
     realign_annotation = annotation.with_suffix(".realign.tsv")
     re_id_df.to_csv(realign_annotation, sep="\t", index=False)
+
+
+def blast2paf(blast_df: pd.DataFrame, probe_length: int) -> pd.DataFrame:
+    paf_df = blast_df.copy()
+    paf_df["probe_length"] = probe_length
+    pos_strand_df = paf_df[paf_df["sstart"] < paf_df["send"]].copy()
+    neg_strand_df = paf_df[paf_df["sstart"] > paf_df["send"]].copy()
+    neg_strand_df["sstart"], neg_strand_df["send"] = (
+        neg_strand_df["send"],
+        neg_strand_df["sstart"],
+    )
+    pos_strand_df["qstart"] = pos_strand_df["qstart"] - 1
+    neg_strand_df["qstart"] = probe_length - neg_strand_df["qend"]
+    pos_strand_df["strand"] = "+"
+    neg_strand_df["strand"] = "-"
+    paf_df = pd.concat([pos_strand_df, neg_strand_df])
+    paf_df = paf_df[
+        [
+            "qseqid",
+            "probe_length",
+            "qstart",
+            "strand",
+            "sseqid",
+            "sstart",
+            "qlength",
+            "bitscore",
+        ]
+    ].copy()
+    paf_df["sstart"] = paf_df["sstart"] - 1
+    paf_df.rename(
+        columns={
+            "qseqid": "id",
+            "qstart": "probe_start",
+            "sseqid": "chrom",
+            "sstart": "match_start",
+            "qlength": "match_length",
+            "bitscore": "mapq",
+        },
+        inplace=True,
+    )
+    return paf_df
+
+
+@app.command()
+def realign3(
+    annotation: Path,
+    blast_dir: Path,
+    probe_length: int,
+    miss_cut_off_bp: int,
+) -> None:
+    # qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore
+    # blast_dfs = [
+    #     pd.read_table(
+    #         each,
+    #         header=None,
+    #         names=[
+    #             "qseqid",
+    #             "sseqid",
+    #             "pident",
+    #             "qlength",
+    #             "mismatch",
+    #             "gapopen",
+    #             "qstart",
+    #             "qend",
+    #             "sstart",
+    #             "send",
+    #             "evalue",
+    #             "bitscore",
+    #         ],
+    #     )
+    #     for each in blast_dir.glob("*")
+    # ]
+
+    blast_files = list(blast_dir.glob("*"))
+    for n, blast_file_i in enumerate(tqdm(blast_files)):
+        blast_df = pd.read_table(
+            blast_file_i,
+            header=None,
+            names=[
+                "qseqid",
+                "sseqid",
+                "pident",
+                "qlength",
+                "mismatch",
+                "gapopen",
+                "qstart",
+                "qend",
+                "sstart",
+                "send",
+                "evalue",
+                "bitscore",
+            ],
+        )
+        match_cut_off_bp = probe_length - miss_cut_off_bp
+        blast_df = blast_df[blast_df["qlength"] >= match_cut_off_bp].copy()
+        blast_df = blast_df[blast_df["mismatch"] <= miss_cut_off_bp].copy()
+        blast_df = blast_df[blast_df["gapopen"] == 0].copy()
+        blast_df.drop_duplicates(subset=["qseqid"], inplace=True)
+        paf_df = blast2paf(blast_df, probe_length)
+        anno_df = pd.read_table(annotation)
+        anno_df["offset_start"] = anno_df["pos"] - 1 - anno_df["probe_start"]
+        anno_df["offset_end"] = probe_length - anno_df["offset_start"] - 1
+        offset_table = anno_df[["id", "offset_start", "offset_end"]].copy()
+        id_map_df = paf2idmap(
+            paf_df=paf_df,
+            match_cutoff=0,
+            offset_df=offset_table,
+            out_prefix=annotation,
+            save_file=False,
+        )
+        mode = "w" if n == 0 else "a"
+        if id_map_df is not None:
+            id_map_df.to_csv(
+                annotation.with_suffix(".idmap.tsv"),
+                sep="\t",
+                header=False,
+                index=False,
+                mode=mode,
+            )
 
 
 if __name__ == "__main__":
