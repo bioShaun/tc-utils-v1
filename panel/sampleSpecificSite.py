@@ -36,15 +36,14 @@ def gt_stats(
     gt_file: Path,
     all_sample_path: Path,
     case_sample_path: Path,
+    control_sample_path: Path,
     case_name: str,
     test: bool = False,
     chunck_size: int = 10_000,
 ):
     all_sample_list = [each.strip() for each in all_sample_path.open()]
     case_sample_list = [each.strip() for each in case_sample_path.open()]
-    control_sample_list = [
-        each for each in all_sample_list if each not in case_sample_list
-    ]
+    control_sample_list = [each.strip() for each in control_sample_path.open()]
     if test:
         gt_df_list = pd.read_table(
             gt_file,
