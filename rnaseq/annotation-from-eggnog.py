@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Tuple
+from typing import List, Tuple
 
 import gtfparse
 import pandas as pd
@@ -54,6 +54,13 @@ def go_ko_df(gene_eggnog: pd.DataFrame, name: str) -> pd.DataFrame:
     return term_df
 
 
+def uniq_gene_des(names: List[str]) -> str:
+    if len(names) == 1:
+        return names[0]
+    non_na_names = [name for name in names if name != "-"]
+    return "|".join(non_na_names)
+
+
 def main(
     eggnog_file: Path,  # type: Path
     gtf: str,  # type: str
@@ -79,8 +86,19 @@ def main(
     gene_egg.drop_duplicates(subset=["transcript_id"], inplace=True)
     gene_egg.drop("transcript_id", axis=1, inplace=True)
 
-    gene_description = gene_egg[["gene_id", "gene_name", "gene_description"]]
-    gene_description = gene_locations.merge(gene_description)
+    non_uniq_gene_description = gene_egg[["gene_id", "gene_name", "gene_description"]]
+    gene_names = (
+        non_uniq_gene_description.groupby(["gene_id"])["gene_name"]
+        .unique()
+        .map(uniq_gene_des)
+    )
+    gene_des = (
+        non_uniq_gene_description.groupby(["gene_id"])["gene_description"]
+        .unique()
+        .map(uniq_gene_des)
+    )
+    rm_dup_des_df = pd.concat([gene_names, gene_des], axis=1).reset_index()
+    gene_description = gene_locations.merge(rm_dup_des_df)
     gene_description.to_csv(output_dir / "gene.description.txt", index=False, sep="\t")
 
     go_id_map = go_ko_df(gene_egg, "go")
