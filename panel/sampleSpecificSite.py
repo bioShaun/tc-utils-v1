@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Tuple
 import typer
 
 import pandas as pd
@@ -31,20 +32,31 @@ def get_gt_stats(df: pd.DataFrame, name: str) -> pd.DataFrame:
     return stats_df
 
 
+def allele_stats(row: pd.Series) -> Tuple[float, float]:
+    gt_type = row.map(GT_MAP)
+    allele_count = gt_type.value_counts()
+    miss_count = allele_count.get("miss", 0)
+    het_count = allele_count.get("het", 0)
+    real_sample_count = len(row) - miss_count
+    miss_rate = miss_count / len(row)
+    alt_count = allele_count.get("alt", 0)
+    alt_rate = (alt_count * 2 + het_count) / (real_sample_count * 2)
+    return miss_rate, alt_rate
+
+
 @app.command()
 def gt_stats(
     gt_file: Path,
     all_sample_path: Path,
     case_sample_path: Path,
+    control_sample_path: Path,
     case_name: str,
     test: bool = False,
     chunck_size: int = 10_000,
 ):
     all_sample_list = [each.strip() for each in all_sample_path.open()]
     case_sample_list = [each.strip() for each in case_sample_path.open()]
-    control_sample_list = [
-        each for each in all_sample_list if each not in case_sample_list
-    ]
+    control_sample_list = [each.strip() for each in control_sample_path.open()]
     if test:
         gt_df_list = pd.read_table(
             gt_file,
@@ -65,10 +77,24 @@ def gt_stats(
     gt_stats_file = gt_file.with_suffix(".stats")
     for i, gt_df in tqdm(enumerate(gt_df_list)):
         case_df = gt_df[case_sample_list]
-        case_stats_df = get_gt_stats(case_df, case_name)
+        case_stats_df = pd.DataFrame(
+            case_df.apply(allele_stats, axis=1), columns=["stats_info"]
+        )
+        case_stats_df[[f"{case_name}_missing", f"{case_name}_af"]] = pd.DataFrame(
+            case_stats_df["stats_info"].tolist(), index=case_stats_df.index
+        )
+        case_stats_df.drop("stats_info", axis=1, inplace=True)
         control_name = f"non_{case_name}"
         control_df = gt_df[control_sample_list]
-        control_stats_df = get_gt_stats(control_df, control_name)
+        control_stats_df = pd.DataFrame(
+            control_df.apply(allele_stats, axis=1), columns=["stats_info"]
+        )
+        control_stats_df[[f"{control_name}_missing", f"{control_name}_af"]] = (
+            pd.DataFrame(
+                control_stats_df["stats_info"].tolist(), index=case_stats_df.index
+            )
+        )
+        control_stats_df.drop("stats_info", axis=1, inplace=True)
         merged_df = case_stats_df.merge(
             control_stats_df, left_index=True, right_index=True
         )
