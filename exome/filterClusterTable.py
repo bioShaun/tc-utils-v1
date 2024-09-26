@@ -29,7 +29,7 @@ def main(
     cluster_row_indexes = list(cluster_rows)
     filter_df = df[~df.index.isin(cluster_row_indexes)]
     # passed_dfs.append(filter_df)
-    filter_df.to_csv(filter_vcf_file, index=False, header=False)
+    filter_df.to_csv(filter_vcf_file, index=False, sep="\t")
 
 
 if __name__ == "__main__":
