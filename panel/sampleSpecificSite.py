@@ -1,10 +1,9 @@
 from pathlib import Path
 from typing import Tuple
-import typer
 
 import pandas as pd
+import typer
 from tqdm import tqdm
-
 
 app = typer.Typer()
 
@@ -32,8 +31,23 @@ def get_gt_stats(df: pd.DataFrame, name: str) -> pd.DataFrame:
     return stats_df
 
 
+def get_gt_type(gt: str) -> str:
+    if gt in ["./.", "."]:
+        return "miss"
+    try:
+        allele1, allele2 = gt.split("/")[:2]
+    except ValueError as exc:
+        print("error gt:", gt)
+        raise ValueError(f"{gt} format error!") from exc
+    if allele1 != allele2:
+        return "het"
+    if allele1 == "0":
+        return "ref"
+    return "alt"
+
+
 def allele_stats(row: pd.Series) -> Tuple[float, float]:
-    gt_type = row.map(GT_MAP)
+    gt_type = row.map(get_gt_type)
     allele_count = gt_type.value_counts()
     miss_count = allele_count.get("miss", 0)
     het_count = allele_count.get("het", 0)
@@ -41,7 +55,7 @@ def allele_stats(row: pd.Series) -> Tuple[float, float]:
     miss_rate = miss_count / len(row)
     alt_count = allele_count.get("alt", 0)
     alt_rate = (alt_count * 2 + het_count) / (real_sample_count * 2)
-    return miss_rate, alt_rate
+    return miss_rate, min(alt_rate, 1 - alt_rate)
 
 
 @app.command()
@@ -80,7 +94,7 @@ def gt_stats(
         case_stats_df = pd.DataFrame(
             case_df.apply(allele_stats, axis=1), columns=["stats_info"]
         )
-        case_stats_df[[f"{case_name}_missing", f"{case_name}_af"]] = pd.DataFrame(
+        case_stats_df[[f"{case_name}_missing", f"{case_name}_maf"]] = pd.DataFrame(
             case_stats_df["stats_info"].tolist(), index=case_stats_df.index
         )
         case_stats_df.drop("stats_info", axis=1, inplace=True)
@@ -89,7 +103,7 @@ def gt_stats(
         control_stats_df = pd.DataFrame(
             control_df.apply(allele_stats, axis=1), columns=["stats_info"]
         )
-        control_stats_df[[f"{control_name}_missing", f"{control_name}_af"]] = (
+        control_stats_df[[f"{control_name}_missing", f"{control_name}_maf"]] = (
             pd.DataFrame(
                 control_stats_df["stats_info"].tolist(), index=case_stats_df.index
             )
