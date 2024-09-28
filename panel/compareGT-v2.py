@@ -64,42 +64,32 @@ def compare_gt(df: pd.DataFrame, compare_a: str, compare_b: str):
     }
 
 
-def main(genotype_file: Path, compare_list: Path, output_prefix: Path):
+def main(
+    genotype_file: Path,
+    compare_list: Path,
+    output_prefix: Path,
+    chrom_stats: bool = False,
+):
     df = pd.read_table(genotype_file)
     compare_df = pd.read_table(compare_list, header=None, names=["A", "B"])
-    # gt_name_df = df.map(map_gt)
-    # melt_gt_name_df = gt_name_df.melt(var_name="sample_id", value_name="genotype")
-    # stats_count = (
-    #     melt_gt_name_df.groupby("sample_id")["genotype"].value_counts().unstack(1)
-    # )
-    # stats_count["TOTAL"] = stats_count.sum(1)
-    # stats_count["NON-MISS"] = stats_count["TOTAL"] - stats_count["MISS"]
-    # stats_count.columns.name = ""
-    # out_count_colums = ["NON-MISS", "HOM", "HET"]
-    # out_count_colums_a = [f"A-{each}" for each in out_count_colums]
-    # out_count_colums_b = [f"B-{each}" for each in out_count_colums]
-    # stats_count_a = stats_count.reset_index().rename(columns={"sample_id": "A"})
-    # stats_count_a.columns = out_count_colums_a
-    # stats_count_b = stats_count.reset_index().rename(columns={"sample_id": "B"})
-    # stats_count_b.columns = out_count_colums_b
-    # compare_data_basic = compare_df.merge(stats_count_a).merge(stats_count_b)
 
     sample_stats_list = []
     chrom_stats_list = []
     for row in compare_df.itertuples():
         if row.A in df.columns and row.B in df.columns:
             sample_stats_list.append(compare_gt(df, row.A, row.B))
-            for chrom, chrom_df in df.groupby("CHROM"):
-                chrom_stats_dict = {"chrom": chrom}
-                chrom_stats_dict.update(compare_gt(chrom_df, row.A, row.B))
-                print(chrom_stats_dict)
-                chrom_stats_list.append(chrom_stats_dict)
+            if chrom_stats:
+                for chrom, chrom_df in df.groupby("CHROM"):
+                    chrom_stats_dict = {"chrom": chrom}
+                    chrom_stats_dict.update(compare_gt(chrom_df, row.A, row.B))
+                    chrom_stats_list.append(chrom_stats_dict)
     sample_stats_df = pd.DataFrame(sample_stats_list)
     sample_stats = f"{output_prefix}.样品.xlsx"
     sample_stats_df.to_excel(sample_stats, index=False)
-    sample_chrom_stats_df = pd.DataFrame(chrom_stats_list)
-    sample_chrom_stats = f"{output_prefix}.染色体.xlsx"
-    sample_chrom_stats_df.to_excel(sample_chrom_stats, index=False)
+    if chrom_stats:
+        sample_chrom_stats_df = pd.DataFrame(chrom_stats_list)
+        sample_chrom_stats = f"{output_prefix}.染色体.xlsx"
+        sample_chrom_stats_df.to_excel(sample_chrom_stats, index=False)
 
 
 if __name__ == "__main__":
