@@ -79,7 +79,7 @@ def main(
     """
     eggnog_df = pd.read_table(eggnog_file, header=None, comment="#")
     tr2gene, gene_locations = gtf2gene_locations(gtf)
-    eggnog_df = eggnog_df[[0, 8, 7, 9, 16]].copy()
+    eggnog_df = eggnog_df[[0, 8, 7, 9, 12]].copy()
     eggnog_df.columns = ["transcript_id", "gene_name", "gene_description", "go", "ko"]
     gene_egg = tr2gene.merge(eggnog_df, how="left")
     gene_egg.fillna("-", inplace=True)
@@ -104,6 +104,7 @@ def main(
     go_id_map = go_ko_df(gene_egg, "go")
     go_id_map.to_csv(output_dir / "go.idmap.csv", index=False)
     ko_id_map = go_ko_df(gene_egg, "ko")
+    ko_id_map = ko_id_map[ko_id_map["term"].str.startswith("ko")]
     ko_id_map.to_csv(output_dir / "kegg.idmap.csv", index=False)
     kegg_gene_map = ko_id_map[["gene", "gene"]]
     kegg_gene_map.columns = ["ensembl", "ncbi"]
