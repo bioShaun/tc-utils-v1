@@ -88,16 +88,15 @@ def main(genotype_file: Path, compare_list: Path, output_prefix: Path):
     chrom_stats_list = []
     for row in compare_df.itertuples():
         if row.A in df.columns and row.B in df.columns:
-            # sample_stats_list.append(compare_gt(df, row.A, row.B))
-
+            sample_stats_list.append(compare_gt(df, row.A, row.B))
             for chrom, chrom_df in df.groupby("CHROM"):
                 chrom_stats_dict = {"chrom": chrom}
                 chrom_stats_dict.update(compare_gt(chrom_df, row.A, row.B))
                 print(chrom_stats_dict)
                 chrom_stats_list.append(chrom_stats_dict)
-    # sample_stats_df = pd.DataFrame(sample_stats_list)
-    # sample_stats = f"{output_prefix}.sample.xlsx"
-    # sample_stats_df.to_excel(sample_stats, index=False)
+    sample_stats_df = pd.DataFrame(sample_stats_list)
+    sample_stats = f"{output_prefix}.样品.xlsx"
+    sample_stats_df.to_excel(sample_stats, index=False)
     sample_chrom_stats_df = pd.DataFrame(chrom_stats_list)
     sample_chrom_stats = f"{output_prefix}.染色体.xlsx"
     sample_chrom_stats_df.to_excel(sample_chrom_stats, index=False)
