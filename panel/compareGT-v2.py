@@ -22,17 +22,17 @@ def compare_gt(df: pd.DataFrame, compare_a: str, compare_b: str):
     non_miss_count = len(non_miss_df)
     a_hom_count = len(non_miss_df[non_miss_df[compare_a] == "HOM"])
     a_het_count = len(non_miss_df[non_miss_df[compare_a] == "HET"])
-    b_hom_count = len(non_miss_df[non_miss_df[compare_a] == "HOM"])
-    b_het_count = len(non_miss_df[non_miss_df[compare_a] == "HET"])
+    b_hom_count = len(non_miss_df[non_miss_df[compare_b] == "HOM"])
+    b_het_count = len(non_miss_df[non_miss_df[compare_b] == "HET"])
 
     mask3 = non_miss_df[compare_a] == "HOM"
     mask4 = non_miss_df[compare_b] == "HOM"
     homo_non_miss_df = non_miss_df[mask3 & mask4]
-    het_non_miss_df = non_miss_df[~non_miss_df.index.isin(homo_non_miss_df)]
+    het_non_miss_df = non_miss_df[~non_miss_df.index.isin(homo_non_miss_df.index)]
     total_homo_count = len(homo_non_miss_df)
     total_het_count = len(het_non_miss_df)
     homo_compare_df = df[df.index.isin(homo_non_miss_df.index)]
-    het_compare_df = df[~df.index.isin(homo_non_miss_df.index)]
+    het_compare_df = df[df.index.isin(het_non_miss_df.index)]
     homo_equal_count = len(
         homo_compare_df[homo_compare_df[compare_a] == homo_compare_df[compare_b]]
     )
