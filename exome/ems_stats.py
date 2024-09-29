@@ -93,7 +93,7 @@ def main(gt_table: Path) -> None:
         .astype("int")
     )
     stats_ratio = (stats_count.T / stats_count.sum(1)).T
-    stats_ratio = stats_ratio.map(lambda x: f"{x:.2%}")
+    stats_ratio = stats_ratio.map(lambda x: f"{100*x:.2f}")
     stats_ratio.columns = [f"{each}-Ratio" for each in stats_ratio.columns]
     stats_count.columns = [f"{each}-Count" for each in stats_count.columns]
     merged_stats = stats_count.merge(stats_ratio, left_index=True, right_index=True)
@@ -108,7 +108,7 @@ def main(gt_table: Path) -> None:
     )
     all_stats_ratio = (all_stats_count.T / all_stats_count.sum(1)).T
     all_stats_ratio = all_stats_ratio.map(lambda x: f"{x:.2%}")
-    all_stats_ratio.columns = [f"{each}-Ratio" for each in all_stats_ratio.columns]
+    all_stats_ratio.columns = [f"{each}-Ratio(%)" for each in all_stats_ratio.columns]
     all_stats_count.columns = [f"{each}-Count" for each in all_stats_count.columns]
     all_merged_stats = all_stats_count.merge(
         all_stats_ratio, left_index=True, right_index=True
