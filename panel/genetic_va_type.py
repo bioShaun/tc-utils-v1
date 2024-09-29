@@ -1,4 +1,38 @@
 import re
+from pathlib import Path
+
+import delegator
+import pandas as pd
+import typer
+from loguru import logger
+
+EXTRACT_VCF_FILEDS = 'CHROM POS ANN[*].IMPACT "ANN[*].HGVS_P"'
+
+COLUMN_MAP = {
+    "CHROM": "chrom",
+    "POS": "pos",
+    "ANN[*].IMPACT": "impact",
+    "ANN[*].HGVS_P": "hgvs_p",
+}
+
+IMPACT_SCORE = {
+    "HIGH": 0,
+    "MODERATE": 1,
+    "LOW": 2,
+}
+
+
+def extract_snpeff_anno(vcf_path: Path, snpeff_dir: Path, force: bool) -> Path:
+    annotation_file = vcf_path.with_suffix(".table.tsv.gz")
+    if force or not annotation_file.is_file():
+        extract_cmd = (
+            f"zcat {vcf_path} | "
+            f"{snpeff_dir}/scripts/vcfEffOnePerLine.pl | "
+            f"java -jar {snpeff_dir}/SnpSift.jar extractFields - {EXTRACT_VCF_FILEDS} | "
+            f"gzip > {annotation_file}"
+        )
+        delegator.run(extract_cmd)
+    return annotation_file
 
 
 def is_missense_or_nonsynonymous(hgvs_p: str) -> str:
@@ -8,3 +42,28 @@ def is_missense_or_nonsynonymous(hgvs_p: str) -> str:
     if protein_a == protein_b:
         return "synonymous"
     return "non-synonymous"
+
+
+def main(
+    snpeff_vcf: Path,
+    out_file: Path,
+    snpeff_dir: Path,
+    force: bool = False,
+) -> None:
+    logger.info("extract snpeff annotation ...")
+    snpeff_anno_file = extract_snpeff_anno(
+        vcf_path=snpeff_vcf, snpeff_dir=snpeff_dir, force=force
+    )
+    snpeff_df = pd.read_table(snpeff_anno_file)
+    snpeff_df.dropna(inplace=True)
+    snpeff_df.rename(columns=COLUMN_MAP, inplace=True)
+    snpeff_df["impact_score"] = snpeff_df["impact"].map(IMPACT_SCORE)
+    snpeff_df.sort_values(by="impact_score", inplace=True)
+    snpeff_df.drop_duplicates(subset=["chrom", "pos"])
+    snpeff_df["variant_type"] = snpeff_df["hgvs_p"].map(is_missense_or_nonsynonymous)
+    snpeff_df.drop(["impact", "impact_score", "hgvs_p"], axis=1, inplace=True)
+    snpeff_df.to_csv(out_file, sep="\t", index=False)
+
+
+if __name__ == "__main__":
+    typer.run(main)
