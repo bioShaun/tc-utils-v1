@@ -120,7 +120,7 @@ def main(gt_table: Path) -> None:
     hom_het_all_merged_stats.sort_values(["sample_id", "genotype"], inplace=True)
 
     stats_file = gt_table.with_suffix(".stats.xlsx")
-    hom_het_all_merged_stats.to_csv(stats_file, index=False)
+    hom_het_all_merged_stats.to_excel(stats_file, index=False)
 
 
 if __name__ == "__main__":
