@@ -93,8 +93,8 @@ def main(gt_table: Path) -> None:
         .astype("int")
     )
     stats_ratio = (stats_count.T / stats_count.sum(1)).T
-    stats_ratio = stats_ratio.map(lambda x: f"{100*x:.2f}")
-    stats_ratio.columns = [f"{each}-Ratio" for each in stats_ratio.columns]
+    stats_ratio = stats_ratio.map(lambda x: 100 * x)
+    stats_ratio.columns = [f"{each}-Ratio(%)" for each in stats_ratio.columns]
     stats_count.columns = [f"{each}-Count" for each in stats_count.columns]
     merged_stats = stats_count.merge(stats_ratio, left_index=True, right_index=True)
     merged_stats = merged_stats.reset_index()
@@ -107,7 +107,7 @@ def main(gt_table: Path) -> None:
         .astype("int")
     )
     all_stats_ratio = (all_stats_count.T / all_stats_count.sum(1)).T
-    all_stats_ratio = all_stats_ratio.map(lambda x: f"{x:.2%}")
+    all_stats_ratio = all_stats_ratio.map(lambda x: 100 * x)
     all_stats_ratio.columns = [f"{each}-Ratio(%)" for each in all_stats_ratio.columns]
     all_stats_count.columns = [f"{each}-Count" for each in all_stats_count.columns]
     all_merged_stats = all_stats_count.merge(
@@ -120,7 +120,7 @@ def main(gt_table: Path) -> None:
     hom_het_all_merged_stats.sort_values(["sample_id", "genotype"], inplace=True)
 
     stats_file = gt_table.with_suffix(".stats.xlsx")
-    hom_het_all_merged_stats.to_excel(stats_file, index=False)
+    hom_het_all_merged_stats.to_excel(stats_file, index=False, float_format="%.2f")
 
 
 if __name__ == "__main__":
