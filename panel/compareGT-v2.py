@@ -1,7 +1,28 @@
 from pathlib import Path
 
+import delegator
 import pandas as pd
 import typer
+from loguru import logger
+
+LOCATION_COLS = ["CHROM", "POS", "REF", "ALT"]
+
+
+def vcf2gt(vcf_file: Path, force: bool = False) -> Path:
+    gt_file = vcf_file.with_suffix(".gt.txt.gz")
+    if gt_file.exists() and not force:
+        return gt_file
+    gt_file.parent.mkdir(parents=True, exist_ok=True)
+    cmd = f'bcftools query -f "%CHROM\\t%POS\\t%REF\\t%ALT[\\t%GT]\\n" {vcf_file} | sed -re "s;\\|;/;g" | gzip > {gt_file}'
+    logger.info(f"run: {cmd}")
+    delegator.run(cmd)
+    return gt_file
+
+
+def get_sample_names(vcf_file: Path) -> list:
+    cmd = f"bcftools query -l {vcf_file}"
+    logger.info(f"run: {cmd}")
+    return delegator.run(cmd).out.strip().split("\n")
 
 
 def map_gt(gt: str) -> str:
@@ -59,23 +80,26 @@ def compare_gt(df: pd.DataFrame, compare_a: str, compare_b: str):
 
 
 def main(
-    genotype_file: Path,
+    vcf_file: Path,
     compare_list: Path,
     output_prefix: Path,
     chrom_stats: bool = False,
+    force: bool = False,
 ):
-    df = pd.read_table(genotype_file)
+    gt_file = vcf2gt(vcf_file, force=force)
+    sample_list = get_sample_names(vcf_file)
+    df = pd.read_table(gt_file, header=None, names=[*LOCATION_COLS, *sample_list])
     compare_df = pd.read_table(compare_list, header=None, names=["A", "B"])
 
     sample_stats_list = []
     chrom_stats_list = []
     for row in compare_df.itertuples():
         if row.A in df.columns and row.B in df.columns:
-            sample_stats_list.append(compare_gt(df, row.A, row.B))
+            sample_stats_list.append(compare_gt(df, row.A, row.B))  # type: ignore
             if chrom_stats:
                 for chrom, chrom_df in df.groupby("CHROM"):
                     chrom_stats_dict = {"chrom": chrom}
-                    chrom_stats_dict.update(compare_gt(chrom_df, row.A, row.B))
+                    chrom_stats_dict.update(compare_gt(chrom_df, row.A, row.B))  # type: ignore
                     chrom_stats_list.append(chrom_stats_dict)
     sample_stats_df = pd.DataFrame(sample_stats_list)
     sample_stats = f"{output_prefix}.样品.xlsx"
