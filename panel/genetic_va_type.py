@@ -2,6 +2,7 @@ import re
 from pathlib import Path
 
 import delegator
+import numpy as np
 import pandas as pd
 import typer
 from loguru import logger
@@ -33,11 +34,14 @@ def extract_snpeff_anno(vcf_path: Path, snpeff_dir: Path, force: bool) -> Path:
             f"java -jar {snpeff_dir}/SnpSift.jar extractFields - {EXTRACT_VCF_FILEDS} | "
             f"gzip > {annotation_file}"
         )
+        logger.info(f"run: {extract_cmd}")
         delegator.run(extract_cmd)
     return annotation_file
 
 
 def is_missense_or_nonsynonymous(hgvs_p: str) -> str:
+    if np.isnan(hgvs_p):
+        return "other"
     if "*" in hgvs_p or "?" in hgvs_p:
         return "non-synonymous"
     protein_a, protein_b = re.split("[0-9]+", hgvs_p.split(".")[1])
