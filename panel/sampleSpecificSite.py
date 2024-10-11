@@ -66,6 +66,7 @@ def gt_stats(
     case_sample_path: Path,
     control_sample_path: Path,
     case_name: str,
+    control_name: str,
     test: bool = False,
     chunck_size: int = 10_000,
 ):
@@ -101,7 +102,6 @@ def gt_stats(
             case_stats_df["stats_info"].tolist(), index=case_stats_df.index
         )
         case_stats_df.drop("stats_info", axis=1, inplace=True)
-        control_name = f"non_{case_name}"
         control_df = gt_df[control_sample_list]
         control_stats_df = pd.DataFrame(
             control_df.apply(allele_stats, axis=1), columns=["stats_info"]
