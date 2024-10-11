@@ -46,16 +46,17 @@ def get_gt_type(gt: str) -> str:
     return "alt"
 
 
-def allele_stats(row: pd.Series) -> Tuple[float, float]:
+def allele_stats(row: pd.Series) -> Tuple[float, float, float]:
     gt_type = row.map(get_gt_type)
     allele_count = gt_type.value_counts()
     miss_count = allele_count.get("miss", 0)
     het_count = allele_count.get("het", 0)
     real_sample_count = len(row) - miss_count
     miss_rate = miss_count / len(row)
+    het_rate = het_count / real_sample_count
     alt_count = allele_count.get("alt", 0)
     alt_rate = (alt_count * 2 + het_count) / (real_sample_count * 2)
-    return miss_rate, min(alt_rate, 1 - alt_rate)
+    return miss_rate, het_rate, min(alt_rate, 1 - alt_rate)
 
 
 @app.command()
@@ -94,7 +95,9 @@ def gt_stats(
         case_stats_df = pd.DataFrame(
             case_df.apply(allele_stats, axis=1), columns=["stats_info"]
         )
-        case_stats_df[[f"{case_name}_missing", f"{case_name}_maf"]] = pd.DataFrame(
+        case_stats_df[
+            [f"{case_name}_missing", f"{case_name}_het", f"{case_name}_maf"]
+        ] = pd.DataFrame(
             case_stats_df["stats_info"].tolist(), index=case_stats_df.index
         )
         case_stats_df.drop("stats_info", axis=1, inplace=True)
@@ -103,10 +106,10 @@ def gt_stats(
         control_stats_df = pd.DataFrame(
             control_df.apply(allele_stats, axis=1), columns=["stats_info"]
         )
-        control_stats_df[[f"{control_name}_missing", f"{control_name}_maf"]] = (
-            pd.DataFrame(
-                control_stats_df["stats_info"].tolist(), index=case_stats_df.index
-            )
+        control_stats_df[
+            [f"{control_name}_missing", f"{control_name}_het", f"{control_name}_maf"]
+        ] = pd.DataFrame(
+            control_stats_df["stats_info"].tolist(), index=case_stats_df.index
         )
         control_stats_df.drop("stats_info", axis=1, inplace=True)
         merged_df = case_stats_df.merge(
