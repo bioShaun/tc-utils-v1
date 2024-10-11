@@ -40,7 +40,7 @@ def extract_snpeff_anno(vcf_path: Path, snpeff_dir: Path, force: bool) -> Path:
 
 
 def is_missense_or_nonsynonymous(hgvs_p: str) -> str:
-    if np.isnan(hgvs_p):
+    if pd.isna(hgvs_p):
         return "other"
     if "*" in hgvs_p or "?" in hgvs_p:
         return "non-synonymous"
