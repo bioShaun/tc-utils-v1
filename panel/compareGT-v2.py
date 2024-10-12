@@ -36,7 +36,7 @@ def map_gt(gt: str) -> str:
     return "HET"
 
 
-def compare_gt(df: pd.DataFrame, compare_a: str, compare_b: str):
+def compare_gt(df: pd.DataFrame, compare_a: str, compare_b: str, human: bool = True):
     stats_gt_df = df[[compare_a, compare_b]].map(map_gt)
     mask1 = stats_gt_df[compare_a] != "MISS"
     mask2 = stats_gt_df[compare_b] != "MISS"
@@ -58,26 +58,48 @@ def compare_gt(df: pd.DataFrame, compare_a: str, compare_b: str):
     homo_equal_count = len(
         homo_compare_df[homo_compare_df[compare_a] == homo_compare_df[compare_b]]
     )
+    homo_equal_percent = 100 * homo_equal_count / total_homo_count
     homo_equal_count_out = f"{100*homo_equal_count / total_homo_count:.2f}% ({homo_equal_count}/{total_homo_count})"
+
     het_equal_count = len(
         het_compare_df[het_compare_df[compare_a] == het_compare_df[compare_b]]
     )
+    het_equal_percent = 100 * het_equal_count / total_het_count
     het_equal_count_out = f"{100*het_equal_count / total_het_count:.2f}% ({het_equal_count}/{total_het_count})"
     total_a_equal_b = homo_equal_count + het_equal_count
     total_a_equal_b_out = f"{100*total_a_equal_b / non_miss_count:.2f}% ({total_a_equal_b}/{non_miss_count})"
-    return {
-        "A": compare_a,
-        "B": compare_b,
-        "总位点数": len(df),
-        "有效位点": non_miss_count,
-        "A_纯合": a_hom_count,
-        "A_杂合": a_het_count,
-        "B_纯合": b_hom_count,
-        "B_杂合": b_het_count,
-        "整体相似度": total_a_equal_b_out,
-        "纯合相似度": homo_equal_count_out,
-        "杂合相似度": het_equal_count_out,
-    }
+    total_a_equal_b_percent = 100 * total_a_equal_b / non_miss_count
+    if human:
+        return {
+            "A": compare_a,
+            "B": compare_b,
+            "总位点数": len(df),
+            "有效位点": non_miss_count,
+            "A_纯合": a_hom_count,
+            "A_杂合": a_het_count,
+            "B_纯合": b_hom_count,
+            "B_杂合": b_het_count,
+            "整体相似度": total_a_equal_b_out,
+            "纯合相似度": homo_equal_count_out,
+            "杂合相似度": het_equal_count_out,
+        }
+    else:
+        return {
+            "A": compare_a,
+            "B": compare_b,
+            "总位点数": len(df),
+            "有效位点": non_miss_count,
+            "A_纯合": a_hom_count,
+            "A_杂合": a_het_count,
+            "B_纯合": b_hom_count,
+            "B_杂合": b_het_count,
+            "整体相似度": total_a_equal_b,
+            "整体相似度%": total_a_equal_b_percent,
+            "纯合相似度": homo_equal_count,
+            "纯合相似度%": homo_equal_percent,
+            "杂合相似度": het_equal_count,
+            "杂合相似度%": het_equal_percent,
+        }
 
 
 def main(
@@ -86,6 +108,7 @@ def main(
     output_prefix: Path,
     chrom_stats: bool = False,
     force: bool = False,
+    human: bool = True,
 ):
     gt_file = vcf2gt(vcf_file, force=force)
     sample_list = get_sample_names(vcf_file)
@@ -96,7 +119,7 @@ def main(
     chrom_stats_list = []
     for row in tqdm(compare_df.itertuples(), total=len(compare_df)):
         if row.A in df.columns and row.B in df.columns:
-            sample_stats_list.append(compare_gt(df, row.A, row.B))  # type: ignore
+            sample_stats_list.append(compare_gt(df, row.A, row.B, human=human))  # type: ignore
             if chrom_stats:
                 for chrom, chrom_df in df.groupby("CHROM"):
                     chrom_stats_dict = {"chrom": chrom}
