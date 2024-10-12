@@ -4,6 +4,7 @@ import delegator
 import pandas as pd
 import typer
 from loguru import logger
+from tqdm import tqdm
 
 LOCATION_COLS = ["CHROM", "POS", "REF", "ALT"]
 
@@ -93,7 +94,7 @@ def main(
 
     sample_stats_list = []
     chrom_stats_list = []
-    for row in compare_df.itertuples():
+    for row in tqdm(compare_df.itertuples(), total=len(compare_df)):
         if row.A in df.columns and row.B in df.columns:
             sample_stats_list.append(compare_gt(df, row.A, row.B))  # type: ignore
             if chrom_stats:
