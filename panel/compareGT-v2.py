@@ -1,3 +1,4 @@
+from enum import Enum
 from pathlib import Path
 
 import delegator
@@ -7,6 +8,11 @@ from loguru import logger
 from tqdm import tqdm
 
 LOCATION_COLS = ["CHROM", "POS", "REF", "ALT"]
+
+
+class InputType(str, Enum):
+    VCF = "vcf"
+    TABLE = "table"
 
 
 def vcf2gt(vcf_file: Path, force: bool = False) -> Path:
@@ -103,15 +109,23 @@ def compare_gt(df: pd.DataFrame, compare_a: str, compare_b: str, human: bool = T
 
 
 def main(
-    vcf_file: Path,
+    input_file: Path,
     compare_list: Path,
     output_prefix: Path,
     chrom_stats: bool = False,
     force: bool = False,
     human: bool = True,
+    input_type: InputType = InputType.VCF,
+    sample_file: Path = typer.Option(None),
 ):
-    gt_file = vcf2gt(vcf_file, force=force)
-    sample_list = get_sample_names(vcf_file)
+    if input_type == InputType.VCF:
+        gt_file = vcf2gt(input_file, force=force)
+        sample_list = get_sample_names(input_file)
+    else:
+        gt_file = input_file
+        if sample_file is None:
+            raise ValueError("Must provide sample_list if input_type is not VCF")
+        sample_list = pd.read_csv(sample_file, header=None)[0].tolist()
     df = pd.read_table(gt_file, header=None, names=[*LOCATION_COLS, *sample_list])
     compare_df = pd.read_table(compare_list, header=None, names=["A", "B"])
 
