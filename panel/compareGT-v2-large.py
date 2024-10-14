@@ -67,7 +67,6 @@ def compare_gt(df: pd.DataFrame, compare_a: str, compare_b: str, human: bool = T
     homo_equal_percent = (
         0 if total_homo_count == 0 else 100 * homo_equal_count / total_homo_count
     )
-    homo_equal_count_out = f"{100*homo_equal_count / total_homo_count:.2f}% ({homo_equal_count}/{total_homo_count})"
 
     het_equal_count = len(
         het_compare_df[het_compare_df[compare_a] == het_compare_df[compare_b]]
@@ -75,9 +74,7 @@ def compare_gt(df: pd.DataFrame, compare_a: str, compare_b: str, human: bool = T
     het_equal_percent = (
         0 if total_het_count == 0 else 100 * het_equal_count / total_het_count
     )
-    het_equal_count_out = f"{100*het_equal_count / total_het_count:.2f}% ({het_equal_count}/{total_het_count})"
     total_a_equal_b = homo_equal_count + het_equal_count
-    total_a_equal_b_out = f"{100*total_a_equal_b / non_miss_count:.2f}% ({total_a_equal_b}/{non_miss_count})"
     total_a_equal_b_percent = (
         0 if non_miss_count == 0 else 100 * total_a_equal_b / non_miss_count
     )
