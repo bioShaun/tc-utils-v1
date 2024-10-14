@@ -154,7 +154,9 @@ def main(
         for row in tqdm(compare_df.itertuples(), total=len(compare_df)):
             if row.A in df.columns and row.B in df.columns:
                 # sample_stats_list.append(compare_gt(df, row.A, row.B, human=human))  # type: ignore
-                out_line_list = compare_gt(df, row.A, row.B, human=human)
+                out_line_list = [
+                    str(each) for each in compare_gt(df, row.A, row.B, human=human)
+                ]
                 out_line_str = "\t".join(out_line_list)
                 out_inf.write(f"{out_line_str}\n")
 
