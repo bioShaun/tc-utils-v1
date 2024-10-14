@@ -149,7 +149,7 @@ def main(
 
     with open(output_file, "w") as out_inf:
         out_inf.write(
-            "A\tB\t总位点数\t有效位点\tA_纯合\tA_杂合\tB_纯合\tB_杂合\t整体相似度\tt整体相似度%\t纯合相似度\t纯合相似度%\t杂合相似度\t杂合相似度%\n"
+            "A\tB\t总位点数\t有效位点\tA_纯合\tA_杂合\tB_纯合\tB_杂合\t整体相似度\t整体相似度%\t纯合相似度\t纯合相似度%\t杂合相似度\t杂合相似度%\n"
         )
         for row in tqdm(compare_df.itertuples(), total=len(compare_df)):
             if row.A in df.columns and row.B in df.columns:
