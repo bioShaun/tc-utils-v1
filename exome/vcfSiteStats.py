@@ -10,13 +10,13 @@ from tqdm import tqdm
 
 
 def get_gt_type(gt: str) -> str:
-    if gt in ["./.", '.']:
+    if gt in ["./.", "."]:
         return "miss"
     try:
         allele1, allele2 = gt.split("/")[:2]
     except ValueError:
-        print('error gt:', gt) 
-        raise ValueError(f'{gt} format error!')
+        print("error gt:", gt)
+        raise ValueError(f"{gt} format error!")
     if allele1 != allele2:
         return "het"
     if allele1 == "0":
@@ -52,6 +52,7 @@ def transform_one(df: pd.DataFrame) -> pd.DataFrame:
     df[["alleles", "missing", "het", "maf"]] = pd.DataFrame(
         df["stats_info"].tolist(), index=df.index
     )
+    df["indel_type"] = df["alleles"].map(get_indel_type)
     return df
 
 
@@ -83,6 +84,16 @@ def get_index_len(row: pd.Series) -> int:
     return max(abs(ref_len - alt_len_max), abs(ref_len - alt_len_min))
 
 
+def get_indel_type(alleles: str) -> str:
+    if "ins" in alleles:
+        if "del" in alleles:
+            return "MIXED"
+        return "INS"
+    elif "del" in alleles:
+        return "DEL"
+    return "SNP"
+
+
 def vcf2gt(vcf_file: Path, force: bool = False) -> Path:
     gt_file = vcf_file.with_suffix(".gt.txt.gz")
     if gt_file.exists() and not force:
@@ -93,16 +104,34 @@ def vcf2gt(vcf_file: Path, force: bool = False) -> Path:
     return gt_file
 
 
+def indel_right_pos(row: pd.Series) -> int:
+    if row["indel_type"] in ["DEL", "MIXED"]:
+        return row["pos"] + row["indel_length"]
+    return row["pos"]
+
+
 def vcfStats(vcf: Path, vcf_stats: Path, threads: int = 4, force: bool = False) -> None:
     pandarallel.initialize(nb_workers=threads)
     gt_table = vcf2gt(vcf_file=vcf, force=force)
     dfs = pd.read_table(gt_table, chunksize=100_000, header=None)
+    left_file = vcf_stats.with_suffix(".left.tsv")
+    right_file = vcf_stats.with_suffix(".right.tsv")
     for n, df in tqdm(enumerate(dfs)):
         mode = "w" if n == 0 else "a"
         header = True if n == 0 else False
         stats_df = transform_one(df)
         out_df = stats_df[
-            ["id", "CHROM", "POS", "alleles", "missing", "het", "maf", "indel_length"]
+            [
+                "id",
+                "CHROM",
+                "POS",
+                "alleles",
+                "missing",
+                "het",
+                "maf",
+                "indel_length",
+                "indel_type",
+            ]
         ].copy()
         out_df.columns = [
             "id",
@@ -113,9 +142,28 @@ def vcfStats(vcf: Path, vcf_stats: Path, threads: int = 4, force: bool = False) 
             "het",
             "maf",
             "indel_length",
+            "indel_type",
         ]
         out_df.to_csv(
             vcf_stats,
+            mode=mode,
+            index=False,
+            float_format="%.3f",
+            sep="\t",
+            header=header,
+        )
+        out_df.to_csv(
+            left_file,
+            mode=mode,
+            index=False,
+            float_format="%.3f",
+            sep="\t",
+            header=header,
+        )
+        right_df = out_df.copy()
+        right_df["pos"] = right_df.apply(indel_right_pos, axis=1)
+        right_df.to_csv(
+            right_file,
             mode=mode,
             index=False,
             float_format="%.3f",
