@@ -1,5 +1,5 @@
 from pathlib import Path
-
+import re
 import typer
 
 
@@ -10,7 +10,8 @@ def main(gtf: Path) -> None:
         for line in in_gtf:
             line_inf = line.strip().split("\t")
             out_inf = line
-            tr_id = line_inf[-1].split()[1]
+            #tr_id = line_inf[-1].split()[1]
+            tr_id = re.search('transcript_id "(\S+)"', line_inf[-1]).groups()[0]
             if tr_id not in tr_dict:
                 tr_dict[tr_id] = {}
                 tr_dict[tr_id]["exon"] = []
