@@ -1,4 +1,5 @@
 from pathlib import Path
+
 import typer
 
 
@@ -24,11 +25,14 @@ def main(gtf: Path) -> None:
             for feature in ["transcript", "exon", "CDS"]:
                 feature_lines = tr_dict[transcript][feature]
                 if len(feature_lines) == 0:
-                    feature_lines = tr_dict[transcript]["CDS"]
+                    if feature == "exon":
+                        feature_lines = tr_dict[transcript]["CDS"]
+                    else:
+                        feature_lines = tr_dict[transcript]["exon"]
                 for line in feature_lines:
-                    line_list = line.split('\t')
+                    line_list = line.split("\t")
                     line_list[2] = feature
-                    out.write('\t'.join(line_list))
+                    out.write("\t".join(line_list))
 
 
 if __name__ == "__main__":
