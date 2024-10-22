@@ -160,7 +160,7 @@ def vcfStats(
             "indel_type",
         ]
         # choose best maf one for multi alt sites
-        out_df = out_df.loc[out_df.groupby("id")["maf"].idxmax()]
+        out_df = out_df.loc[out_df.groupby(["chrom", "pos"])["maf"].idxmax()]
         out_df.to_csv(
             vcf_stats,
             mode=mode,
