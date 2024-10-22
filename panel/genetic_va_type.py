@@ -70,7 +70,7 @@ def main(
     snpeff_df["impact_score"] = snpeff_df["impact"].map(IMPACT_SCORE)
     snpeff_df.sort_values(by="impact_score", inplace=True)
     snpeff_df["effect"] = snpeff_df["effect"].map(lambda x: x.split("&")[0])
-    snpeff_df.drop_duplicates(subset=["chrom", "pos"], inplace=True)
+    snpeff_df.drop_duplicates(subset=["chrom", "pos", "alleles"], inplace=True)
     snpeff_df["variant_type"] = snpeff_df["hgvs_p"].map(is_missense_or_nonsynonymous)
     snpeff_df.drop(["impact_score", "hgvs_p", "refer", "alt"], axis=1, inplace=True)
     snpeff_df.to_csv(out_file, sep="\t", index=False)
