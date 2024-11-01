@@ -43,8 +43,12 @@ def load_bed_files(
     for bed_i in bed_list:
         logger.info(f"Load {bed_i} ...")
         sample_name = bed_i.stem.rstrip(".cov")
-        df_i = pd.read_table(bed_i, header=None, names=[sample_name], usecols=[3])
-        df_list.append(df_i)
+        df_i = pd.read_table(
+            bed_i, header=None, names=["start", "end", "depth"], usecols=[1, 2, 3]
+        )
+        df_i["span"] = df_i["end"] - df_i["start"]
+        df_i[sample_name] = df_i["depth"] / df_i["span"]
+        df_list.append(df_i[[sample_name]])
     df = reduce(
         lambda x, y: pd.merge(x, y, left_index=True, right_index=True),
         df_list,
@@ -65,8 +69,7 @@ def get_stats_df(df: pd.DataFrame) -> pd.DataFrame:
 def main(
     cds_cov_dir: Path,
     out_file: Path,
-    cov: List[int] = [1, 5, 10, 30, 50, 100],
-    span: int = 1,
+    cov: List[int] = [1, 5, 10, 20, 30, 50, 100],
     transcript_id: bool = False,
     split_bed: Path = typer.Option(None),
 ) -> None:

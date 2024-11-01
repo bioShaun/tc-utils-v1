@@ -234,6 +234,7 @@ def realign2(
     threads: int = 16,
     cut_off: float = 0.5,
     force: bool = False,
+    allow_ins_del: bool = False,
 ) -> None:
     """
     Main function to perform a series of operations based on the input parameters.
