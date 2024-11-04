@@ -78,7 +78,6 @@ def main(
     else:
         loci_columns = BED_COLUMNS[:-1]
     bed_df, df_matrix = load_bed_files(cds_cov_dir, loci_columns)
-    df_matrix = df_matrix / span
     stats_df = get_stats_df(df_matrix)
     # df_matrix.to_csv("test.tsv", index=False, sep="\t")
     # print('set index')
