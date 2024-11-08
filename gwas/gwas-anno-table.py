@@ -49,7 +49,7 @@ def main(
     eggnog_df.columns = ["transcript_id", "description"]
     snpeff_df = pd.read_table(snpeff_anno_file)
     snpeff_df.rename(columns=COLUMN_MAP, inplace=True)
-    snpeff_df.drop_duplicates(subset=["chrom", "pos"])
+    snpeff_df.drop_duplicates(subset=["chrom", "pos"], inplace=True)
     logger.info("merge annotation ...")
     merged_df = snpeff_df.merge(eggnog_df, how="left")
     merged_df.fillna("--", inplace=True)
