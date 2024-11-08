@@ -73,6 +73,16 @@ def sampleStats(bcfstats: Path, out_file: Path, indel: bool = False) -> None:
         psi_df.drop(["PSI", "id"], axis=1, inplace=True)
         out_cols = INDEL_COLUMNS[:]
         psc_df = psc_df.merge(psi_df, on="Sample", how="left")
+        psc_df["Total"] = psc_df[
+            [
+                "nRefHom",
+                "nInsHets",
+                "nDelHets",
+                "nInsAltHoms",
+                "nDelAltHoms",
+                "nMissing",
+            ]
+        ].sum(1)
     psc_df = psc_df[out_cols]
     psc_df.to_csv(out_file, sep="\t", index=False, columns=OUT_COLUMNS)
 
