@@ -50,6 +50,7 @@ OUT_COLUMNS = [
 
 INDEL_OUT_COLUMNS = [
     "Sample",
+    "Total",
     "nRefHom",
     "nInsHets",
     "nDelHets",
