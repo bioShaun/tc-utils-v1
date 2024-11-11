@@ -315,8 +315,10 @@ def realign(
             "mapq",
         ],
     )
+    cigar_df = cigar_list_from_paf(flank_paf)
+    add_cigar_paf_df = pd.concat([paf_df, cigar_df], axis=1)
     paf2idmap(
-        paf_df=paf_df,
+        paf_df=add_cigar_paf_df,
         offset_df=offset_df,
         match_cutoff=cut_off,
         out_prefix=flank_paf,
