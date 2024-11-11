@@ -1,6 +1,8 @@
+import re
+from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 
 import delegator
 import numpy as np
@@ -8,9 +10,6 @@ import pandas as pd
 import typer
 from loguru import logger
 from tqdm import tqdm
-import re
-from typing import List, Tuple, Optional
-from dataclasses import dataclass
 
 FLANK_SIZE = 60
 
@@ -22,33 +21,90 @@ class TargetType(str, Enum):
     bed = "bed"
     vcf = "vcf"
 
+
 @dataclass
 class InsDelCount:
     ins_count: int
     del_count: int
 
 
-def get_cigar_list(cigar: str) -> List[Tuple[str, int]]:
-    cigar_num = [int(each) for each in re.split("[MID]", cigar)[:-1]]
-    cigar_str = [each for each in re.split("[0-9]+", cigar)[1:]]
-    return list(zip(cigar_num, cigar_str))
+def get_cigar_list(cigar: str) -> List[Tuple[int, str]]:
+    """
+    Parse a CIGAR string into a list of tuples.
+
+    Args:
+    cigar (str): A CIGAR string (e.g., "3M1I4M2D5M")
+
+    Returns:
+    List[Tuple[int, str]]: A list of tuples where each tuple contains
+                           (count, operation)
+
+    Example:
+    >>> get_cigar_list("3M1I4M2D5M")
+    [(3, 'M'), (1, 'I'), (4, 'M'), (2, 'D'), (5, 'M')]
+    """
+    # Use a single regex to split the CIGAR string into pairs of (count, operation)
+    cigar_pairs = re.findall(r"(\d+)([MIDNSHPX=])", cigar)
+
+    # Convert the count to integer and return the list of tuples
+    return [(int(count), operation) for count, operation in cigar_pairs]
 
 
 def get_del_ins(row: pd.Series) -> Optional[InsDelCount]:
-    cigar_info = get_cigar_list(row['cigar'])
-    offset_from_target = row["offset_start"] if row["strand"] == "+" else row["offset_end"]
-    match_count = 0
-    ins_count = 0
-    del_count = 0
-    for cigar_str, cigar_num in cigar_info:
-        if cigar_str == "M":
+    """
+    Analyze CIGAR string to count insertions and deletions up to a certain offset.
+
+    Args:
+    row (pd.Series): A pandas Series containing 'cigar', 'offset_start', 'offset_end', and 'strand' information.
+
+    Returns:
+    Optional[InsDelCount]: A named tuple with insertion and deletion counts, or None if the offset is not reached.
+
+    Raises:
+    ValueError: If an unexpected CIGAR operation is encountered.
+    """
+    cigar_info = get_cigar_list(row["cigar"])
+    offset_from_target = (
+        row["offset_start"] if row["strand"] == "+" else row["offset_end"]
+    )
+
+    match_count = ins_count = del_count = 0
+
+    for count, operation in cigar_info:
+        if operation == "M":
+            match_count += count
+        elif operation == "I":
+            ins_count += count
+        elif operation == "D":
+            if match_count == offset_from_target:
+                return None
+            del_count += count
+        else:
+            raise ValueError(f"Unexpected CIGAR operation: {operation}")
+
+        if match_count > offset_from_target:
+            break
+
+    if match_count < offset_from_target:
+        return None  # Offset not reached
+
+    return InsDelCount(ins_count=ins_count, del_count=del_count)
 
 
-
-def get_pos(row: pd.Series) -> int:
+def get_pos(row: pd.Series) -> Optional[int]:
+    indel_ins_info = get_del_ins(row)
+    if indel_ins_info is None:
+        return None
+    indel_bias = indel_ins_info.del_count - indel_ins_info.ins_count
     if row["strand"] == "+":
-        return row["match_start"] + row["offset_start"] + 1 - row["probe_start"]
-    return row["match_start"] + row["offset_end"] + 1 - row["probe_start"]
+        return (
+            row["match_start"]
+            + row["offset_start"]
+            + 1
+            - row["probe_start"]
+            + indel_bias
+        )
+    return row["match_start"] + row["offset_end"] + 1 - row["probe_start"] + indel_bias
 
 
 def paf2idmap(
@@ -72,6 +128,7 @@ def paf2idmap(
     filter_df = paf_df[paf_df["match_ratio"] > match_cutoff].copy()
     filter_df = filter_df.merge(offset_df, on="id")
     filter_df["pos"] = filter_df.apply(get_pos, axis=1)
+    filter_df.dropna(subset=["pos"], inplace=True)
     filter_df["new_id"] = filter_df.apply(lambda x: f'{x["chrom"]}_{x["pos"]}', axis=1)
     filter_df["pos_0"] = filter_df["pos"] - 1
     id_map = out_prefix.with_suffix(".idmap.tsv")
