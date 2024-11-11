@@ -8,6 +8,9 @@ import pandas as pd
 import typer
 from loguru import logger
 from tqdm import tqdm
+import re
+from typing import List, Tuple, Optional
+from dataclasses import dataclass
 
 FLANK_SIZE = 60
 
@@ -18,6 +21,28 @@ app = typer.Typer()
 class TargetType(str, Enum):
     bed = "bed"
     vcf = "vcf"
+
+@dataclass
+class InsDelCount:
+    ins_count: int
+    del_count: int
+
+
+def get_cigar_list(cigar: str) -> List[Tuple[str, int]]:
+    cigar_num = [int(each) for each in re.split("[MID]", cigar)[:-1]]
+    cigar_str = [each for each in re.split("[0-9]+", cigar)[1:]]
+    return list(zip(cigar_num, cigar_str))
+
+
+def get_del_ins(row: pd.Series) -> Optional[InsDelCount]:
+    cigar_info = get_cigar_list(row['cigar'])
+    offset_from_target = row["offset_start"] if row["strand"] == "+" else row["offset_end"]
+    match_count = 0
+    ins_count = 0
+    del_count = 0
+    for cigar_str, cigar_num in cigar_info:
+        if cigar_str == "M":
+
 
 
 def get_pos(row: pd.Series) -> int:
@@ -158,6 +183,19 @@ def fasta_from_probe_table(probe_table: Path) -> Tuple[pd.DataFrame, Path]:
     return probe_df[["id", "offset_start", "offset_end"]].copy(), probe_fasta
 
 
+def extract_cigar_from_line(line: str) -> str:
+    """Extract the cigar string from a Minimap2 alignment line."""
+    match = re.search(r"cg:Z:(\w+)", line)
+    if match:
+        return match.group(1)
+    raise ValueError(f"cigar not found in line: {line!r}")
+
+
+def cigar_list_from_paf(paf: Path) -> pd.DataFrame:
+    cigar_list = [extract_cigar_from_line(each) for each in paf.open()]
+    return pd.DataFrame(cigar_list, columns=["cigar"])
+
+
 @app.command()
 def realign(
     target_file: Path,
@@ -272,8 +310,10 @@ def realign2(
             "mapq",
         ],
     )
+    cigar_df = cigar_list_from_paf(flank_paf)
+    add_cigar_paf_df = pd.concat([paf_df, cigar_df], axis=1)
     paf2idmap(
-        paf_df=paf_df,
+        paf_df=add_cigar_paf_df,
         offset_df=offset_df,
         match_cutoff=cut_off,
         out_prefix=flank_paf,
