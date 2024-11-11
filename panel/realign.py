@@ -129,6 +129,7 @@ def paf2idmap(
     filter_df = filter_df.merge(offset_df, on="id")
     filter_df["pos"] = filter_df.apply(get_pos, axis=1)
     filter_df.dropna(subset=["pos"], inplace=True)
+    filter_df["pos"] = filter_df["pos"].astype("int")
     filter_df["new_id"] = filter_df.apply(lambda x: f'{x["chrom"]}_{x["pos"]}', axis=1)
     filter_df["pos_0"] = filter_df["pos"] - 1
     id_map = out_prefix.with_suffix(".idmap.tsv")
