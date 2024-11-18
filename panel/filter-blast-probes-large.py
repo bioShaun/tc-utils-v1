@@ -1,3 +1,4 @@
+from functools import partial
 from pathlib import Path
 from typing import Optional
 
@@ -6,11 +7,18 @@ import typer
 from tqdm import tqdm
 
 
+def get_real_mismatch(row: pd.Series, probe_lenth: int) -> int:
+    if row["match_len"] < probe_lenth:
+        return row["mismatch"] + row["gapopen"] + probe_lenth - row["match_len"]
+    return row["mismatch"] + row["gapopen"]
+
+
 def main(
     blast_dir: Path,
     out_file: Path,
     min_match_length: int = 24,
     max_match_count: int = 1,
+    probe_length: int = 120,
     output_all: bool = False,
     show_max_length: bool = False,
     min_identity: Optional[int] = None,
@@ -19,15 +27,16 @@ def main(
 ) -> None:
     blast_files = sorted(blast_dir.glob("./*"))
 
+    my_get_real_mismatch = partial(get_real_mismatch, probe_lenth=probe_length)
+
     for n, blast_file in enumerate(tqdm(blast_files)):
         blast_df = pd.read_table(
             blast_file,
             usecols=[0, 2, 3, 4, 5],
             names=["id", "identity", "match_len", "mismatch", "gapopen"],
         )
-        blast_df["real_match_length"] = (
-            blast_df["match_len"] - blast_df["mismatch"] - blast_df["gapopen"]
-        )
+        blast_df["total_mismatch"] = blast_df.apply(my_get_real_mismatch, axis=1)
+        blast_df["real_match_length"] = probe_length - blast_df["total_mismatch"]
         if not output_all:
             blast_df = blast_df[blast_df["real_match_length"] >= min_match_length]
             if min_identity is not None:
