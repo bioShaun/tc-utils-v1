@@ -25,8 +25,11 @@ def main(
             usecols=[0, 2, 3, 4, 5],
             names=["id", "identity", "match_len", "mismatch", "gapopen"],
         )
+        blast_df["real_match_length"] = (
+            blast_df["match_len"] - blast_df["mismatch"] - blast_df["gapopen"]
+        )
         if not output_all:
-            blast_df = blast_df[blast_df["match_len"] >= min_match_length]
+            blast_df = blast_df[blast_df["real_match_length"] >= min_match_length]
             if min_identity is not None:
                 blast_df = blast_df[blast_df["identity"] >= min_identity]
             if max_mismatch_count is not None:
@@ -38,9 +41,17 @@ def main(
             id_count_df = id_count_df[id_count_df <= max_match_count]
         id_count_df = id_count_df.reset_index()
         id_count_df.columns = ["id", "blast_match"]
+        best_match_idx = blast_df.groupby("id")["real_match_length"].idxmax()
+        other_match_df = blast_df[~blast_df.index.isin(best_match_idx)]
+        second_max_length_df = (
+            other_match_df.groupby("id")["real_match_length"].max().reset_index()
+        )
+        second_max_length_df.columns = ["id", "second_max_length"]
+        id_count_df = pd.merge(id_count_df, second_max_length_df, on="id")
         if show_max_length:
-            id_max_length_df = blast_df.groupby("id")["match_len"].max()
-            id_max_length_df = id_max_length_df.reset_index()
+            id_max_length_df = (
+                blast_df.groupby("id")["real_match_length"].max().reset_index()
+            )
             id_max_length_df.columns = ["id", "max_length"]
             id_count_df = pd.merge(id_count_df, id_max_length_df, on="id")
         mode = "w" if n == 0 else "a"
