@@ -35,7 +35,6 @@ def main(
             usecols=[0, 2, 3, 4, 5],
             names=["id", "identity", "match_len", "mismatch", "gapopen"],
         )
-        blast_df = blast_df.groupby("id").head(2)
         blast_df["total_mismatch"] = blast_df.apply(my_get_real_mismatch, axis=1)
         blast_df["real_match_length"] = probe_length - blast_df["total_mismatch"]
         if not output_all:
@@ -51,6 +50,7 @@ def main(
             id_count_df = id_count_df[id_count_df <= max_match_count]
         id_count_df = id_count_df.reset_index()
         id_count_df.columns = ["id", "blast_match"]
+        blast_df = blast_df.groupby("id").head(2)
         best_match_idx = blast_df.groupby("id")["real_match_length"].idxmax()
         other_match_df = blast_df[~blast_df.index.isin(best_match_idx)]
         second_max_length_df = (
