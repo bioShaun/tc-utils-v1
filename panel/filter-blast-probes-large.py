@@ -35,6 +35,7 @@ def main(
             usecols=[0, 2, 3, 4, 5],
             names=["id", "identity", "match_len", "mismatch", "gapopen"],
         )
+        blast_df = blast_df.groupby("id").head(2)
         blast_df["total_mismatch"] = blast_df.apply(my_get_real_mismatch, axis=1)
         blast_df["real_match_length"] = probe_length - blast_df["total_mismatch"]
         if not output_all:
