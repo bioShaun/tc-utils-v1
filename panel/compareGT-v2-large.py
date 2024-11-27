@@ -118,11 +118,11 @@ def compare_gt(df: pd.DataFrame, compare_a: str, compare_b: str, human: bool = T
         b_hom_count,
         b_het_count,
         total_a_equal_b,
-        total_a_equal_b_percent,
+        round(total_a_equal_b_percent, 3),
         homo_equal_count,
-        homo_equal_percent,
+        round(homo_equal_percent, 3),
         het_equal_count,
-        het_equal_percent,
+        round(het_equal_percent, 3),
     ]
 
 
