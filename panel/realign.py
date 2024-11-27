@@ -197,9 +197,7 @@ def generate_flank_paf(
 ) -> Path:
     flank_paf = flank_fa.with_suffix(".paf")
     if force or not flank_paf.is_file():
-        cmd_line = (
-            f"minimap2 -t {threads} -cx sr {genome_sr_idx} {flank_fa} > {flank_paf}"
-        )
+        cmd_line = f"minimap2 -t {threads} --secondary yes -N 10 -cx sr {genome_sr_idx} {flank_fa} > {flank_paf}"
         delegator.run(cmd_line)
     return flank_paf
 
