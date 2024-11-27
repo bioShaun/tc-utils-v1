@@ -158,7 +158,7 @@ def paf2idmap(
             sep="\t",
             index=False,
             header=False,
-            columns=["chrom", "pos_0", "pos", "id"],
+            columns=["chrom", "pos_0", "pos", "id", "mapq", "strand"],
         )
 
     return id_map_df
