@@ -39,6 +39,7 @@ def split_bed(bed_file: Path, out_dir: Path, split_number: int) -> None:
     split_out_dir.mkdir(parents=True)
     if split_number == 1:
         os.symlink(bed_file.absolute(), split_out_dir / bed_file.name)
+        return
     bed_df = pd.read_table(bed_file, header=None, names=["chrom", "start", "end"])
     bed_df["region_length"] = bed_df["end"] - bed_df["start"]
     bed_length = bed_df["region_length"].sum()
