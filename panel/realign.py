@@ -91,6 +91,12 @@ def get_del_ins(row: pd.Series) -> Optional[InsDelCount]:
     return InsDelCount(ins_count=ins_count, del_count=del_count)
 
 
+def get_real_match_length(cigar: str) -> int:
+    operations = get_cigar_list(cigar)
+    total_matches = sum(count for count, op in operations if op == "M")
+    return total_matches
+
+
 def get_pos(row: pd.Series) -> Optional[int]:
     indel_ins_info = get_del_ins(row)
     if indel_ins_info is None:
@@ -113,17 +119,24 @@ def paf2idmap(
     offset_df: pd.DataFrame,
     out_prefix: Path,
     save_file: bool = True,
+    keep_duplicates: bool = False,
 ) -> Optional[pd.DataFrame]:
 
-    paf_df.sort_values(
-        [
-            "match_length",
-            "mapq",
-        ],
-        ascending=False,
-        inplace=True,
-    )
-    paf_df.drop_duplicates(subset=["id"], inplace=True)
+    # paf_df.sort_values(
+    #     [
+    #         "match_length",
+    #         "mapq",
+    #     ],
+    #     ascending=False,
+    #     inplace=True,
+    # )
+    # paf_df["match_length"] = paf_df["cigar"].map(get_real_match_length)
+    best_match_length = paf_df.groupby("id")["match_length"].max().reset_index()
+    paf_df = paf_df.merge(best_match_length)
+    best_nm = paf_df.groupby("id")["n_mismatch"].min().reset_index()
+    paf_df = paf_df.merge(best_nm)
+    if not keep_duplicates:
+        paf_df.drop_duplicates(subset=["id"], inplace=True)
     paf_df["match_ratio"] = paf_df["match_length"] / paf_df["probe_length"]
     filter_df = paf_df[paf_df["match_ratio"] > match_cutoff].copy()
     filter_df = filter_df.merge(offset_df, on="id")
@@ -247,9 +260,21 @@ def extract_cigar_from_line(line: str) -> str:
     raise ValueError(f"cigar not found in line: {line!r}")
 
 
-def cigar_list_from_paf(paf: Path) -> pd.DataFrame:
-    cigar_list = [extract_cigar_from_line(each) for each in paf.open()]
-    return pd.DataFrame(cigar_list, columns=["cigar"])
+def extract_mismatch_from_line(line: str) -> str:
+    """Extract the total miss match from a Minimap2 alignment line."""
+    match = re.search(r"NM:i:([0-9]+)", line)
+    if match:
+        return match.group(1)
+    raise ValueError(f"NM not found in line: {line!r}")
+
+
+def cigar_nm_list_from_paf(paf: Path) -> pd.DataFrame:
+    cigar_nm_list = [
+        [extract_cigar_from_line(each), extract_mismatch_from_line(each)]
+        for each in paf.open()
+    ]
+
+    return pd.DataFrame(cigar_nm_list, columns=["cigar", "n_mismatch"])
 
 
 @app.command()
@@ -313,8 +338,8 @@ def realign(
             "mapq",
         ],
     )
-    cigar_df = cigar_list_from_paf(flank_paf)
-    add_cigar_paf_df = pd.concat([paf_df, cigar_df], axis=1)
+    cigar_nm_df = cigar_nm_list_from_paf(flank_paf)
+    add_cigar_paf_df = pd.concat([paf_df, cigar_nm_df], axis=1)
     paf2idmap(
         paf_df=add_cigar_paf_df,
         offset_df=offset_df,
@@ -331,6 +356,7 @@ def realign2(
     cut_off: float = 0.5,
     force: bool = False,
     allow_ins_del: bool = False,
+    keep_duplicates: bool = False,
 ) -> None:
     """
     Main function to perform a series of operations based on the input parameters.
@@ -368,13 +394,14 @@ def realign2(
             "mapq",
         ],
     )
-    cigar_df = cigar_list_from_paf(flank_paf)
-    add_cigar_paf_df = pd.concat([paf_df, cigar_df], axis=1)
+    cigar_nm_df = cigar_nm_list_from_paf(flank_paf)
+    add_cigar_paf_df = pd.concat([paf_df, cigar_nm_df], axis=1)
     paf2idmap(
         paf_df=add_cigar_paf_df,
         offset_df=offset_df,
         match_cutoff=cut_off,
         out_prefix=flank_paf,
+        keep_duplicates=keep_duplicates,
     )
 
 
