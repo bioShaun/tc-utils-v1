@@ -57,7 +57,11 @@ def main(
             other_match_df.groupby("id")["real_match_length"].max().reset_index()
         )
         second_max_length_df.columns = ["id", "second_max_length"]
-        id_count_df = pd.merge(id_count_df, second_max_length_df, on="id")
+        id_count_df = pd.merge(id_count_df, second_max_length_df, on="id", how="left")
+        id_count_df["second_max_length"] = (
+            id_count_df["second_max_length"].fillna(0).astype(int)
+        )
+
         if show_max_length:
             id_max_length_df = (
                 blast_df.groupby("id")["real_match_length"].max().reset_index()
