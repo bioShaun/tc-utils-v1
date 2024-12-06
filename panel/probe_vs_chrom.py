@@ -67,7 +67,7 @@ def create_dual_bar_chart(
 # 方法1：直接保存单张图表
 
 
-def main(probe_bed: Path, chrom_size: Path):
+def main(probe_bed: Path, chrom_size: Path, out_pdf: Path) -> None:
     chrom_len_df = pd.read_table(
         chrom_size, header=None, names=["Chromosome", "Length"]
     )
@@ -85,7 +85,7 @@ def main(probe_bed: Path, chrom_size: Path):
     )
     figure_width = int(len(chrom_len_df) * 0.8)
     fig = create_dual_bar_chart(df, figsize=(figure_width, 8))
-    fig.savefig("chromosome_analysis.pdf", format="pdf", bbox_inches="tight")
+    fig.savefig(out_pdf, format="pdf", bbox_inches="tight")
     plt.close(fig)
 
 
