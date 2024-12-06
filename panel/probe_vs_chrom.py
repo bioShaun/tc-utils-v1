@@ -76,13 +76,12 @@ def main(probe_bed: Path, chrom_size: Path, out_pdf: Path) -> None:
         probe_bed, header=None, names=["Chromosome", "Start", "End"]
     )
 
-    df = pd.DataFrame(
-        {
-            "Chromosome": chrom_len_df["Chromosome"],
-            "Probe_Count": probe_df.groupby("Chromosome").size(),
-            "Length_Mb": chrom_len_df["Length_Mb"],
-        }
+    probe_count_df = (
+        probe_df["Chromosome"].value_counts().rename("Probe_Count").reset_index()
     )
+
+    df = chrom_len_df.merge(probe_count_df, how="left", on="Chromosome")
+    chrom_len_df["Probe_Count"] = df["Probe_Count"].fillna(0).astype("int")
     figure_width = int(len(chrom_len_df) * 0.8)
     fig = create_dual_bar_chart(df, figsize=(figure_width, 8))
     fig.savefig(out_pdf, format="pdf", bbox_inches="tight")
