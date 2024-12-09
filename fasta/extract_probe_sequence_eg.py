@@ -137,7 +137,7 @@ def main(probe_fa: Path, out_fa: Path) -> None:
     with open(out_fa, "w", encoding="utf-8") as out:
         for probe_id, sequence in probe_fa_dict.items():
             out.write(f">{probe_id}\n")
-            out.write("".join(sequence))
+            out.write("".join(sequence) + "\n")
 
 
 if __name__ == "__main__":
