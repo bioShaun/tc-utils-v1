@@ -145,7 +145,7 @@ def calculate_match_statistics(
     my_get_real_match_length = partial(
         get_real_match_length, probe_length=config.probe_length
     )
-    blast_df = blast_df.groupby("id").head(2)
+    blast_df = blast_df.groupby("id").head(2).copy()
     blast_df["real_match_length"] = blast_df.apply(my_get_real_match_length, axis=1)
 
     # 计算次优匹配长度

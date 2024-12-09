@@ -72,7 +72,8 @@ def sampleStats(bcfstats: Path, out_file: Path, indel: bool = False) -> None:
             StringIO(psi_stats), sep="\t", header=None, names=INDEL_COLUMNS
         )
         psi_df.drop(["PSI", "id"], axis=1, inplace=True)
-        out_cols = INDEL_COLUMNS[:]
+        out_cols = INDEL_OUT_COLUMNS[:]
+        print(out_cols)
         psc_df = psc_df.merge(psi_df, on="Sample", how="left")
         psc_df["Total"] = psc_df[
             [
@@ -84,8 +85,10 @@ def sampleStats(bcfstats: Path, out_file: Path, indel: bool = False) -> None:
                 "nMissing",
             ]
         ].sum(1)
+        print(psc_df)
+    print(out_cols)
     psc_df = psc_df[out_cols]
-    psc_df.to_csv(out_file, sep="\t", index=False, columns=OUT_COLUMNS)
+    psc_df.to_csv(out_file, sep="\t", index=False)
 
 
 if __name__ == "__main__":
