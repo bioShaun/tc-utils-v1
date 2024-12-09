@@ -10,7 +10,10 @@ from matplotlib.patches import Rectangle
 def plot_go(df: pd.DataFrame, compare: str, out_prefix: str) -> None:
     df["-log10(p.adjust)"] = -np.log10(df["p.adjust"])
 
+    name_len_max = df["Description"].map(lambda x: len(x)).max()
+
     plot_width = 2 + int(0.5 * len(df))
+    plot_height = 6 + name_len_max * 0.05
 
     # 按类别分组并排序
     df_sorted = pd.concat(
@@ -55,7 +58,7 @@ def plot_go(df: pd.DataFrame, compare: str, out_prefix: str) -> None:
         current_pos += bar_spacing
 
     # 创建图形
-    plt.figure(figsize=(plot_width, 6))
+    plt.figure(figsize=(plot_width, plot_height))
 
     # 设置颜色映射
     color_map = {
