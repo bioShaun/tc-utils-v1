@@ -57,13 +57,13 @@ def get_iupac_bases(iupac_code: str) -> Set[str]:
 def validate_marker(sequence: str) -> Match:
     """
     验证序列中的SNP标记
-    
+
     Args:
         sequence (str): 输入的DNA序列
-        
+
     Returns:
         Match: 匹配的标记对象
-        
+
     Raises:
         InvalidMarkerError: 当标记无效或未找到时
         SequenceError: 当存在多个标记时
@@ -73,19 +73,19 @@ def validate_marker(sequence: str) -> Match:
         raise InvalidMarkerError("未找到有效的SNP标记")
     if len(matches) > 1:
         raise SequenceError("序列中不允许包含多个SNP标记")
-    
+
     # 验证SNP标记中的碱基
     match = matches[0]
-    alleles = match.group(1).split('/')
+    alleles = match.group(1).split("/")
     if len(alleles) != 2:
         raise InvalidMarkerError("SNP标记格式错误")
-    
+
     # 验证每个碱基是否为有效的IUPAC码
     for allele in alleles:
         for base in allele:
             if base.upper() not in IUPAC_CODES:
                 raise InvalidBaseError(f"无效的IUPAC码: {base}")
-    
+
     return match
 
 
@@ -122,7 +122,7 @@ def main(probe_fa: Path, out_fa: Path) -> None:
         with open(out_fa, "w", encoding="utf-8") as out:
             for line in f:
                 if line.startswith(">"):
-                    out.write(f">{line.strip()}\n")
+                    out.write(f"{line.strip()}\n")
                 else:
                     out.write(extract_sequence(line.strip()) + "\n")
 
