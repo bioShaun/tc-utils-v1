@@ -117,6 +117,7 @@ def main(
     transform_alt: bool = False,
     miss_fmt: str = "NN",
     gt_sep: str = "",
+    annotation: Path = typer.Option(None),
 ) -> None:
     if input_type == InputType.VCF:
         gt_file = vcf2gt(input_file, force=force)
@@ -137,18 +138,13 @@ def main(
     gt_df.replace("1/0", "0/1", inplace=True)
     gt_df = gt_df.reset_index()
     seq_df = gt2seq(gt_df, miss_fmt, gt_sep)
-    # gt_df = va_type_df.merge(gt_df)
-    # seq_df = va_type_df.merge(seq_df)
-    mode = "w"
-    header = True
-    gt_df.to_csv(
-        f"{out_prefix}.genotype.01.xlsx",
-        index=False,
-    )
-    seq_df.to_csv(
-        f"{out_prefix}.genotype.seq.xlsx",
-        sep="\t",
-    )
+    seq_df = seq_df.reset_index()
+    if annotation:
+        anno_df = pd.read_table(annotation)
+        gt_df = gt_df.merge(anno_df, how="left")
+        seq_df = seq_df.merge(anno_df, how="left")
+    gt_df.to_csv(f"{out_prefix}.genotype.01.xlsx", index=False, na_rep="--")
+    seq_df.to_csv(f"{out_prefix}.genotype.seq.xlsx", sep="\t", na_rep="--")
 
 
 if __name__ == "__main__":
