@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
 from typing import List, Optional
@@ -9,12 +9,15 @@ import typer
 from loguru import logger
 
 
+LOCATION_COLS = ["CHROM", "POS", "REF", "ALT"]
+
+
 @dataclass
 class Config:
     CHUNK_SIZE: int = 10000
     DEFAULT_MISS_FMT: str = "NN"
     DEFAULT_GT_SEP: str = ""
-    LOCATION_COLS: List[str] = ["CHROM", "POS", "REF", "ALT"]
+    LOCATION_COLS: List[str] = field(default=lambda: LOCATION_COLS)
 
 
 class InputType(StrEnum):
