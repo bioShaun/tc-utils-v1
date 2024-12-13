@@ -3,11 +3,11 @@ from enum import StrEnum
 from pathlib import Path
 from typing import List, Optional
 
+import delegator
 import numpy as np
 import pandas as pd
 import typer
 from loguru import logger
-
 
 LOCATION_COLS = ["CHROM", "POS", "REF", "ALT"]
 
@@ -17,7 +17,6 @@ class Config:
     CHUNK_SIZE: int = 10000
     DEFAULT_MISS_FMT: str = "NN"
     DEFAULT_GT_SEP: str = ""
-    LOCATION_COLS: List[str] = field(default=lambda: LOCATION_COLS)
 
 
 class InputType(StrEnum):
@@ -64,6 +63,21 @@ def validate_input_file(file_path: Path) -> bool:
     return True
 
 
+def vcf2gt(vcf_file: Path) -> Path:
+    gt_file = vcf_file.with_suffix(".gt.txt.gz")
+    gt_file.parent.mkdir(parents=True, exist_ok=True)
+    cmd = f'bcftools query -f "%CHROM\\t%POS\\t%REF\\t%ALT[\\t%GT]\\n" {vcf_file} | sed -re "s;\\|;/;g" | gzip > {gt_file}'
+    logger.info(f"run: {cmd}")
+    delegator.run(cmd)
+    return gt_file
+
+
+def get_sample_names(vcf_file: Path) -> list:
+    cmd = f"bcftools query -l {vcf_file}"
+    logger.info(f"run: {cmd}")
+    return delegator.run(cmd).out.strip().split("\n")
+
+
 class VCFProcessor:
     """VCF文件处理类"""
 
@@ -97,18 +111,18 @@ class VCFProcessor:
 
     def _load_vcf(self) -> pd.DataFrame:
         """加载VCF文件"""
-        chunks = []
-        for chunk in pd.read_csv(
-            self.input_file, sep="\t", chunksize=Config.CHUNK_SIZE
-        ):
-            chunks.append(chunk)
-        return pd.concat(chunks)
+        gt_file = vcf2gt(self.input_file)
+        sample_list = get_sample_names(self.input_file)
+        return pd.read_table(gt_file, header=None, names=[*LOCATION_COLS, *sample_list])
 
     def _load_table(self) -> pd.DataFrame:
         """加载表格文件"""
         if self.sample_file is None:
             raise DataValidationError("Sample file is required for TABLE input type")
-        return pd.read_csv(self.input_file)
+        sample_list = pd.read_csv(self.sample_file, header=None)[0].tolist()
+        return pd.read_table(
+            self.input_file, header=None, names=[*LOCATION_COLS, *sample_list]
+        )
 
     def process_data(self) -> None:
         """处理数据"""
@@ -122,7 +136,7 @@ class VCFProcessor:
         try:
             # 数据预处理
             gt_df = gt_df.copy()
-            gt_df.drop_duplicates(subset=Config.LOCATION_COLS, inplace=True)
+            gt_df.drop_duplicates(subset=LOCATION_COLS, inplace=True)
 
             # 向量化转换
             def vectorized_convert_gt(genotype, ref, alt):
@@ -143,7 +157,7 @@ class VCFProcessor:
 
             # 应用转换
             for col in gt_df.columns:
-                if col not in Config.LOCATION_COLS:
+                if col not in LOCATION_COLS:
                     gt_df[col] = vectorized_convert_gt(
                         gt_df[col], gt_df[TableColumn.REF], gt_df[TableColumn.ALT]
                     )
