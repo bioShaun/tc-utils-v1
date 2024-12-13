@@ -118,7 +118,10 @@ def main(
     miss_fmt: str = "NN",
     gt_sep: str = "",
     annotation: Path = typer.Option(None),
+    threads: int = 8,
 ) -> None:
+    pandarallel.initialize(progress_bar=True, nb_workers=threads)
+
     if input_type == InputType.VCF:
         gt_file = vcf2gt(input_file, force=force)
         sample_list = get_sample_names(input_file)
@@ -138,13 +141,12 @@ def main(
     gt_df.replace("1/0", "0/1", inplace=True)
     gt_df = gt_df.reset_index()
     seq_df = gt2seq(gt_df, miss_fmt, gt_sep)
-    seq_df = seq_df.reset_index()
     if annotation:
         anno_df = pd.read_table(annotation)
-        gt_df = gt_df.merge(anno_df, how="left")
-        seq_df = seq_df.merge(anno_df, how="left")
-    gt_df.to_csv(f"{out_prefix}.genotype.01.xlsx", index=False, na_rep="--")
-    seq_df.to_csv(f"{out_prefix}.genotype.seq.xlsx", sep="\t", na_rep="--")
+        gt_df = anno_df.merge(gt_df, how="left")
+        seq_df = anno_df.merge(seq_df, how="left")
+    gt_df.to_excel(f"{out_prefix}.genotype.01.xlsx", index=False, na_rep="--")
+    seq_df.to_excel(f"{out_prefix}.genotype.seq.xlsx", index=False, na_rep="--")
 
 
 if __name__ == "__main__":
