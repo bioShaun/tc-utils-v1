@@ -70,6 +70,7 @@ def npConvertGT(row: pd.Series, miss_fmt: str, gt_sep: str) -> str:
 
 
 def gt2seq(gt_df: pd.DataFrame, miss_fmt: str, gt_sep: str):
+    gt_df = gt_df.copy()
     # transform
     gt_df.drop_duplicates(subset=LOCATION_COLS, inplace=True)
     loc_df = gt_df[LOCATION_COLS].copy()
