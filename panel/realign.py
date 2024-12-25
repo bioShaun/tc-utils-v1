@@ -180,12 +180,13 @@ def generate_bed_from_vcf(vcf: Path) -> Path:
     return bed_file
 
 
-def generate_flank_bed(target_bed: Path, flank_size: int, genome_fai: Path) -> Path:
+def generate_flank_bed(
+    target_bed: Path, flank_size: int, genome_fai: Path, force: bool
+) -> Path:
     flank_bed = target_bed.with_suffix(f".flank{flank_size}.bed")
-    cmd_line = (
-        f"bedtools slop -b {flank_size} -i {target_bed} -g {genome_fai} > {flank_bed}"
-    )
-    delegator.run(cmd_line)
+    if force or not flank_bed.is_file():
+        cmd_line = f"bedtools slop -b {flank_size} -i {target_bed} -g {genome_fai} > {flank_bed}"
+        delegator.run(cmd_line)
     return flank_bed
 
 
