@@ -136,24 +136,24 @@ def paf2idmap(
     filter_df["pos"] = filter_df["pos"].astype("int")
     filter_df["new_id"] = filter_df.apply(lambda x: f'{x["chrom"]}_{x["pos"]}', axis=1)
     filter_df["pos_0"] = filter_df["pos"] - 1
+    id_map_df = filter_df[["id", "new_id"]].copy()
 
-    # if save_file:
-    #     id_map = out_prefix.with_suffix(".idmap.tsv")
-    #     id_map_df = filter_df[["id", "new_id"]].copy()
-    #     filter_df.to_csv(
-    #         id_map, header=False, index=False, columns=["id", "new_id"], sep="\t"
-    #     )
-    #     id_map_target_bed = id_map.with_suffix(".target.bed")
-    #     filter_df.sort_values(["chrom", "pos"], inplace=True)
-    #     filter_df.to_csv(
-    #         id_map_target_bed,
-    #         sep="\t",
-    #         index=False,
-    #         header=False,
-    #         columns=["chrom", "pos_0", "pos", "id", "mapq", "strand"],
-    #     )
+    if save_file:
+        id_map = out_prefix.with_suffix(".idmap.tsv")
+        filter_df.to_csv(
+            id_map, header=False, index=False, columns=["id", "new_id"], sep="\t"
+        )
+        id_map_target_bed = id_map.with_suffix(".target.bed")
+        filter_df.sort_values(["chrom", "pos"], inplace=True)
+        filter_df.to_csv(
+            id_map_target_bed,
+            sep="\t",
+            index=False,
+            header=False,
+            columns=["chrom", "pos_0", "pos", "id", "mapq", "strand"],
+        )
 
-    return filter_df
+    return id_map_df
 
 
 def generate_bed_from_vcf(vcf: Path) -> Path:
@@ -282,7 +282,6 @@ def realign(
     cut_off: float = 0.5,
     force: bool = False,
     target_type: TargetType = TargetType.bed,
-    chunk_size: int = 10_000,
 ) -> None:
     """
     Main function to perform a series of operations based on the input parameters.
@@ -321,7 +320,7 @@ def realign(
     logger.info(f"Generating {FLANK_SIZE} bp flanks id map...")
     # match_cutoff = np.ceil(cut_off * 2 * FLANK_SIZE)
 
-    paf_dfs = pd.read_table(
+    paf_df = pd.read_table(
         flank_paf,
         header=None,
         usecols=[0, 1, 2, 4, 5, 7, 9, 11],
@@ -335,56 +334,15 @@ def realign(
             "match_length",
             "mapq",
         ],
-        chunksize=chunk_size,
-    )
-    paf_lines = pd.read_csv(flank_paf, chunksize=chunk_size, header=None)
-    last_gene_df = pd.DataFrame()
-    filter_df_list = []
-    for n, (paf_df, paf_line) in tqdm(enumerate(zip(paf_dfs, paf_lines))):
-        last_item_id = paf_df.iloc[-1]["id"]
-        new_last_gene_df = paf_df[paf_df["id"] == last_item_id]
-        rm_last_paf_df = paf_df[paf_df["id"] != last_item_id]
-
-        process_df = pd.concat([last_gene_df, rm_last_paf_df], ignore_index=True)
-        last_gene_df = new_last_gene_df
-        cigar_nm_df = cigar_nm_list_from_paf(paf_line)
-        add_cigar_paf_df = pd.merge(process_df, cigar_nm_df)
-        filter_df_list.append(
-            paf2idmap(
-                paf_df=add_cigar_paf_df,
-                offset_df=offset_df,
-                match_cutoff=cut_off,
-                out_prefix=flank_paf,
-            )
-        )
-
-    last_add_cigar_paf_df = pd.merge(last_gene_df, cigar_nm_df)
-    filter_df_list.append(
-        paf2idmap(
-            paf_df=last_add_cigar_paf_df,
-            offset_df=offset_df,
-            match_cutoff=cut_off,
-            out_prefix=flank_paf,
-        )
     )
 
-    filter_df = pd.concat(filter_df_list)
-    id_map = flank_paf.with_suffix(".idmap.tsv")
-    filter_df.to_csv(
-        id_map,
-        header=False,
-        index=False,
-        columns=["id", "new_id"],
-        sep="\t",
-    )
-    id_map_target_bed = id_map.with_suffix(".target.bed")
-    filter_df.sort_values(["chrom", "pos"], inplace=True)
-    filter_df.to_csv(
-        id_map_target_bed,
-        sep="\t",
-        index=False,
-        header=False,
-        columns=["chrom", "pos_0", "pos", "id", "mapq", "strand"],
+    cigar_nm_df = cigar_nm_list_from_paf(flank_paf)
+    add_cigar_paf_df = pd.concat([paf_df, cigar_nm_df], axis=1)
+    paf2idmap(
+        paf_df=add_cigar_paf_df,
+        offset_df=offset_df,
+        match_cutoff=cut_off,
+        out_prefix=flank_paf,
     )
 
 
