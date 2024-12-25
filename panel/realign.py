@@ -120,17 +120,8 @@ def paf2idmap(
     out_prefix: Path,
     save_file: bool = True,
     keep_duplicates: bool = False,
-) -> Optional[pd.DataFrame]:
+) -> pd.DataFrame:
 
-    # paf_df.sort_values(
-    #     [
-    #         "match_length",
-    #         "mapq",
-    #     ],
-    #     ascending=False,
-    #     inplace=True,
-    # )
-    # paf_df["match_length"] = paf_df["cigar"].map(get_real_match_length)
     best_match_length = paf_df.groupby("id")["match_length"].max().reset_index()
     paf_df = paf_df.merge(best_match_length)
     best_nm = paf_df.groupby("id")["n_mismatch"].min().reset_index()
@@ -145,23 +136,24 @@ def paf2idmap(
     filter_df["pos"] = filter_df["pos"].astype("int")
     filter_df["new_id"] = filter_df.apply(lambda x: f'{x["chrom"]}_{x["pos"]}', axis=1)
     filter_df["pos_0"] = filter_df["pos"] - 1
-    id_map = out_prefix.with_suffix(".idmap.tsv")
-    id_map_df = filter_df[["id", "new_id"]].copy()
-    if save_file:
-        filter_df.to_csv(
-            id_map, header=False, index=False, columns=["id", "new_id"], sep="\t"
-        )
-        id_map_target_bed = id_map.with_suffix(".target.bed")
-        filter_df.sort_values(["chrom", "pos"], inplace=True)
-        filter_df.to_csv(
-            id_map_target_bed,
-            sep="\t",
-            index=False,
-            header=False,
-            columns=["chrom", "pos_0", "pos", "id", "mapq", "strand"],
-        )
 
-    return id_map_df
+    # if save_file:
+    #     id_map = out_prefix.with_suffix(".idmap.tsv")
+    #     id_map_df = filter_df[["id", "new_id"]].copy()
+    #     filter_df.to_csv(
+    #         id_map, header=False, index=False, columns=["id", "new_id"], sep="\t"
+    #     )
+    #     id_map_target_bed = id_map.with_suffix(".target.bed")
+    #     filter_df.sort_values(["chrom", "pos"], inplace=True)
+    #     filter_df.to_csv(
+    #         id_map_target_bed,
+    #         sep="\t",
+    #         index=False,
+    #         header=False,
+    #         columns=["chrom", "pos_0", "pos", "id", "mapq", "strand"],
+    #     )
+
+    return filter_df
 
 
 def generate_bed_from_vcf(vcf: Path) -> Path:
@@ -268,13 +260,17 @@ def extract_mismatch_from_line(line: str) -> str:
     raise ValueError(f"NM not found in line: {line!r}")
 
 
-def cigar_nm_list_from_paf(paf: Path) -> pd.DataFrame:
+def cigar_nm_list_from_paf(paf: pd.DataFrame) -> pd.DataFrame:
     cigar_nm_list = [
-        [extract_cigar_from_line(each), extract_mismatch_from_line(each)]
-        for each in paf.open()
+        [
+            each.split("\t")[0],
+            extract_cigar_from_line(each),
+            extract_mismatch_from_line(each),
+        ]
+        for each in paf[0]
     ]
 
-    return pd.DataFrame(cigar_nm_list, columns=["cigar", "n_mismatch"])
+    return pd.DataFrame(cigar_nm_list, columns=["id", "cigar", "n_mismatch"])
 
 
 @app.command()
@@ -286,6 +282,7 @@ def realign(
     cut_off: float = 0.5,
     force: bool = False,
     target_type: TargetType = TargetType.bed,
+    chunk_size: int = 10_000,
 ) -> None:
     """
     Main function to perform a series of operations based on the input parameters.
@@ -323,7 +320,8 @@ def realign(
     offset_df = generate_offset_df(target_bed=target_bed, flank_bed=flank_bed)
     logger.info(f"Generating {FLANK_SIZE} bp flanks id map...")
     # match_cutoff = np.ceil(cut_off * 2 * FLANK_SIZE)
-    paf_df = pd.read_table(
+
+    paf_dfs = pd.read_table(
         flank_paf,
         header=None,
         usecols=[0, 1, 2, 4, 5, 7, 9, 11],
@@ -337,15 +335,39 @@ def realign(
             "match_length",
             "mapq",
         ],
+        chunksize=chunk_size,
     )
-    cigar_nm_df = cigar_nm_list_from_paf(flank_paf)
-    add_cigar_paf_df = pd.concat([paf_df, cigar_nm_df], axis=1)
-    paf2idmap(
-        paf_df=add_cigar_paf_df,
-        offset_df=offset_df,
-        match_cutoff=cut_off,
-        out_prefix=flank_paf,
-    )
+    paf_lines = pd.read_csv(flank_paf, chunksize=chunk_size)
+    for n, (paf_df, paf_line) in tqdm(enumerate(zip(paf_dfs, paf_lines))):
+        cigar_nm_df = cigar_nm_list_from_paf(paf_line)
+        add_cigar_paf_df = pd.merge(paf_df, cigar_nm_df)
+        filter_df = paf2idmap(
+            paf_df=add_cigar_paf_df,
+            offset_df=offset_df,
+            match_cutoff=cut_off,
+            out_prefix=flank_paf,
+        )
+
+        write_mode = "w" if n == 0 else "a"
+        id_map = flank_paf.with_suffix(".idmap.tsv")
+        filter_df.to_csv(
+            id_map,
+            header=False,
+            index=False,
+            columns=["id", "new_id"],
+            sep="\t",
+            mode=write_mode,
+        )
+        id_map_target_bed = id_map.with_suffix(".target.bed")
+        filter_df.sort_values(["chrom", "pos"], inplace=True)
+        filter_df.to_csv(
+            id_map_target_bed,
+            sep="\t",
+            index=False,
+            header=False,
+            columns=["chrom", "pos_0", "pos", "id", "mapq", "strand"],
+            mode=write_mode,
+        )
 
 
 @app.command()
