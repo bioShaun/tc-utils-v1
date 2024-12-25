@@ -306,7 +306,7 @@ def realign(
         target_bed = target_file
     logger.info(f"Generating {FLANK_SIZE} bp flanks bed...")
     flank_bed = generate_flank_bed(
-        target_bed=target_bed, flank_size=FLANK_SIZE, genome_fai=genome_fai
+        target_bed=target_bed, flank_size=FLANK_SIZE, genome_fai=genome_fai, force=force
     )
     logger.info(f"Generating {FLANK_SIZE} bp flanks fasta...")
     flank_fa = generate_flank_fa(
@@ -338,37 +338,55 @@ def realign(
         ],
         chunksize=chunk_size,
     )
-    paf_lines = pd.read_csv(flank_paf, chunksize=chunk_size)
+    paf_lines = pd.read_csv(flank_paf, chunksize=chunk_size, header=None)
+    last_gene_df = pd.DataFrame()
+    filter_df_list = []
     for n, (paf_df, paf_line) in tqdm(enumerate(zip(paf_dfs, paf_lines))):
+        last_item_id = paf_df.iloc[-1]["id"]
+        new_last_gene_df = paf_df[paf_df["id"] == last_item_id]
+        rm_last_paf_df = paf_df[paf_df["id"] != last_item_id]
+
+        process_df = pd.concat([last_gene_df, rm_last_paf_df], ignore_index=True)
+        last_gene_df = new_last_gene_df
         cigar_nm_df = cigar_nm_list_from_paf(paf_line)
-        add_cigar_paf_df = pd.merge(paf_df, cigar_nm_df)
-        filter_df = paf2idmap(
-            paf_df=add_cigar_paf_df,
+        add_cigar_paf_df = pd.merge(process_df, cigar_nm_df)
+        filter_df_list.append(
+            paf2idmap(
+                paf_df=add_cigar_paf_df,
+                offset_df=offset_df,
+                match_cutoff=cut_off,
+                out_prefix=flank_paf,
+            )
+        )
+
+    last_add_cigar_paf_df = pd.merge(last_gene_df, cigar_nm_df)
+    filter_df_list.append(
+        paf2idmap(
+            paf_df=last_add_cigar_paf_df,
             offset_df=offset_df,
             match_cutoff=cut_off,
             out_prefix=flank_paf,
         )
+    )
 
-        write_mode = "w" if n == 0 else "a"
-        id_map = flank_paf.with_suffix(".idmap.tsv")
-        filter_df.to_csv(
-            id_map,
-            header=False,
-            index=False,
-            columns=["id", "new_id"],
-            sep="\t",
-            mode=write_mode,
-        )
-        id_map_target_bed = id_map.with_suffix(".target.bed")
-        filter_df.sort_values(["chrom", "pos"], inplace=True)
-        filter_df.to_csv(
-            id_map_target_bed,
-            sep="\t",
-            index=False,
-            header=False,
-            columns=["chrom", "pos_0", "pos", "id", "mapq", "strand"],
-            mode=write_mode,
-        )
+    filter_df = pd.concat(filter_df_list)
+    id_map = flank_paf.with_suffix(".idmap.tsv")
+    filter_df.to_csv(
+        id_map,
+        header=False,
+        index=False,
+        columns=["id", "new_id"],
+        sep="\t",
+    )
+    id_map_target_bed = id_map.with_suffix(".target.bed")
+    filter_df.sort_values(["chrom", "pos"], inplace=True)
+    filter_df.to_csv(
+        id_map_target_bed,
+        sep="\t",
+        index=False,
+        header=False,
+        columns=["chrom", "pos_0", "pos", "id", "mapq", "strand"],
+    )
 
 
 @app.command()
