@@ -261,17 +261,16 @@ def extract_mismatch_from_line(line: str) -> str:
     raise ValueError(f"NM not found in line: {line!r}")
 
 
-def cigar_nm_list_from_paf(paf: pd.DataFrame) -> pd.DataFrame:
+def cigar_nm_list_from_paf(paf: Path) -> pd.DataFrame:
     cigar_nm_list = [
         [
-            each.split("\t")[0],
             extract_cigar_from_line(each),
             extract_mismatch_from_line(each),
         ]
-        for each in paf[0]
+        for each in paf.open()
     ]
 
-    return pd.DataFrame(cigar_nm_list, columns=["id", "cigar", "n_mismatch"])
+    return pd.DataFrame(cigar_nm_list, columns=["cigar", "n_mismatch"])
 
 
 @app.command()
