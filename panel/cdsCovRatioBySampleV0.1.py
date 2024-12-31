@@ -73,7 +73,6 @@ def main(
         panel_cov_df = load_bed_files(bed_files[i : i + chunk_size])
         df_list = []
 
-        panel_cov_df.to_csv(f"{out_file_prefix}.panel.cov.tsv")
         for cov in READS_COV:
             df_matrix_bool = panel_cov_df >= cov
             cover_df = df_matrix_bool.sum()
@@ -81,8 +80,9 @@ def main(
             cover_ratio_df.name = f"coverage_{cov}x"
             df_list.append(cover_ratio_df)
         merged_df = pd.concat(df_list, axis=1)
+        capture_df = pd.DataFrame(panel_cov_df.sum(), columns=["target_bases"])
+        merged_df = merged_df.merge(capture_df, left_index=True, right_index=True)
         if mapping_summary is not None:
-            capture_df = pd.DataFrame(panel_cov_df.sum(), columns=["target_bases"])
             mapping_df = pd.read_table(mapping_summary)
             mapping_df = mapping_df[
                 [
@@ -100,7 +100,6 @@ def main(
                 "insert_size",
                 "properly_paired_bases_percentage",
             ]
-            mapping_df = mapping_df.merge(capture_df, left_on="name", right_index=True)
             mapping_df["efficiency"] = (
                 mapping_df["target_bases"] / mapping_df["mapped_bases"]
             )
