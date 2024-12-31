@@ -38,7 +38,7 @@ def merge_chr(df: pd.DataFrame, split_bed: Path) -> pd.DataFrame:
     return merged_df
 
 
-def load_bed_files(bed_files: List[Path]) -> pd.DataFrame:
+def load_bed_files(bed_files: List[Path], average: bool = True) -> pd.DataFrame:
     df_list = []
     for bed_i in bed_files:
         logger.info(f"Load {bed_i} ...")
@@ -46,8 +46,11 @@ def load_bed_files(bed_files: List[Path]) -> pd.DataFrame:
         df_i = pd.read_table(
             bed_i, header=None, names=["start", "end", "depth"], usecols=[1, 2, 3]
         )
-        df_i["span"] = df_i["end"] - df_i["start"]
-        df_i[sample_name] = df_i["depth"] / df_i["span"]
+        if average:
+            df_i["span"] = df_i["end"] - df_i["start"]
+            df_i[sample_name] = df_i["depth"] / df_i["span"]
+        else:
+            df_i[sample_name] = df_i["depth"]
         df_list.append(df_i[[sample_name]])
     df = reduce(
         lambda x, y: pd.merge(x, y, left_index=True, right_index=True),
@@ -70,11 +73,12 @@ def main(
     bed_files = sorted(list(panel_cov_dir.glob("*.bed")))
     stats_df_list = []
     for i in tqdm(range(0, len(bed_files), chunk_size)):
-        panel_cov_df = load_bed_files(bed_files[i : i + chunk_size])
+        target_cov_df = load_bed_files(bed_files[i : i + chunk_size])
+        panel_cov_df = load_bed_files(bed_files[i : i + chunk_size], average=False)
         df_list = []
 
         for cov in READS_COV:
-            df_matrix_bool = panel_cov_df >= cov
+            df_matrix_bool = target_cov_df >= cov
             cover_df = df_matrix_bool.sum()
             cover_ratio_df = cover_df / df_matrix_bool.shape[0]
             cover_ratio_df.name = f"coverage_{cov}x"
