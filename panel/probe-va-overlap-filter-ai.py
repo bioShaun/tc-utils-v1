@@ -3,7 +3,6 @@ from pathlib import Path
 from typing import Optional
 from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
-import 
 
 import delegator
 import pandas as pd
@@ -77,7 +76,6 @@ class AnnDataProcessor:
             logger.error(f"数据加载失败: {str(e)}")
             raise
 
-    @lru_cache(maxsize=1)
     def get_validated_data(self) -> pd.DataFrame:
         """缓存验证后的数据"""
         return self.validated_df
@@ -99,20 +97,21 @@ class AnnDataProcessor:
 @dataclass
 class VcfProcessor:
     vcf_path: Path
+    out_dir: Path
     threads: int
     indel_vcf_path: Path = field(init=False)
 
     def __post_init__(self):
-        self.indel_vcf_path = self.vcf_path.with_suffix(".indel.vcf.gz")
-        self.vcf_bed_path = self.vcf_path.with_suffix(".bed")
-        self.indel_bed_path = self.vcf_path.with_suffix(".indel.bed")
+        self.indel_vcf_path = self.out_dir / self.vcf_path.with_suffix(".indel.vcf.gz").name
+        self.vcf_bed_path = self.out_dir / self.vcf_path.with_suffix(".bed").name
+        self.indel_bed_path = self.out_dir / self.vcf_path.with_suffix(".indel.bed").name
 
     def indel_filter(self) -> None:
         try:
-            cmd = f"bcftools --exclude-types snps {self.vcf_path} -Oz -o {self.indel_vcf_path} --threads {self.threads}"
-            result = delegator.run(cmd)
-            if result.return_code != 0:
-                raise RuntimeError(f"bcftools 执行失败: {result.err}")
+            if not self.indel_vcf_path.exists():
+                cmd = f"bcftools view --exclude-types snps {self.vcf_path} -Oz -o {self.indel_vcf_path} --threads {self.threads}"
+                logger.info(cmd)
+                result = delegator.run(cmd)
             logger.info("INDEL过滤完成")
         except Exception as e:
             logger.error(f"INDEL过滤失败: {str(e)}")
@@ -151,27 +150,31 @@ class VcfProcessor:
 
     def process_files(self):
         """并行处理多个文件转换任务"""
+        self.indel_filter()
         with ThreadPoolExecutor(max_workers=self.threads) as executor:
             futures = []
-            futures.append(executor.submit(self.indel_filter))
-            futures.append(executor.submit(
+            if not self.indel_bed_path.exists():
+                futures.append(executor.submit(
                 self.vcf2bed, 
                 self.indel_vcf_path, 
                 self.indel_bed_path
             ))
-            futures.append(executor.submit(
+            if not self.vcf_bed_path.exists():
+                futures.append(executor.submit(
                 self.vcf2bed,
                 self.vcf_path,
                 self.vcf_bed_path
             ))
-            
-            for future in futures:
-                future.result()
+    
+            if futures:        
+                for future in futures:
+                    future.result()
 
 def map_variant_to_probe(probe_bed: Path, vcf_bed: Path, col_name: str) -> pd.DataFrame:
     overlap_bed = vcf_bed.with_suffix(".probe.overlap.bed")
     try:
         cmd = f"bedtools map -a {probe_bed} -b {vcf_bed} -c 4 -o sum > {overlap_bed}"
+        logger.info(cmd)
         result = delegator.run(cmd)
         if result.return_code != 0:
             raise RuntimeError(f"bedtools 执行失败: {result.err}")
@@ -196,9 +199,9 @@ def map_variant_to_probe(probe_bed: Path, vcf_bed: Path, col_name: str) -> pd.Da
     except Exception as e:
         logger.error(f"变异映射失败: {str(e)}")
         raise
-    finally:
-        if overlap_bed.exists():
-            overlap_bed.unlink()
+    #finally:
+    #    if overlap_bed.exists():
+    #        overlap_bed.unlink()
 
 def main(
     ann_table: Path,
@@ -210,7 +213,7 @@ def main(
     id_list: Optional[Path] = None,
 ) -> None:
     """主处理流程"""
-    
+    out_dir = out_table.parent
     # 验证输入参数
     config = ProcessingConfig(
         threads=threads,
@@ -235,7 +238,7 @@ def main(
 
         # 2. 处理VCF文件
         logger.info("开始处理VCF文件...")
-        vcf_processor = VcfProcessor(vcf, threads=config.threads)
+        vcf_processor = VcfProcessor(vcf, out_dir, threads=config.threads)
         vcf_processor.process_files()
         
         # 3. 映射变异到探针
@@ -243,13 +246,13 @@ def main(
         va_overlap_df = map_variant_to_probe(
             probe_bed, 
             vcf_processor.indel_bed_path, 
-            "variant_overlap"
+            "indel_overlap"
         )
         
         probe_overlap_df = map_variant_to_probe(
             probe_bed, 
             vcf_processor.vcf_bed_path, 
-            "indel_overlap"
+            "variant_overlap"
         )
 
         # 4. 合并结果
@@ -259,6 +262,7 @@ def main(
 
         # 5. 过滤结果
         va_filter = add_overlap_df["variant_overlap"] <= config.variant_cutoff
+            
         indel_filter = add_overlap_df["indel_overlap"] <= config.indel_cutoff
         filter_df = add_overlap_df[va_filter & indel_filter]
 
