@@ -41,7 +41,8 @@ def load_bed_files(
     for bed_i in bed_list:
         logger.info(f"Load {bed_i} ...")
         sample_name = bed_i.parent.name
-        df_i = pd.read_table(bed_i, names=[sample_name], usecols=[3])
+        df_i = pd.read_table(bed_i, usecols=[3])
+        df_i.columns = [sample_name]
         if cov_cutoff is not None:
             if df_i[sample_name].quantile() < cov_cutoff:
                 continue
