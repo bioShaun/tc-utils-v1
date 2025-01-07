@@ -38,6 +38,7 @@ def load_bed_files(
     df_list = []
     bed_list = sorted(list(bed_dir.glob("*/region.tsv.gz")))
     bed_df = pd.read_table(bed_list[0], usecols=[0, 1, 2])
+    bed_df.columns = ["chrom", "start", "end"]
     for bed_i in bed_list:
         logger.info(f"Load {bed_i} ...")
         sample_name = bed_i.parent.name
