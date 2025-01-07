@@ -41,7 +41,7 @@ def load_bed_files(
     for bed_i in bed_list:
         logger.info(f"Load {bed_i} ...")
         sample_name = bed_i.parent.name
-        df_i = pd.read_table(bed_i, header=None, names=[sample_name], usecols=[3])
+        df_i = pd.read_table(bed_i, names=[sample_name], usecols=[3])
         if cov_cutoff is not None:
             if df_i[sample_name].quantile() < cov_cutoff:
                 continue
@@ -84,7 +84,7 @@ def main(
     if not split_bed is None:
         bed_df = merge_chr(bed_df, split_bed)
     cover_ratio_df = pd.concat([bed_df, stats_df, *cov_df_list], axis=1)
-    cover_ratio_df.to_csv(out_file, index=False, float_format="%.3f")
+    cover_ratio_df.to_csv(out_file, index=False, float_format="%.3f", sep="\t")
 
 
 if __name__ == "__main__":
