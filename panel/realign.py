@@ -428,6 +428,32 @@ def adjust_annotation_by_realign(annotation: Path, id_map: Path) -> None:
     re_id_df.to_csv(realign_annotation, sep="\t", index=False)
 
 
+@app.command()
+def adjust_annotation_by_realign2(annotation: Path, id_map: Path) -> None:
+    anno_df = pd.read_table(annotation)
+    id_map_df = pd.read_table(id_map, header=None, names=["id", "new_id"])
+    id_map_df["new_chrom"] = id_map_df["new_id"].map(
+        lambda x: "_".join(x.split("_")[:-1])
+    )
+    id_map_df["new_pos"] = id_map_df["new_id"].map(lambda x: int(x.split("_")[-1]))
+    id_map_df["chrom"] = id_map_df["id"].map(lambda x: "_".join(x.split("_")[:-1]))
+    id_map_df["pos"] = id_map_df["id"].map(lambda x: int(x.split("_")[-1]))
+    id_map_df.drop(["id", "new_id"], axis=1, inplace=True)
+    re_id_df = (
+        id_map_df.merge(anno_df)
+        .drop(["chrom", "pos"], axis=1)
+        .rename(columns={"new_chrom": "chrom", "new_pos": "pos"})
+    )
+
+    if "probe_start" in re_id_df.columns:
+        re_id_df["probe_length"] = re_id_df["probe_end"] - re_id_df["probe_start"]
+        re_id_df["probe_start"] = re_id_df.apply(new_probe_start, axis=1)
+        re_id_df["probe_end"] = re_id_df["probe_start"] + re_id_df["probe_length"]
+        re_id_df.drop(columns=["probe_length"], inplace=True)
+    realign_annotation = annotation.with_suffix(".realign.tsv")
+    re_id_df.to_csv(realign_annotation, sep="\t", index=False)
+
+
 def blast2paf(blast_df: pd.DataFrame, probe_length: int) -> pd.DataFrame:
     paf_df = blast_df.copy()
     paf_df["probe_length"] = probe_length
