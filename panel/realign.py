@@ -403,6 +403,14 @@ def realign2(
     )
 
 
+def new_probe_start(row: pd.Series) -> int:
+    if row["probe_type"] == "center":
+        return row["pos"] - 1 - (row["probe_length"] // 2) + row["offset"]
+    if row["probe_type"] == "left":
+        return row["pos"] - 1 - row["probe_length"] + row["offset"]
+    return row["pos"] - 1 + row["offset"]
+
+
 @app.command()
 def adjust_annotation_by_realign(annotation: Path, id_map: Path) -> None:
     anno_df = pd.read_table(annotation)
@@ -413,9 +421,7 @@ def adjust_annotation_by_realign(annotation: Path, id_map: Path) -> None:
     re_id_df.drop(columns=["new_id"], inplace=True)
     if "probe_start" in re_id_df.columns:
         re_id_df["probe_length"] = re_id_df["probe_end"] - re_id_df["probe_start"]
-        re_id_df["probe_start"] = (
-            re_id_df["pos"] - 1 - (re_id_df["probe_length"] // 2) + re_id_df["offset"]
-        )
+        re_id_df["probe_start"] = re_id_df.apply(new_probe_start, axis=1)
         re_id_df["probe_end"] = re_id_df["probe_start"] + re_id_df["probe_length"]
         re_id_df.drop(columns=["probe_length"], inplace=True)
     realign_annotation = annotation.with_suffix(".realign.tsv")
