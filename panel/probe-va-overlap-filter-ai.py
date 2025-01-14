@@ -153,7 +153,6 @@ class VcfProcessor:
         self.indel_filter()
         with ThreadPoolExecutor(max_workers=self.threads) as executor:
             futures = []
-<<<<<<< HEAD
             if not self.indel_bed_path.exists():
                 futures.append(executor.submit(
                 self.vcf2bed, 
@@ -170,18 +169,6 @@ class VcfProcessor:
             if futures:        
                 for future in futures:
                     future.result()
-=======
-            futures.append(executor.submit(self.indel_filter))
-            futures.append(
-                executor.submit(self.vcf2bed, self.indel_vcf_path, self.indel_bed_path)
-            )
-            futures.append(
-                executor.submit(self.vcf2bed, self.vcf_path, self.vcf_bed_path)
-            )
-
-            for future in futures:
-                future.result()
->>>>>>> 0ef4ac486dbd5cc566cdd8a7a962c01960d4167b
 
 
 def map_variant_to_probe(probe_bed: Path, vcf_bed: Path, col_name: str) -> pd.DataFrame:
@@ -228,11 +215,8 @@ def main(
     id_list: Optional[Path] = None,
 ) -> None:
     """主处理流程"""
-<<<<<<< HEAD
     out_dir = out_table.parent
-=======
 
->>>>>>> 0ef4ac486dbd5cc566cdd8a7a962c01960d4167b
     # 验证输入参数
     config = ProcessingConfig(
         threads=threads, variant_cutoff=variant_cutoff, indel_cutoff=indel_cutoff
@@ -261,23 +245,15 @@ def main(
         # 3. 映射变异到探针
         logger.info("开始变异映射...")
         va_overlap_df = map_variant_to_probe(
-<<<<<<< HEAD
             probe_bed, 
             vcf_processor.indel_bed_path, 
             "indel_overlap"
-=======
-            probe_bed, vcf_processor.indel_bed_path, "variant_overlap"
->>>>>>> 0ef4ac486dbd5cc566cdd8a7a962c01960d4167b
         )
 
         probe_overlap_df = map_variant_to_probe(
-<<<<<<< HEAD
             probe_bed, 
             vcf_processor.vcf_bed_path, 
             "variant_overlap"
-=======
-            probe_bed, vcf_processor.vcf_bed_path, "indel_overlap"
->>>>>>> 0ef4ac486dbd5cc566cdd8a7a962c01960d4167b
         )
 
         # 4. 合并结果
