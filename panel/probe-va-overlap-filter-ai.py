@@ -102,9 +102,13 @@ class VcfProcessor:
     indel_vcf_path: Path = field(init=False)
 
     def __post_init__(self):
-        self.indel_vcf_path = self.out_dir / self.vcf_path.with_suffix(".indel.vcf.gz").name
+        self.indel_vcf_path = (
+            self.out_dir / self.vcf_path.with_suffix(".indel.vcf.gz").name
+        )
         self.vcf_bed_path = self.out_dir / self.vcf_path.with_suffix(".bed").name
-        self.indel_bed_path = self.out_dir / self.vcf_path.with_suffix(".indel.bed").name
+        self.indel_bed_path = (
+            self.out_dir / self.vcf_path.with_suffix(".indel.bed").name
+        )
 
     def indel_filter(self) -> None:
         try:
@@ -154,19 +158,17 @@ class VcfProcessor:
         with ThreadPoolExecutor(max_workers=self.threads) as executor:
             futures = []
             if not self.indel_bed_path.exists():
-                futures.append(executor.submit(
-                self.vcf2bed, 
-                self.indel_vcf_path, 
-                self.indel_bed_path
-            ))
+                futures.append(
+                    executor.submit(
+                        self.vcf2bed, self.indel_vcf_path, self.indel_bed_path
+                    )
+                )
             if not self.vcf_bed_path.exists():
-                futures.append(executor.submit(
-                self.vcf2bed,
-                self.vcf_path,
-                self.vcf_bed_path
-            ))
-    
-            if futures:        
+                futures.append(
+                    executor.submit(self.vcf2bed, self.vcf_path, self.vcf_bed_path)
+                )
+
+            if futures:
                 for future in futures:
                     future.result()
 
@@ -200,7 +202,7 @@ def map_variant_to_probe(probe_bed: Path, vcf_bed: Path, col_name: str) -> pd.Da
     except Exception as e:
         logger.error(f"变异映射失败: {str(e)}")
         raise
-    #finally:
+    # finally:
     #    if overlap_bed.exists():
     #        overlap_bed.unlink()
 
@@ -245,15 +247,11 @@ def main(
         # 3. 映射变异到探针
         logger.info("开始变异映射...")
         va_overlap_df = map_variant_to_probe(
-            probe_bed, 
-            vcf_processor.indel_bed_path, 
-            "indel_overlap"
+            probe_bed, vcf_processor.indel_bed_path, "indel_overlap"
         )
 
         probe_overlap_df = map_variant_to_probe(
-            probe_bed, 
-            vcf_processor.vcf_bed_path, 
-            "variant_overlap"
+            probe_bed, vcf_processor.vcf_bed_path, "variant_overlap"
         )
 
         # 4. 合并结果
@@ -265,7 +263,7 @@ def main(
 
         # 5. 过滤结果
         va_filter = add_overlap_df["variant_overlap"] <= config.variant_cutoff
-            
+
         indel_filter = add_overlap_df["indel_overlap"] <= config.indel_cutoff
         filter_df = add_overlap_df[va_filter & indel_filter]
 
