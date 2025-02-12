@@ -120,17 +120,8 @@ def paf2idmap(
     out_prefix: Path,
     save_file: bool = True,
     keep_duplicates: bool = False,
-) -> Optional[pd.DataFrame]:
+) -> pd.DataFrame:
 
-    # paf_df.sort_values(
-    #     [
-    #         "match_length",
-    #         "mapq",
-    #     ],
-    #     ascending=False,
-    #     inplace=True,
-    # )
-    # paf_df["match_length"] = paf_df["cigar"].map(get_real_match_length)
     best_match_length = paf_df.groupby("id")["match_length"].max().reset_index()
     paf_df = paf_df.merge(best_match_length)
     best_nm = paf_df.groupby("id")["n_mismatch"].min().reset_index()
@@ -145,9 +136,10 @@ def paf2idmap(
     filter_df["pos"] = filter_df["pos"].astype("int")
     filter_df["new_id"] = filter_df.apply(lambda x: f'{x["chrom"]}_{x["pos"]}', axis=1)
     filter_df["pos_0"] = filter_df["pos"] - 1
-    id_map = out_prefix.with_suffix(".idmap.tsv")
     id_map_df = filter_df[["id", "new_id"]].copy()
+
     if save_file:
+        id_map = out_prefix.with_suffix(".idmap.tsv")
         filter_df.to_csv(
             id_map, header=False, index=False, columns=["id", "new_id"], sep="\t"
         )
@@ -188,12 +180,13 @@ def generate_bed_from_vcf(vcf: Path) -> Path:
     return bed_file
 
 
-def generate_flank_bed(target_bed: Path, flank_size: int, genome_fai: Path) -> Path:
+def generate_flank_bed(
+    target_bed: Path, flank_size: int, genome_fai: Path, force: bool
+) -> Path:
     flank_bed = target_bed.with_suffix(f".flank{flank_size}.bed")
-    cmd_line = (
-        f"bedtools slop -b {flank_size} -i {target_bed} -g {genome_fai} > {flank_bed}"
-    )
-    delegator.run(cmd_line)
+    if force or not flank_bed.is_file():
+        cmd_line = f"bedtools slop -b {flank_size} -i {target_bed} -g {genome_fai} > {flank_bed}"
+        delegator.run(cmd_line)
     return flank_bed
 
 
@@ -270,7 +263,10 @@ def extract_mismatch_from_line(line: str) -> str:
 
 def cigar_nm_list_from_paf(paf: Path) -> pd.DataFrame:
     cigar_nm_list = [
-        [extract_cigar_from_line(each), extract_mismatch_from_line(each)]
+        [
+            extract_cigar_from_line(each),
+            extract_mismatch_from_line(each),
+        ]
         for each in paf.open()
     ]
 
@@ -283,7 +279,7 @@ def realign(
     genome: Path,
     genome_sr_idx: Path,
     threads: int = 16,
-    cut_off: float = 0.5,
+    cut_off: float = 0.9,
     force: bool = False,
     target_type: TargetType = TargetType.bed,
 ) -> None:
@@ -308,7 +304,7 @@ def realign(
         target_bed = target_file
     logger.info(f"Generating {FLANK_SIZE} bp flanks bed...")
     flank_bed = generate_flank_bed(
-        target_bed=target_bed, flank_size=FLANK_SIZE, genome_fai=genome_fai
+        target_bed=target_bed, flank_size=FLANK_SIZE, genome_fai=genome_fai, force=force
     )
     logger.info(f"Generating {FLANK_SIZE} bp flanks fasta...")
     flank_fa = generate_flank_fa(
@@ -323,6 +319,7 @@ def realign(
     offset_df = generate_offset_df(target_bed=target_bed, flank_bed=flank_bed)
     logger.info(f"Generating {FLANK_SIZE} bp flanks id map...")
     # match_cutoff = np.ceil(cut_off * 2 * FLANK_SIZE)
+
     paf_df = pd.read_table(
         flank_paf,
         header=None,
@@ -338,6 +335,7 @@ def realign(
             "mapq",
         ],
     )
+
     cigar_nm_df = cigar_nm_list_from_paf(flank_paf)
     add_cigar_paf_df = pd.concat([paf_df, cigar_nm_df], axis=1)
     paf2idmap(
@@ -353,7 +351,7 @@ def realign2(
     probe_table: Path,
     genome_sr_idx: Path,
     threads: int = 16,
-    cut_off: float = 0.5,
+    cut_off: float = 0.9,
     force: bool = False,
     allow_ins_del: bool = False,
     keep_duplicates: bool = False,
@@ -405,6 +403,14 @@ def realign2(
     )
 
 
+def new_probe_start(row: pd.Series) -> int:
+    if row["probe_type"] == "center":
+        return row["pos"] - 1 - (row["probe_length"] // 2) + row["offset"]
+    if row["probe_type"] == "left":
+        return row["pos"] - 1 - row["probe_length"] + row["offset"]
+    return row["pos"] - 1 + row["offset"]
+
+
 @app.command()
 def adjust_annotation_by_realign(annotation: Path, id_map: Path) -> None:
     anno_df = pd.read_table(annotation)
@@ -415,9 +421,33 @@ def adjust_annotation_by_realign(annotation: Path, id_map: Path) -> None:
     re_id_df.drop(columns=["new_id"], inplace=True)
     if "probe_start" in re_id_df.columns:
         re_id_df["probe_length"] = re_id_df["probe_end"] - re_id_df["probe_start"]
-        re_id_df["probe_start"] = (
-            re_id_df["pos"] - 1 - (re_id_df["probe_length"] // 2) + re_id_df["offset"]
-        )
+        re_id_df["probe_start"] = re_id_df.apply(new_probe_start, axis=1)
+        re_id_df["probe_end"] = re_id_df["probe_start"] + re_id_df["probe_length"]
+        re_id_df.drop(columns=["probe_length"], inplace=True)
+    realign_annotation = annotation.with_suffix(".realign.tsv")
+    re_id_df.to_csv(realign_annotation, sep="\t", index=False)
+
+
+@app.command()
+def adjust_annotation_by_realign2(annotation: Path, id_map: Path) -> None:
+    anno_df = pd.read_table(annotation)
+    id_map_df = pd.read_table(id_map, header=None, names=["id", "new_id"])
+    id_map_df["new_chrom"] = id_map_df["new_id"].map(
+        lambda x: "_".join(x.split("_")[:-1])
+    )
+    id_map_df["new_pos"] = id_map_df["new_id"].map(lambda x: int(x.split("_")[-1]))
+    id_map_df["chrom"] = id_map_df["id"].map(lambda x: "_".join(x.split("_")[:-1]))
+    id_map_df["pos"] = id_map_df["id"].map(lambda x: int(x.split("_")[-1]))
+    id_map_df.drop(["id", "new_id"], axis=1, inplace=True)
+    re_id_df = (
+        id_map_df.merge(anno_df)
+        .drop(["chrom", "pos"], axis=1)
+        .rename(columns={"new_chrom": "chrom", "new_pos": "pos"})
+    )
+
+    if "probe_start" in re_id_df.columns:
+        re_id_df["probe_length"] = re_id_df["probe_end"] - re_id_df["probe_start"]
+        re_id_df["probe_start"] = re_id_df.apply(new_probe_start, axis=1)
         re_id_df["probe_end"] = re_id_df["probe_start"] + re_id_df["probe_length"]
         re_id_df.drop(columns=["probe_length"], inplace=True)
     realign_annotation = annotation.with_suffix(".realign.tsv")

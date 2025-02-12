@@ -48,6 +48,7 @@ def main(gt_table: Path, ann_table: Path, out_table: Path):
         flat_gt_df["accession"].map(split_accession).to_list()  # type: ignore
     )
     flat_gt_df = flat_gt_df[flat_gt_df["genotype"] != "./."]
+    print(flat_gt_df)
     ann_df = pd.read_table(
         ann_table,
         header=None,
@@ -65,6 +66,7 @@ def main(gt_table: Path, ann_table: Path, out_table: Path):
         ],
         usecols=list(range(10)),
     )
+    print(ann_df)
     ann_df['chrom'] = ann_df['chrom'].astype('str')
     ann_df.drop_duplicates(subset=["chrom", "pos", "refer", "alt"], inplace=True)
     add_ann_df = ann_df.merge(flat_gt_df).drop("accession", axis=1)
