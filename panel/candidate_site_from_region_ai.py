@@ -7,6 +7,7 @@ from typing import List, Optional
 
 import pandas as pd
 import typer
+from rich.logging import RichHandler
 from rich.progress import (
     BarColumn,
     Progress,
@@ -18,7 +19,10 @@ from rich.progress import (
 
 # 配置日志
 logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+    level=logging.INFO,
+    format="%(message)s",
+    datefmt="[%X]",
+    handlers=[RichHandler(rich_tracebacks=True, markup=True)],
 )
 logger = logging.getLogger(__name__)
 
