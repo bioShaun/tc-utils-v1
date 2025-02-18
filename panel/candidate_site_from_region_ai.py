@@ -86,11 +86,16 @@ def process_region(
         region_sites["pos_range"] = pd.cut(
             region_sites["pos"], bins=range(start, end + 1, region_size), right=False
         )
-        return (
+        out_df = (
             region_sites.groupby("pos_range", observed=True)
             .head(candidate_per_region)
             .drop(columns=["pos_range"])
         )
+        out_df["region"] = (
+            region.chr + ":" + region.start.astype(str) + "-" + region.end.astype(str)
+        )
+
+        return out_df
     except Exception as e:
         logger.error(f"Error processing region {region.chr}:{start}-{end}: {str(e)}")
         return None
