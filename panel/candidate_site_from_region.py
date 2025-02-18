@@ -32,25 +32,21 @@ class PriorityOrder:
 
 def candidate_site_from_region(
     region_file: Path = typer.Argument(..., help="Path to the region file"),
-    candidate_site_file: Path = typer.Argument(..., help="Path to the candidate site file"),
+    candidate_site_file: Path = typer.Argument(
+        ..., help="Path to the candidate site file"
+    ),
     output_file: Path = typer.Argument(..., help="Path to save the output"),
     max_region: int = typer.Option(
-        100, 
-        "--max-region", 
-        "-m", 
-        help="Maximum number of regions to consider"
+        100, "--max-region", "-m", help="Maximum number of regions to consider"
     ),
     candidate_per_region: int = typer.Option(
-        1, 
-        "--candidate-per-region", 
-        "-c", 
-        help="Number of candidates to select per region"
+        1,
+        "--candidate-per-region",
+        "-c",
+        help="Number of candidates to select per region",
     ),
     default_region_size: int = typer.Option(
-        200, 
-        "--region-size", 
-        "-s", 
-        help="Default size of each region"
+        200, "--region-size", "-s", help="Default size of each region"
     ),
 ) -> None:
     """
@@ -89,13 +85,9 @@ def candidate_site_from_region(
         ].copy()
 
         region_sites["pos_range"] = pd.cut(
-            region_sites["pos"], 
-            bins=range(start, end + 1, region_size), 
-            right=False
+            region_sites["pos"], bins=range(start, end + 1, region_size), right=False
         )
-        select_dfs.append(
-            region_sites.groupby("pos_range").head(candidate_per_region)
-        )
+        select_dfs.append(region_sites.groupby("pos_range").head(candidate_per_region))
 
     result_df = pd.concat(select_dfs)
     result_df.to_csv(output_file, sep="\t", index=False)
