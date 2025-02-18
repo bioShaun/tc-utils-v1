@@ -91,9 +91,7 @@ def process_region(
             .head(candidate_per_region)
             .drop(columns=["pos_range"])
         )
-        out_df["region"] = (
-            region.chr + ":" + region.start.astype(str) + "-" + region.end.astype(str)
-        )
+        out_df["region"] = f"{region.chr}:{start}-{end}"
 
         return out_df
     except Exception as e:
