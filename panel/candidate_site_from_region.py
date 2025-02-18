@@ -62,6 +62,7 @@ def candidate_site_from_region(
         header=None,
         names=["chr", "start", "end"],
         usecols=[0, 1, 2],
+        dtype={"chr": str, "start": int, "end": int},
     )
     sites_df = pd.read_csv(candidate_site_file, sep="\t")
     sites_df.sort_values(

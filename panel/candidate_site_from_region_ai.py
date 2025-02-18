@@ -86,8 +86,10 @@ def process_region(
         region_sites["pos_range"] = pd.cut(
             region_sites["pos"], bins=range(start, end + 1, region_size), right=False
         )
-        return region_sites.groupby("pos_range", observed=True).head(
-            candidate_per_region
+        return (
+            region_sites.groupby("pos_range", observed=True)
+            .head(candidate_per_region)
+            .drop(columns=["pos_range"])
         )
     except Exception as e:
         logger.error(f"Error processing region {region.chr}:{start}-{end}: {str(e)}")
@@ -142,6 +144,7 @@ def candidate_site_from_region(
                 header=None,
                 names=["chr", "start", "end"],
                 usecols=[0, 1, 2],
+                dtype={"chr": str, "start": int, "end": int},
             )
             progress.advance(file_task)
 
