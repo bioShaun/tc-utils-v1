@@ -65,9 +65,17 @@ def process_interval(interval: Tuple[str, int, int]) -> Tuple[str, list[int], st
         包含染色体、位点列表和区域标识的元组
     """
     chrom, start, end = interval
-    center = (start + end) // 2
     region = f"{chrom}:{start}-{end}"
-    return chrom, [start, center, end], region
+    span = end - start
+    if span < 500:
+        center = (start + end) // 2
+        return chrom, [start, center, end], region
+    if span < 3000:
+        distance = 300
+    else:
+        distance = 500
+    pos_list = list(range(start, end + distance, distance))
+    return chrom, pos_list, region
 
 
 def main(
