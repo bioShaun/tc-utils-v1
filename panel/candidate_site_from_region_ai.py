@@ -153,7 +153,17 @@ def candidate_site_from_region(
             )
             progress.advance(file_task)
 
-            sites_df = pd.read_csv(candidate_site_file, sep="\t")
+            sites_df = pd.read_csv(
+                candidate_site_file,
+                sep="\t",
+                dtype={
+                    "chrom": str,
+                    "pos": int,
+                    "sequence_score": float,
+                    "region_score": float,
+                    "maf": float,
+                },
+            )
             progress.advance(file_task)
 
             # 验证必需的列
