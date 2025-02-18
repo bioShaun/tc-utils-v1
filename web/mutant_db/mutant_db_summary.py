@@ -6,8 +6,8 @@ import pandas as pd
 import pandera as pa
 import typer
 from attrs import define, field
+from loguru import logger
 from pandera.typing import DataFrame, Series
-
 
 VA_CHANGE_ORDER = [
     "C:G>T:A",
@@ -44,7 +44,7 @@ class MutantDBSchema(pa.DataFrameModel):
     impact: Series[str] = pa.Field(nullable=False)
     gene: Series[str] = pa.Field(nullable=False)
     exon_rank: Series[str] = pa.Field(nullable=True)
-    cds_pos: Series[str] = pa.Field(nullable=False)
+    cds_pos: Series[str] = pa.Field(nullable=True)
     protein_pos: Series[str] = pa.Field(nullable=True)
     variant: Series[str] = pa.Field(nullable=False)
     sample_id: Series[str] = pa.Field(nullable=False)
@@ -270,6 +270,12 @@ class DbGeneralStatsProcessor:
         self.snp_df["is_ems_snp"] = self.df.apply(
             lambda x: is_ems_snp(x["refer"], x["alt"]), axis=1
         )
+        self.snp_df["refer"] = self.snp_df["refer"].map(lambda x: x[0])
+        self.snp_df["alt"] = self.snp_df["alt"].map(lambda x: x[0])
+        self.snp_df["refer_to_alt"] = self.snp_df.apply(
+            lambda x: f"{x['refer']}->{x['alt']}", axis=1
+        )
+        self.snp_df["va_change_type"] = self.snp_df["refer_to_alt"].map(va_change_type)
 
     def get_site_df(self):
         return self.df.drop_duplicates(["chrom", "pos", "refer", "alt"])
@@ -360,13 +366,7 @@ class DbGeneralStatsProcessor:
         return out_va_by_chrom
 
     def ts_tv_stats(self) -> pd.DataFrame:
-        snp_df = self.site_df[self.site_df["variant_type"] == "snp"]
-        va_change_type_count = (
-            snp_df["refer"]
-            .str.cat(snp_df["alt"], sep="->")
-            .map(va_change_type)
-            .value_counts()
-        )
+        va_change_type_count = self.snp_df["va_change_type"].value_counts()
 
         transitions = va_change_type_count["C:G>T:A"] + va_change_type_count["T:A>C:G"]
         tansversions = va_change_type_count.sum() - transitions
@@ -407,12 +407,9 @@ class DbGeneralStatsProcessor:
         sample_va_count = (
             self.df.groupby("sample_id").size().rename("total_mutations").reset_index()
         )
-        snp_df = self.df[self.df["variant_type"] == "snp"].copy()
-        snp_df["va_change_type"] = (
-            snp_df["refer"].str.cat(self.df["alt"], sep="->").map(va_change_type)
-        )
+
         cg_ta_va_count = (
-            snp_df[snp_df["va_change_type"] == "C:G>T:A"]
+            self.snp_df[self.snp_df["va_change_type"] == "C:G>T:A"]
             .groupby("sample_id")
             .size()
             .rename("C:G>T:A")
@@ -427,10 +424,14 @@ def main(
 ):
     processor = DbDataProcessor()
     db_df = pd.read_table(db_table)
+    db_df["chrom"] = db_df["chrom"].astype(str)
     gene_df = pd.read_table(gene_list, header=None, names=["gene_id"])
     cds_df = pd.read_table(cds_bed, header=None, names=["chrom", "start", "end"])
+    cds_df["chrom"] = cds_df["chrom"].astype(str)
     chr_df = pd.read_table(chr_size, header=None, names=["chrom", "chrom_size"])
+    chr_df["chrom"] = chr_df["chrom"].astype(str)
 
+    logger.info("Start to load data")
     valid_db_df = processor.load_data(db_df, "mutant_db")
     valid_gene_df = processor.load_data(gene_df, "gene")
     valid_cds_df = processor.load_data(cds_df, "cds")
@@ -443,6 +444,7 @@ def main(
         chr_df=valid_chr_df,
     )
     df_list = []
+    logger.info("Start to process table1")
     df_list.append(
         {
             "table": general_stats_processor.all_stats().to_df(),
@@ -450,6 +452,7 @@ def main(
             "header": False,
         }
     )
+    logger.info("Start to process table2")
     df_list.append(
         {
             "table": general_stats_processor.va_count_by_chrom(),
@@ -457,7 +460,7 @@ def main(
             "header": True,
         }
     )
-
+    logger.info("Start to process table3")
     df_list.append(
         {
             "table": general_stats_processor.ts_tv_stats(),
@@ -466,6 +469,7 @@ def main(
         }
     )
 
+    logger.info("Start to process table4")
     df_list.append(
         {
             "table": general_stats_processor.gene_va_type_stats(),
@@ -473,7 +477,7 @@ def main(
             "header": False,
         }
     )
-
+    logger.info("Start to process table5")
     df_list.append(
         {
             "table": general_stats_processor.sample_va_stats(),
@@ -481,7 +485,7 @@ def main(
             "header": True,
         }
     )
-
+    logger.info("Start to write to excel")
     with pd.ExcelWriter(out_excel) as writer:
         for each_df in df_list:
             each_df["table"].to_excel(
@@ -490,6 +494,7 @@ def main(
                 index=False,
                 header=each_df["header"],
             )
+    logger.info("Done")
 
 
 if __name__ == "__main__":
