@@ -69,7 +69,7 @@ def candidate_site_from_region(
     )
     sites_df = pd.read_csv(candidate_site_file, sep="\t")
     sites_df.sort_values(
-        by=PriorityOrder.columns, ascending=PriorityOrder.ascending, inplace=True
+        by=PriorityOrder().columns, ascending=PriorityOrder().ascending, inplace=True
     )
 
     select_dfs = []
