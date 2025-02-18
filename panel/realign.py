@@ -404,6 +404,8 @@ def realign2(
 
 
 def new_probe_start(row: pd.Series) -> int:
+    if 'probe_type' not in row:
+        return row["pos"] - 1 - (row["probe_length"] // 2) + row["offset"]
     if row["probe_type"] == "center":
         return row["pos"] - 1 - (row["probe_length"] // 2) + row["offset"]
     if row["probe_type"] == "left":
@@ -439,6 +441,7 @@ def adjust_annotation_by_realign2(annotation: Path, id_map: Path) -> None:
     id_map_df["chrom"] = id_map_df["id"].map(lambda x: "_".join(x.split("_")[:-1]))
     id_map_df["pos"] = id_map_df["id"].map(lambda x: int(x.split("_")[-1]))
     id_map_df.drop(["id", "new_id"], axis=1, inplace=True)
+    anno_df['chrom'] = anno_df['chrom'].astype('str')
     re_id_df = (
         id_map_df.merge(anno_df)
         .drop(["chrom", "pos"], axis=1)
