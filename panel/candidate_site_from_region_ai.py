@@ -101,7 +101,7 @@ def process_region(
 
 def group_sites_by_region(df: pd.DataFrame) -> pd.DataFrame:
     id_region_df = (
-        df.groupby("region")["region"].unique().map(lambda x: ",".join(x)).reset_index()
+        df.groupby("id")["region"].unique().map(lambda x: ",".join(x)).reset_index()
     )
     rm_dup_df = df.drop_duplicates(subset=["id"]).drop(columns=["region"])
     return id_region_df.merge(rm_dup_df, on="id")
