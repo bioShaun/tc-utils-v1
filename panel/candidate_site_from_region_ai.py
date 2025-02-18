@@ -99,6 +99,14 @@ def process_region(
         return None
 
 
+def group_sites_by_region(df: pd.DataFrame) -> pd.DataFrame:
+    id_region_df = (
+        df.groupby("region")["region"].unique().map(lambda x: ",".join(x)).reset_index()
+    )
+    rm_dup_df = df.drop_duplicates(subset=["id"]).drop(columns=["region"])
+    return id_region_df.merge(rm_dup_df, on="id")
+
+
 def candidate_site_from_region(
     region_file: Path = typer.Argument(..., help="Path to the region file"),
     candidate_site_file: Path = typer.Argument(
@@ -223,6 +231,7 @@ def candidate_site_from_region(
                 return
 
             result_df = pd.concat(select_dfs, ignore_index=True)
+            result_df = group_sites_by_region(result_df)
             result_df.to_csv(output_file, sep="\t", index=False)
             progress.advance(save_task)
 
