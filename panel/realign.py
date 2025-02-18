@@ -279,7 +279,7 @@ def realign(
     genome: Path,
     genome_sr_idx: Path,
     threads: int = 16,
-    cut_off: float = 0.5,
+    cut_off: float = 0.9,
     force: bool = False,
     target_type: TargetType = TargetType.bed,
 ) -> None:
@@ -351,7 +351,7 @@ def realign2(
     probe_table: Path,
     genome_sr_idx: Path,
     threads: int = 16,
-    cut_off: float = 0.5,
+    cut_off: float = 0.9,
     force: bool = False,
     allow_ins_del: bool = False,
     keep_duplicates: bool = False,
