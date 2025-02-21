@@ -23,7 +23,7 @@ def get_index_len(row: pd.Series) -> int:
 
 
 def indel_right_pos(row: pd.Series) -> int:
-    if row["indel_type"] in ["DEL", "MIXED"]:
+    if row["variant_type"] in ["DEL", "MIXED"]:
         return row["pos"] + row["indel_length"]
     return row["pos"]
 
