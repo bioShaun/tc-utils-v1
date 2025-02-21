@@ -32,20 +32,20 @@ def main(mixed_table: Path, output_dir: Path):
     df = pd.read_csv(mixed_table, sep="\t")
     df["ref"] = df["alleles"].str.split(",").str[0]
     df["alt"] = df["alleles"].str.split(",").str[1]
-    df["indel_type"] = df.apply(get_indel_type, axis=1)
+    df["variant_type"] = df.apply(get_indel_type, axis=1)
     df["indel_length"] = df.apply(get_index_len, axis=1)
     df["id"] = df.apply(lambda x: f"{x['chrom']}_{x['pos']}", axis=1)
-    snp_df = df[df["indel_type"] == "SNP"]
-    indel_df = df[df["indel_type"] != "SNP"]
-    snp_df.drop(columns=["ref", "alt", "indel_type", "indel_length"]).to_csv(
+    snp_df = df[df["variant_type"] == "SNP"]
+    indel_df = df[df["variant_type"] != "SNP"]
+    snp_df.drop(columns=["ref", "alt", "indel_length"]).to_csv(
         output_dir / "snp.tsv", sep="\t", index=False
     )
-    indel_df.drop(columns=["ref", "alt", "indel_type", "indel_length"]).to_csv(
+    indel_df.drop(columns=["ref", "alt", "indel_length"]).to_csv(
         output_dir / "indel.left.tsv", sep="\t", index=False
     )
     indel_right_df = indel_df.copy()
     indel_right_df["pos"] = indel_right_df.apply(indel_right_pos, axis=1)
-    indel_right_df.drop(columns=["ref", "alt", "indel_type", "indel_length"]).to_csv(
+    indel_right_df.drop(columns=["ref", "alt", "indel_length"]).to_csv(
         output_dir / "indel.right.tsv", sep="\t", index=False
     )
 
