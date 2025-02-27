@@ -203,14 +203,14 @@ class BlastProcessor:
 
         df["ssr_left"] = np.where(
             is_forward,
-            df[["left_start", "left_end"]].max(axis=1),
-            df[["right_start", "right_end"]].max(axis=1),
+            df[["left_start", "left_end"]].min(axis=1),
+            df[["right_start", "right_end"]].min(axis=1),
         )
 
         df["ssr_right"] = np.where(
             is_forward,
-            df[["right_start", "right_end"]].min(axis=1),
-            df[["left_start", "left_end"]].min(axis=1),
+            df[["right_start", "right_end"]].max(axis=1),
+            df[["left_start", "left_end"]].max(axis=1),
         )
 
         return df
