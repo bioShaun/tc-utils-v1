@@ -135,7 +135,10 @@ class TestSsrTableToFa:
 
 def align_ssr_seq(ssr_fa: Path, blast_db: Path, threads: int = 16) -> Path:
     blast_out = ssr_fa.with_suffix(".blasttab.tsv")
-    blast_cmd = f"blastn -task blastn-short -query {ssr_fa} -db {blast_db} -outfmt 6 -out {blast_out} -num_threads {threads}"
+    blast_cmd = (
+        f"blastn -task blastn-short -dust no -soft_masking false -reward 1 -penalty -3 -gapopen 5 -gapextend 2 "
+        f"-query {ssr_fa} -db {blast_db} -outfmt 6 -out {blast_out} -num_threads {threads}"
+    )
     delegator.run(blast_cmd)
     return blast_out
 
