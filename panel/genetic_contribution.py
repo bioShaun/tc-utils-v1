@@ -86,7 +86,7 @@ def merge_genetic_contribution(
             )
     df_list.append(cal_genetic_contribution(filter_df, p1, p2, offspring, "合计"))
     out_df = pd.DataFrame(df_list)
-    out_df.to_csv(out_dir / f"{offspring}_genetic_contribution.csv", index=False)
+    out_df.to_excel(out_dir / f"{offspring}_genetic_contribution.xlsx", index=False)
 
 
 def variant_site_class(row: pd.Series, p1: str, p2: str, offspring: str):
