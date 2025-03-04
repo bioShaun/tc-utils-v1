@@ -197,10 +197,10 @@ class SepVcfProcessor:
             self.indel_bed_path = (
                 self.out_dir / self.indel_vcf_path.with_suffix(".indel.bed").name
             )
-            self.all_bed_path = self.snp_bed_path
+            self.all_bed_path = self.snp_bed_path.with_name("all.bed")
         else:
             self.indel_bed_path = None
-            self.all_bed_path = self.snp_bed_path.with_name("all.bed")
+            self.all_bed_path = self.snp_bed_path
 
     def merge_bed(self) -> None:
         try:
