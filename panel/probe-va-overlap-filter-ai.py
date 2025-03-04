@@ -205,9 +205,20 @@ class SepVcfProcessor:
     def merge_bed(self) -> None:
         try:
             if self.indel_bed_path is not None:
-                cmd = f"cat {self.snp_bed_path} {self.indel_bed_path} > {self.all_bed_path}"
-                logger.info(cmd)
-                result = delegator.run(cmd)
+                # cmd = f"cat {self.snp_bed_path} {self.indel_bed_path} > {self.all_bed_path}"
+                # logger.info(cmd)
+                # result = delegator.run(cmd)
+                snp_bed_df = pd.read_table(self.snp_bed_path, header=None)
+                indel_bed_df = pd.read_table(self.indel_bed_path, header=None)
+                all_bed_df = pd.concat([snp_bed_df, indel_bed_df], ignore_index=True)
+                all_bed_df[0] = all_bed_df[0].astype(str)
+                all_bed_df.sort_values([0, 1], inplace=True)
+                all_bed_df.to_csv(
+                    self.all_bed_path,
+                    sep="\t",
+                    index=False,
+                    header=False,
+                )
             logger.info("BED文件合并完成")
         except Exception as e:
             logger.error(f"合并BED文件失败: {str(e)}")
