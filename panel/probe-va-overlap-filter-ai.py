@@ -73,6 +73,7 @@ class AnnDataProcessor:
             df = pd.read_table(
                 self.ann_table,
             )
+            df["chrom"] = df["chrom"].astype(str)
             self.validated_df = schema.validate(df)  # type: ignore
             logger.info("数据加载和验证成功")
         except pa.errors.SchemaError as e:  # type: ignore
