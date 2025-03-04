@@ -184,6 +184,7 @@ class SepVcfProcessor:
     indel_vcf_path: Optional[Path] = None
     indel_bed_path: Optional[Path] = field(init=False)
     snp_bed_path: Path = field(init=False)
+    all_bed_path: Path = field(init=False)
 
     def __post_init__(self):
         self.snp_bed_path = (
@@ -197,7 +198,6 @@ class SepVcfProcessor:
         else:
             self.indel_bed_path = None
             self.all_bed_path = self.snp_bed_path.with_name("all.bed")
-
 
     def merge_bed(self) -> None:
         try:
@@ -269,6 +269,7 @@ def map_variant_to_probe(probe_bed: Path, vcf_bed: Path, col_name: str) -> pd.Da
     #    if overlap_bed.exists():
     #        overlap_bed.unlink()
 
+
 @app.command()
 def seperate_vcf(
     ann_table: Path,
@@ -318,7 +319,7 @@ def seperate_vcf(
             )
 
         probe_overlap_df = map_variant_to_probe(
-            probe_bed, vcf_processor., "variant_overlap"
+            probe_bed, vcf_processor.all_bed_path, "variant_overlap"
         )
 
         # 4. 合并结果
@@ -329,7 +330,9 @@ def seperate_vcf(
                 .merge(probe_overlap_df)
             )
         else:
-            add_overlap_df = ann_data_processor.get_validated_data().merge(probe_overlap_df)
+            add_overlap_df = ann_data_processor.get_validated_data().merge(
+                probe_overlap_df
+            )
             add_overlap_df["indel_overlap"] = 0
         # 5. 过滤结果
         va_filter = add_overlap_df["variant_overlap"] <= config.variant_cutoff
@@ -351,6 +354,7 @@ def seperate_vcf(
         raise
     finally:
         temp_manager.cleanup()
+
 
 @app.command()
 def merged_vcf(
