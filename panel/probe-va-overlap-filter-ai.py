@@ -18,6 +18,9 @@ from tqdm import tqdm
 PROBE_COLUMNS = ["chrom", "probe_start", "probe_end", "id"]
 
 
+app = typer.Typer()
+
+
 class ProcessingConfig(BaseModel):
     threads: int
     variant_cutoff: int
@@ -173,6 +176,66 @@ class VcfProcessor:
                     future.result()
 
 
+@dataclass
+class SepVcfProcessor:
+    snp_vcf_path: Path
+    out_dir: Path
+    threads: int
+    indel_vcf_path: Optional[Path] = None
+    indel_bed_path: Optional[Path] = field(init=False)
+    snp_bed_path: Path = field(init=False)
+
+    def __post_init__(self):
+        self.snp_bed_path = (
+            self.out_dir / self.snp_vcf_path.with_suffix(".snp.bed").name
+        )
+        if self.indel_vcf_path is not None:
+            self.indel_bed_path = (
+                self.out_dir / self.indel_vcf_path.with_suffix(".indel.bed").name
+            )
+            self.all_bed_path = self.snp_bed_path
+        else:
+            self.indel_bed_path = None
+            self.all_bed_path = self.snp_bed_path.with_name("all.bed")
+
+
+    def merge_bed(self) -> None:
+        try:
+            if self.indel_bed_path is not None:
+                cmd = f"cat {self.snp_bed_path} {self.indel_bed_path} > {self.all_bed_path}"
+                logger.info(cmd)
+                result = delegator.run(cmd)
+            logger.info("BED文件合并完成")
+        except Exception as e:
+            logger.error(f"合并BED文件失败: {str(e)}")
+            raise
+
+    def process_files(self):
+        """并行处理多个文件转换任务"""
+        with ThreadPoolExecutor(max_workers=self.threads) as executor:
+            futures = []
+            if self.indel_vcf_path is not None:
+                if not self.indel_bed_path.exists():
+                    futures.append(
+                        executor.submit(
+                            VcfProcessor.vcf2bed,
+                            self.indel_vcf_path,
+                            self.indel_bed_path,
+                        )
+                    )
+            if not self.snp_bed_path.exists():
+                futures.append(
+                    executor.submit(
+                        VcfProcessor.vcf2bed, self.snp_vcf_path, self.snp_bed_path
+                    )
+                )
+
+            if futures:
+                for future in futures:
+                    future.result()
+                self.merge_bed()
+
+
 def map_variant_to_probe(probe_bed: Path, vcf_bed: Path, col_name: str) -> pd.DataFrame:
     overlap_bed = vcf_bed.with_suffix(".probe.overlap.bed")
     try:
@@ -206,8 +269,91 @@ def map_variant_to_probe(probe_bed: Path, vcf_bed: Path, col_name: str) -> pd.Da
     #    if overlap_bed.exists():
     #        overlap_bed.unlink()
 
+@app.command()
+def seperate_vcf(
+    ann_table: Path,
+    snp_vcf: Path,
+    out_table: Path,
+    threads: int = 16,
+    variant_cutoff: int = 3,
+    indel_cutoff: int = 0,
+    indel_vcf: Optional[Path] = None,
+    id_list: Optional[Path] = None,
+) -> None:
+    """主处理流程"""
+    out_dir = out_table.parent
 
-def main(
+    # 验证输入参数
+    config = ProcessingConfig(
+        threads=threads, variant_cutoff=variant_cutoff, indel_cutoff=indel_cutoff
+    )
+
+    if not ann_table.exists():
+        raise FileNotFoundError(f"注释文件不存在: {ann_table}")
+    if not snp_vcf.exists():
+        raise FileNotFoundError(f"VCF文件不存在: {snp_vcf}")
+
+    temp_manager = TempFileManager()
+
+    try:
+        # 1. 处理注释数据
+        logger.info("开始处理注释数据...")
+        ann_data_processor = AnnDataProcessor(ann_table)
+        ann_data_processor.load_data(MutantDBSchema)
+        probe_bed = ann_data_processor.to_probe_bed()
+        temp_manager.add(probe_bed)
+
+        # 2. 处理VCF文件
+        logger.info("开始处理VCF文件...")
+        vcf_processor = SepVcfProcessor(
+            snp_vcf, out_dir, threads=config.threads, indel_vcf_path=indel_vcf
+        )
+        vcf_processor.process_files()
+
+        # 3. 映射变异到探针
+        logger.info("开始变异映射...")
+        if vcf_processor.indel_bed_path is not None:
+            va_overlap_df = map_variant_to_probe(
+                probe_bed, vcf_processor.indel_bed_path, "indel_overlap"
+            )
+
+        probe_overlap_df = map_variant_to_probe(
+            probe_bed, vcf_processor., "variant_overlap"
+        )
+
+        # 4. 合并结果
+        if vcf_processor.indel_bed_path is not None:
+            add_overlap_df = (
+                ann_data_processor.get_validated_data()
+                .merge(va_overlap_df)
+                .merge(probe_overlap_df)
+            )
+        else:
+            add_overlap_df = ann_data_processor.get_validated_data().merge(probe_overlap_df)
+            add_overlap_df["indel_overlap"] = 0
+        # 5. 过滤结果
+        va_filter = add_overlap_df["variant_overlap"] <= config.variant_cutoff
+
+        indel_filter = add_overlap_df["indel_overlap"] <= config.indel_cutoff
+        filter_df = add_overlap_df[va_filter & indel_filter]
+
+        # 6. ID列表过滤(如果提供)
+        if id_list and id_list.exists():
+            id_set = set(pd.read_table(id_list, header=None)[0])
+            filter_df = filter_df[filter_df["id"].isin(id_set)]
+
+        # 7. 保存结果
+        filter_df.to_csv(out_table, sep="\t", index=False)
+        logger.info(f"处理完成,结果保存至: {out_table}")
+
+    except Exception as e:
+        logger.error(f"处理失败: {str(e)}")
+        raise
+    finally:
+        temp_manager.cleanup()
+
+@app.command()
+def merged_vcf(
     ann_table: Path,
     vcf: Path,
     out_table: Path,
@@ -284,4 +430,4 @@ def main(
 
 
 if __name__ == "__main__":
-    typer.run(main)
+    app()
