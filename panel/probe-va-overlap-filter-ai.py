@@ -73,6 +73,7 @@ class AnnDataProcessor:
             df = pd.read_table(
                 self.ann_table,
             )
+            df.sort_values(["chrom", "probe_start"], inplace=True)
             df["chrom"] = df["chrom"].astype(str)
             self.validated_df = schema.validate(df)  # type: ignore
             logger.info("数据加载和验证成功")
@@ -144,6 +145,7 @@ class VcfProcessor:
                 dfs.append(chunk)
 
             vcf_pos_df = pd.concat(dfs, ignore_index=True)
+            vcf_pos_df.sort_values(["chrom", "start"], inplace=True)
             vcf_pos_df.to_csv(
                 bed_path,
                 sep="\t",
