@@ -78,6 +78,10 @@ def compare_gt(df: pd.DataFrame, compare_a: str, compare_b: str, human: bool = T
     total_a_equal_b_percent = (
         0 if non_miss_count == 0 else 100 * total_a_equal_b / non_miss_count
     )
+    total_a_not_equal_b = non_miss_count - total_a_equal_b
+    total_a_not_equal_b_percent = (
+        0 if non_miss_count == 0 else 100 * total_a_not_equal_b / non_miss_count
+    )
     # if human:
     #     return {
     #         "A": compare_a,
@@ -123,6 +127,8 @@ def compare_gt(df: pd.DataFrame, compare_a: str, compare_b: str, human: bool = T
         round(homo_equal_percent, 3),
         het_equal_count,
         round(het_equal_percent, 3),
+        total_a_not_equal_b,
+        round(total_a_not_equal_b_percent, 3),
     ]
 
 
@@ -149,7 +155,7 @@ def main(
 
     with open(output_file, "w") as out_inf:
         out_inf.write(
-            "A\tB\t总位点数\t有效位点\tA_纯合\tA_杂合\tB_纯合\tB_杂合\t整体相似度\t整体相似度%\t纯合相似度\t纯合相似度%\t杂合相似度\t杂合相似度%\n"
+            "A\tB\t总位点数\t有效位点\tA_纯合\tA_杂合\tB_纯合\tB_杂合\t整体相似度\t整体相似度%\t纯合相似度\t纯合相似度%\t杂合相似度\t杂合相似度%\t整体差异位点数\t整体差异%\n"
         )
         for row in tqdm(compare_df.itertuples(), total=len(compare_df)):
             row_a, row_b = str(row.A), str(row.B)
