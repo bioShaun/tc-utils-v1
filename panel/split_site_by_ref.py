@@ -173,10 +173,12 @@ def main(pos_file: Path):
     center_df.to_csv(center_file, sep="\t", index=False)
     side_df = df[df["ref_length"] > 1]
     right_df = side_df.copy()
+    right_df["id"] = right_df.apply(lambda x: f"{x['chrom']}_{x['pos']}", axis=1)
     left_file = pos_file.with_suffix(".left.tsv")
     left_df = side_df.copy()
     left_df.drop(["ref", "ref_length"], axis=1, inplace=True)
     left_df.to_csv(left_file, sep="\t", index=False)
+
     right_df["pos"] = right_df["pos"] + right_df["ref_length"] - 1
     right_df.drop(["ref", "ref_length"], axis=1, inplace=True)
     right_file = pos_file.with_suffix(".right.tsv")
