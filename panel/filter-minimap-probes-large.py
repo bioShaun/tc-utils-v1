@@ -16,11 +16,17 @@ def main(
     for n, minimap_file in enumerate(tqdm(minimap_files)):
         minimap_df = pd.read_table(
             minimap_file,
-            usecols=[0],
-            names=["id"],
+            usecols=[0, 9],
+            names=["id", "match_len"],
         )
 
         id_count_df = minimap_df["id"].value_counts()
+        best_match_df = minimap_df.groupby("id")["match_len"].max().reset_index()
+        best_match_df.columns = ["id", "best_match_len"]
+        id_count_df = pd.merge(id_count_df, best_match_df, on="id", how="left")
+        id_count_df["best_match_len"] = (
+            id_count_df["best_match_len"].fillna(0).astype(int)
+        )
         if not output_all:
             id_count_df = id_count_df[id_count_df <= max_match_count]
         id_count_df = id_count_df.reset_index()
