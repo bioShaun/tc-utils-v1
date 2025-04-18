@@ -23,9 +23,10 @@ def main(
         id_count_df = minimap_df["id"].value_counts()
         if not output_all:
             id_count_df = id_count_df[id_count_df <= max_match_count]
-
+            minimap_df = minimap_df[minimap_df["id"].isin(id_count_df.index)]
         id_count_df = id_count_df.reset_index()
         id_count_df.columns = ["id", "minimap_match"]
+
         best_match_df = minimap_df.groupby("id")["match_len"].max().reset_index()
         best_match_df.columns = ["id", "best_match_len"]
         id_count_df = pd.merge(id_count_df, best_match_df, on="id", how="left")
