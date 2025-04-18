@@ -33,3 +33,24 @@ def make_chain(
 
 if __name__ == "__main__":
     typer.run(make_chain)
+
+
+def assign_groups(node, threshold, group_dict=None):
+    if group_dict is None:
+        group_dict = {}
+
+    if node.is_leaf():
+        return group_dict
+
+    dist = node.get_distance(node.get_tree_root())
+    if dist > threshold:
+        group_num = int(dist // threshold) + 1
+        for leaf in node.get_leaves():
+            # 只有当样品还没有被分组时才分配新组
+            if leaf.name not in group_dict:
+                group_dict[leaf.name] = f"Group{group_num}"
+
+    for child in node.children:
+        assign_groups(child, threshold, group_dict)
+
+    return group_dict
