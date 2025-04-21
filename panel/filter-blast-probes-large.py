@@ -7,16 +7,11 @@ import typer
 from tqdm import tqdm
 
 
-def get_real_match_length(row: pd.Series, probe_lenth: int) -> int:
-    return probe_lenth - row["mismatch"] - row["gapopen"]
-
-
 def main(
     blast_dir: Path,
     out_file: Path,
     min_match_length: int = 24,
     max_match_count: int = 1,
-    probe_length: int = 120,
     output_all: bool = False,
     show_max_length: bool = False,
     min_identity: Optional[int] = None,
@@ -30,10 +25,18 @@ def main(
     for n, blast_file in enumerate(tqdm(blast_files)):
         blast_df = pd.read_table(
             blast_file,
-            usecols=[0, 2, 3, 4, 5],
-            names=["id", "identity", "match_len", "mismatch", "gapopen"],
+            usecols=[0, 2, 4, 5, 6, 7],
+            names=[
+                "id",
+                "identity",
+                "mismatch",
+                "gapopen",
+                "qstart",
+                "qend",
+            ],
         )
 
+        blast_df["match_len"] = blast_df["qend"] - blast_df["qstart"] + 1
         if not output_all:
             blast_df = blast_df[blast_df["match_len"] >= min_match_length]
             if min_identity is not None:
@@ -50,7 +53,9 @@ def main(
         id_count_df.columns = ["id", "blast_match"]
 
         blast_df = blast_df.groupby("id").head(2)
-        blast_df["real_match_length"] = blast_df.apply(my_get_real_match_length, axis=1)
+        blast_df["real_match_length"] = (
+            blast_df["match_len"] - blast_df["mismatch"] - blast_df["gapopen"]
+        )
         best_match_idx = blast_df.groupby("id")["real_match_length"].idxmax()
         best_match_df = blast_df[blast_df.index.isin(best_match_idx)]
         best_match_gap_df = best_match_df.groupby("id")["gapopen"].max().reset_index()
