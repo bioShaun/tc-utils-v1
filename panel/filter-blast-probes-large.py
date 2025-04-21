@@ -66,12 +66,10 @@ def main(
             other_match_df.groupby("id")["real_match_length"].max().reset_index()
         )
         second_max_length_df.columns = ["id", "second_max_length"]
-        second_best_gap_df = (
-            second_max_length_df.groupby("id")["gapopen"].max().reset_index()
-        )
+        second_best_gap_df = other_match_df.groupby("id")["gapopen"].max().reset_index()
         second_best_gap_df.columns = ["id", "second_best_gapopen"]
         second_best_mismatch_df = (
-            second_max_length_df.groupby("id")["mismatch"].max().reset_index()
+            other_match_df.groupby("id")["mismatch"].max().reset_index()
         )
         second_best_mismatch_df.columns = ["id", "second_best_mismatch"]
         id_count_df = pd.merge(id_count_df, second_max_length_df, on="id", how="left")
