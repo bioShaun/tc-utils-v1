@@ -45,10 +45,14 @@ def main(
             if max_gap_count is not None:
                 blast_df = blast_df[blast_df["gapopen"] <= max_gap_count]
         id_count_df = blast_df["id"].value_counts()
+        id_gap_df = blast_df.groupby("id")["gapopen"].max().reset_index()
+        id_mismatch_df = blast_df.groupby("id")["mismatch"].max().reset_index()
         if not output_all:
             id_count_df = id_count_df[id_count_df <= max_match_count]
         id_count_df = id_count_df.reset_index()
         id_count_df.columns = ["id", "blast_match"]
+        id_count_df = pd.merge(id_count_df, id_gap_df, on="id", how="left")
+        id_count_df = pd.merge(id_count_df, id_mismatch_df, on="id", how="left")
         blast_df = blast_df.groupby("id").head(2)
         blast_df["real_match_length"] = blast_df.apply(my_get_real_match_length, axis=1)
         best_match_idx = blast_df.groupby("id")["real_match_length"].idxmax()
