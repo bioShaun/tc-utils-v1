@@ -43,25 +43,50 @@ def main(
             if max_gap_count is not None:
                 blast_df = blast_df[blast_df["gapopen"] <= max_gap_count]
         id_count_df = blast_df["id"].value_counts()
-        id_gap_df = blast_df.groupby("id")["gapopen"].max().reset_index()
-        id_mismatch_df = blast_df.groupby("id")["mismatch"].max().reset_index()
+
         if not output_all:
             id_count_df = id_count_df[id_count_df <= max_match_count]
         id_count_df = id_count_df.reset_index()
         id_count_df.columns = ["id", "blast_match"]
-        id_count_df = pd.merge(id_count_df, id_gap_df, on="id", how="left")
-        id_count_df = pd.merge(id_count_df, id_mismatch_df, on="id", how="left")
+
         blast_df = blast_df.groupby("id").head(2)
         blast_df["real_match_length"] = blast_df.apply(my_get_real_match_length, axis=1)
         best_match_idx = blast_df.groupby("id")["real_match_length"].idxmax()
+        best_match_df = blast_df[blast_df.index.isin(best_match_idx)]
+        best_match_gap_df = best_match_df.groupby("id")["gapopen"].max().reset_index()
+        best_match_gap_df.columns = ["id", "best_mathc_gapopen"]
+        best_match_mismatch_df = (
+            best_match_df.groupby("id")["mismatch"].max().reset_index()
+        )
+        best_match_mismatch_df.columns = ["id", "best_match_mismatch"]
+        id_count_df = pd.merge(id_count_df, best_match_gap_df, on="id", how="left")
+        id_count_df = pd.merge(id_count_df, best_match_mismatch_df, on="id", how="left")
         other_match_df = blast_df[~blast_df.index.isin(best_match_idx)]
         second_max_length_df = (
             other_match_df.groupby("id")["real_match_length"].max().reset_index()
         )
         second_max_length_df.columns = ["id", "second_max_length"]
+        second_best_gap_df = (
+            second_max_length_df.groupby("id")["gapopen"].max().reset_index()
+        )
+        second_best_gap_df.columns = ["id", "second_best_gapopen"]
+        second_best_mismatch_df = (
+            second_max_length_df.groupby("id")["mismatch"].max().reset_index()
+        )
+        second_best_mismatch_df.columns = ["id", "second_best_mismatch"]
         id_count_df = pd.merge(id_count_df, second_max_length_df, on="id", how="left")
+        id_count_df = pd.merge(id_count_df, second_best_gap_df, on="id", how="left")
+        id_count_df = pd.merge(
+            id_count_df, second_best_mismatch_df, on="id", how="left"
+        )
         id_count_df["second_max_length"] = (
             id_count_df["second_max_length"].fillna(0).astype(int)
+        )
+        id_count_df["second_best_gapopen"] = (
+            id_count_df["second_best_gapopen"].fillna(0).astype(int)
+        )
+        id_count_df["second_best_mismatch"] = (
+            id_count_df["second_best_mismatch"].fillna(0).astype(int)
         )
 
         if show_max_length:
