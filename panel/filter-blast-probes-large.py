@@ -8,9 +8,7 @@ from tqdm import tqdm
 
 
 def get_real_match_length(row: pd.Series, probe_lenth: int) -> int:
-    if row["match_len"] > probe_lenth:
-        return probe_lenth - row["mismatch"] + row["gapopen"]
-    return row["match_len"] - row["mismatch"] - row["gapopen"]
+    return probe_lenth - row["mismatch"] - row["gapopen"]
 
 
 def main(
