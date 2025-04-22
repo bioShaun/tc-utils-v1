@@ -20,8 +20,6 @@ def main(
 ) -> None:
     blast_files = sorted(blast_dir.glob("./*"))
 
-    my_get_real_match_length = partial(get_real_match_length, probe_lenth=probe_length)
-
     for n, blast_file in enumerate(tqdm(blast_files)):
         blast_df = pd.read_table(
             blast_file,
