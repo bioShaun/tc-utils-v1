@@ -59,7 +59,7 @@ def main(
         best_match_idx = blast_df.groupby("id")["real_match_length"].idxmax()
         best_match_df = blast_df[blast_df.index.isin(best_match_idx)]
         best_match_gap_df = best_match_df.groupby("id")["gapopen"].max().reset_index()
-        best_match_gap_df.columns = ["id", "best_mathc_gapopen"]
+        best_match_gap_df.columns = ["id", "best_match_gapopen"]
         best_match_mismatch_df = (
             best_match_df.groupby("id")["mismatch"].max().reset_index()
         )
