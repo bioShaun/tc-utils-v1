@@ -34,7 +34,10 @@ def gene_presentative_fa(gffread_fa, gtf=None, gene_tr_map=None):
                         seq_record.description
                     ))
         else:
-            gene_id = tr_gtf_df.loc[seq_record.id].gene_id
+            if seq_record.id in tr_gtf_df.index:
+                gene_id = str(tr_gtf_df.loc[seq_record.id].gene_id)
+            else:
+                continue
         seq_len = len(seq_record.seq)
         seq_record.id = gene_id
         seq_record.description = ''

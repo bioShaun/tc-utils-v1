@@ -24,7 +24,9 @@ def main(gtf: Path) -> None:
         for transcript in tr_dict:
             for feature in ["transcript", "exon", "CDS"]:
                 feature_lines = tr_dict[transcript][feature]
+                print(feature_lines)
                 if len(feature_lines) == 0:
+                    print(transcript, feature)
                     if feature == "exon":
                         feature_lines = tr_dict[transcript]["CDS"]
                     else:
