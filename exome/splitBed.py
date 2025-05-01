@@ -1,3 +1,4 @@
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List
@@ -36,6 +37,9 @@ def split_bed(bed_file: Path, out_dir: Path, split_number: int) -> None:
     if split_out_dir.exists():
         raise ValueError(f"{split_out_dir} 已存在，请检查")
     split_out_dir.mkdir(parents=True)
+    if split_number == 1:
+        os.symlink(bed_file.absolute(), split_out_dir / bed_file.name)
+        return
     bed_df = pd.read_table(bed_file, header=None, names=["chrom", "start", "end"])
     bed_df["region_length"] = bed_df["end"] - bed_df["start"]
     bed_length = bed_df["region_length"].sum()

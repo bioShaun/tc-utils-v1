@@ -1,6 +1,8 @@
+import re
+from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 
 import delegator
 import numpy as np
@@ -20,10 +22,95 @@ class TargetType(str, Enum):
     vcf = "vcf"
 
 
-def get_pos(row: pd.Series) -> int:
+@dataclass
+class InsDelCount:
+    ins_count: int
+    del_count: int
+
+
+def get_cigar_list(cigar: str) -> List[Tuple[int, str]]:
+    """
+    Parse a CIGAR string into a list of tuples.
+
+    Args:
+    cigar (str): A CIGAR string (e.g., "3M1I4M2D5M")
+
+    Returns:
+    List[Tuple[int, str]]: A list of tuples where each tuple contains
+                           (count, operation)
+
+    Example:
+    >>> get_cigar_list("3M1I4M2D5M")
+    [(3, 'M'), (1, 'I'), (4, 'M'), (2, 'D'), (5, 'M')]
+    """
+    # Use a single regex to split the CIGAR string into pairs of (count, operation)
+    cigar_pairs = re.findall(r"(\d+)([MIDNSHPX=])", cigar)
+
+    # Convert the count to integer and return the list of tuples
+    return [(int(count), operation) for count, operation in cigar_pairs]
+
+
+def get_del_ins(row: pd.Series) -> Optional[InsDelCount]:
+    """
+    Analyze CIGAR string to count insertions and deletions up to a certain offset.
+
+    Args:
+    row (pd.Series): A pandas Series containing 'cigar', 'offset_start', 'offset_end', and 'strand' information.
+
+    Returns:
+    Optional[InsDelCount]: A named tuple with insertion and deletion counts, or None if the offset is not reached.
+
+    Raises:
+    ValueError: If an unexpected CIGAR operation is encountered.
+    """
+    cigar_info = get_cigar_list(row["cigar"])
+    offset_from_target = (
+        row["offset_start"] if row["strand"] == "+" else row["offset_end"]
+    )
+
+    match_count = ins_count = del_count = 0
+
+    for count, operation in cigar_info:
+        if operation == "M":
+            match_count += count
+        elif operation == "I":
+            ins_count += count
+        elif operation == "D":
+            if match_count == offset_from_target:
+                return None
+            del_count += count
+        else:
+            raise ValueError(f"Unexpected CIGAR operation: {operation}")
+
+        if match_count > offset_from_target:
+            break
+
+    if match_count < offset_from_target:
+        return None  # Offset not reached
+
+    return InsDelCount(ins_count=ins_count, del_count=del_count)
+
+
+def get_real_match_length(cigar: str) -> int:
+    operations = get_cigar_list(cigar)
+    total_matches = sum(count for count, op in operations if op == "M")
+    return total_matches
+
+
+def get_pos(row: pd.Series) -> Optional[int]:
+    indel_ins_info = get_del_ins(row)
+    if indel_ins_info is None:
+        return None
+    indel_bias = indel_ins_info.del_count - indel_ins_info.ins_count
     if row["strand"] == "+":
-        return row["match_start"] + row["offset_start"] + 1 - row["probe_start"]
-    return row["match_start"] + row["offset_end"] + 1 - row["probe_start"]
+        return (
+            row["match_start"]
+            + row["offset_start"]
+            + 1
+            - row["probe_start"]
+            + indel_bias
+        )
+    return row["match_start"] + row["offset_end"] + 1 - row["probe_start"] + indel_bias
 
 
 def paf2idmap(
@@ -32,26 +119,27 @@ def paf2idmap(
     offset_df: pd.DataFrame,
     out_prefix: Path,
     save_file: bool = True,
-) -> Optional[pd.DataFrame]:
+    keep_duplicates: bool = False,
+) -> pd.DataFrame:
 
-    paf_df.sort_values(
-        [
-            "match_length",
-            "mapq",
-        ],
-        ascending=False,
-        inplace=True,
-    )
-    paf_df.drop_duplicates(subset=["id"], inplace=True)
+    best_match_length = paf_df.groupby("id")["match_length"].max().reset_index()
+    paf_df = paf_df.merge(best_match_length)
+    best_nm = paf_df.groupby("id")["n_mismatch"].min().reset_index()
+    paf_df = paf_df.merge(best_nm)
+    if not keep_duplicates:
+        paf_df.drop_duplicates(subset=["id"], inplace=True)
     paf_df["match_ratio"] = paf_df["match_length"] / paf_df["probe_length"]
     filter_df = paf_df[paf_df["match_ratio"] > match_cutoff].copy()
     filter_df = filter_df.merge(offset_df, on="id")
     filter_df["pos"] = filter_df.apply(get_pos, axis=1)
+    filter_df.dropna(subset=["pos"], inplace=True)
+    filter_df["pos"] = filter_df["pos"].astype("int")
     filter_df["new_id"] = filter_df.apply(lambda x: f'{x["chrom"]}_{x["pos"]}', axis=1)
     filter_df["pos_0"] = filter_df["pos"] - 1
-    id_map = out_prefix.with_suffix(".idmap.tsv")
     id_map_df = filter_df[["id", "new_id"]].copy()
+
     if save_file:
+        id_map = out_prefix.with_suffix(".idmap.tsv")
         filter_df.to_csv(
             id_map, header=False, index=False, columns=["id", "new_id"], sep="\t"
         )
@@ -62,7 +150,7 @@ def paf2idmap(
             sep="\t",
             index=False,
             header=False,
-            columns=["chrom", "pos_0", "pos", "id"],
+            columns=["chrom", "pos_0", "pos", "id", "mapq", "strand"],
         )
 
     return id_map_df
@@ -92,12 +180,13 @@ def generate_bed_from_vcf(vcf: Path) -> Path:
     return bed_file
 
 
-def generate_flank_bed(target_bed: Path, flank_size: int, genome_fai: Path) -> Path:
+def generate_flank_bed(
+    target_bed: Path, flank_size: int, genome_fai: Path, force: bool
+) -> Path:
     flank_bed = target_bed.with_suffix(f".flank{flank_size}.bed")
-    cmd_line = (
-        f"bedtools slop -b {flank_size} -i {target_bed} -g {genome_fai} > {flank_bed}"
-    )
-    delegator.run(cmd_line)
+    if force or not flank_bed.is_file():
+        cmd_line = f"bedtools slop -b {flank_size} -i {target_bed} -g {genome_fai} > {flank_bed}"
+        delegator.run(cmd_line)
     return flank_bed
 
 
@@ -114,9 +203,7 @@ def generate_flank_paf(
 ) -> Path:
     flank_paf = flank_fa.with_suffix(".paf")
     if force or not flank_paf.is_file():
-        cmd_line = (
-            f"minimap2 -t {threads} -cx sr {genome_sr_idx} {flank_fa} > {flank_paf}"
-        )
+        cmd_line = f"minimap2 -t {threads} --secondary yes -N 10 -cx sr {genome_sr_idx} {flank_fa} > {flank_paf}"
         delegator.run(cmd_line)
     return flank_paf
 
@@ -158,13 +245,41 @@ def fasta_from_probe_table(probe_table: Path) -> Tuple[pd.DataFrame, Path]:
     return probe_df[["id", "offset_start", "offset_end"]].copy(), probe_fasta
 
 
+def extract_cigar_from_line(line: str) -> str:
+    """Extract the cigar string from a Minimap2 alignment line."""
+    match = re.search(r"cg:Z:(\w+)", line)
+    if match:
+        return match.group(1)
+    raise ValueError(f"cigar not found in line: {line!r}")
+
+
+def extract_mismatch_from_line(line: str) -> str:
+    """Extract the total miss match from a Minimap2 alignment line."""
+    match = re.search(r"NM:i:([0-9]+)", line)
+    if match:
+        return match.group(1)
+    raise ValueError(f"NM not found in line: {line!r}")
+
+
+def cigar_nm_list_from_paf(paf: Path) -> pd.DataFrame:
+    cigar_nm_list = [
+        [
+            extract_cigar_from_line(each),
+            extract_mismatch_from_line(each),
+        ]
+        for each in paf.open()
+    ]
+
+    return pd.DataFrame(cigar_nm_list, columns=["cigar", "n_mismatch"])
+
+
 @app.command()
 def realign(
     target_file: Path,
     genome: Path,
     genome_sr_idx: Path,
     threads: int = 16,
-    cut_off: float = 0.5,
+    cut_off: float = 0.9,
     force: bool = False,
     target_type: TargetType = TargetType.bed,
 ) -> None:
@@ -189,7 +304,7 @@ def realign(
         target_bed = target_file
     logger.info(f"Generating {FLANK_SIZE} bp flanks bed...")
     flank_bed = generate_flank_bed(
-        target_bed=target_bed, flank_size=FLANK_SIZE, genome_fai=genome_fai
+        target_bed=target_bed, flank_size=FLANK_SIZE, genome_fai=genome_fai, force=force
     )
     logger.info(f"Generating {FLANK_SIZE} bp flanks fasta...")
     flank_fa = generate_flank_fa(
@@ -204,6 +319,7 @@ def realign(
     offset_df = generate_offset_df(target_bed=target_bed, flank_bed=flank_bed)
     logger.info(f"Generating {FLANK_SIZE} bp flanks id map...")
     # match_cutoff = np.ceil(cut_off * 2 * FLANK_SIZE)
+
     paf_df = pd.read_table(
         flank_paf,
         header=None,
@@ -219,8 +335,11 @@ def realign(
             "mapq",
         ],
     )
+
+    cigar_nm_df = cigar_nm_list_from_paf(flank_paf)
+    add_cigar_paf_df = pd.concat([paf_df, cigar_nm_df], axis=1)
     paf2idmap(
-        paf_df=paf_df,
+        paf_df=add_cigar_paf_df,
         offset_df=offset_df,
         match_cutoff=cut_off,
         out_prefix=flank_paf,
@@ -232,8 +351,10 @@ def realign2(
     probe_table: Path,
     genome_sr_idx: Path,
     threads: int = 16,
-    cut_off: float = 0.5,
+    cut_off: float = 0.9,
     force: bool = False,
+    allow_ins_del: bool = False,
+    keep_duplicates: bool = False,
 ) -> None:
     """
     Main function to perform a series of operations based on the input parameters.
@@ -271,12 +392,25 @@ def realign2(
             "mapq",
         ],
     )
+    cigar_nm_df = cigar_nm_list_from_paf(flank_paf)
+    add_cigar_paf_df = pd.concat([paf_df, cigar_nm_df], axis=1)
     paf2idmap(
-        paf_df=paf_df,
+        paf_df=add_cigar_paf_df,
         offset_df=offset_df,
         match_cutoff=cut_off,
         out_prefix=flank_paf,
+        keep_duplicates=keep_duplicates,
     )
+
+
+def new_probe_start(row: pd.Series) -> int:
+    if 'probe_type' not in row:
+        return row["pos"] - 1 - (row["probe_length"] // 2) + row["offset"]
+    if row["probe_type"] == "center":
+        return row["pos"] - 1 - (row["probe_length"] // 2) + row["offset"]
+    if row["probe_type"] == "left":
+        return row["pos"] - 1 - row["probe_length"] + row["offset"]
+    return row["pos"] - 1 + row["offset"]
 
 
 @app.command()
@@ -289,9 +423,34 @@ def adjust_annotation_by_realign(annotation: Path, id_map: Path) -> None:
     re_id_df.drop(columns=["new_id"], inplace=True)
     if "probe_start" in re_id_df.columns:
         re_id_df["probe_length"] = re_id_df["probe_end"] - re_id_df["probe_start"]
-        re_id_df["probe_start"] = (
-            re_id_df["pos"] - 1 - (re_id_df["probe_length"] // 2) + re_id_df["offset"]
-        )
+        re_id_df["probe_start"] = re_id_df.apply(new_probe_start, axis=1)
+        re_id_df["probe_end"] = re_id_df["probe_start"] + re_id_df["probe_length"]
+        re_id_df.drop(columns=["probe_length"], inplace=True)
+    realign_annotation = annotation.with_suffix(".realign.tsv")
+    re_id_df.to_csv(realign_annotation, sep="\t", index=False)
+
+
+@app.command()
+def adjust_annotation_by_realign2(annotation: Path, id_map: Path) -> None:
+    anno_df = pd.read_table(annotation)
+    id_map_df = pd.read_table(id_map, header=None, names=["id", "new_id"])
+    id_map_df["new_chrom"] = id_map_df["new_id"].map(
+        lambda x: "_".join(x.split("_")[:-1])
+    )
+    id_map_df["new_pos"] = id_map_df["new_id"].map(lambda x: int(x.split("_")[-1]))
+    id_map_df["chrom"] = id_map_df["id"].map(lambda x: "_".join(x.split("_")[:-1]))
+    id_map_df["pos"] = id_map_df["id"].map(lambda x: int(x.split("_")[-1]))
+    id_map_df.drop(["id", "new_id"], axis=1, inplace=True)
+    anno_df['chrom'] = anno_df['chrom'].astype('str')
+    re_id_df = (
+        id_map_df.merge(anno_df)
+        .drop(["chrom", "pos"], axis=1)
+        .rename(columns={"new_chrom": "chrom", "new_pos": "pos"})
+    )
+
+    if "probe_start" in re_id_df.columns:
+        re_id_df["probe_length"] = re_id_df["probe_end"] - re_id_df["probe_start"]
+        re_id_df["probe_start"] = re_id_df.apply(new_probe_start, axis=1)
         re_id_df["probe_end"] = re_id_df["probe_start"] + re_id_df["probe_length"]
         re_id_df.drop(columns=["probe_length"], inplace=True)
     realign_annotation = annotation.with_suffix(".realign.tsv")

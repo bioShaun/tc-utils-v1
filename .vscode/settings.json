@@ -5,5 +5,6 @@
   },
   "CodeGPT.apiKey": "CodeGPT Plus Beta",
   "cSpell.words": ["Indel", "itertuples"],
+  "python.languageServer": "None",
   "r.lsp.promptToInstall": false
 }

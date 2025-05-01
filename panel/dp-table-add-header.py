@@ -17,8 +17,9 @@ def main(dp_file: Path, sample_file: Path, out_file: Path) -> None:
     sample_list = pd.read_csv(sample_file, header=None)[0].tolist()
     dp_df = pd.read_table(dp_file, header=None, names=[*LOCATION_COLS, *sample_list])
     dp_df = dp_df.set_index(LOCATION_COLS)
-    dp_df = dp_df.apply(lambda x: x if str(x).isdigit() else 0).astype("int")
-    dp_df.to_excel(out_file)
+    dp_df = dp_df.map(lambda x: x if str(x).isdigit() else 0).astype("int")
+    dp_df = dp_df.reset_index()
+    dp_df.to_excel(out_file, index=False)
 
 
 if __name__ == "__main__":

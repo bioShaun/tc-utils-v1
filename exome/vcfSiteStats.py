@@ -110,12 +110,27 @@ def indel_right_pos(row: pd.Series) -> int:
     return row["pos"]
 
 
-def vcfStats(vcf: Path, vcf_stats: Path, threads: int = 4, force: bool = False) -> None:
+def vcfStats(
+    vcf: Path, vcf_stats: Path, threads: int = 4, force: bool = False, snp: bool = True
+) -> None:
     pandarallel.initialize(nb_workers=threads)
     gt_table = vcf2gt(vcf_file=vcf, force=force)
     dfs = pd.read_table(gt_table, chunksize=100_000, header=None)
     left_file = vcf_stats.with_suffix(".left.tsv")
     right_file = vcf_stats.with_suffix(".right.tsv")
+    out_cols = [
+        "id",
+        "chrom",
+        "pos",
+        "alleles",
+        "missing",
+        "het",
+        "maf",
+        "indel_length",
+        "indel_type",
+    ]
+    if snp:
+        out_cols = ["id", "chrom", "pos", "alleles", "missing", "het", "maf"]
     for n, df in tqdm(enumerate(dfs)):
         mode = "w" if n == 0 else "a"
         header = True if n == 0 else False
@@ -144,6 +159,8 @@ def vcfStats(vcf: Path, vcf_stats: Path, threads: int = 4, force: bool = False) 
             "indel_length",
             "indel_type",
         ]
+        # choose best maf one for multi alt sites
+        out_df = out_df.loc[out_df.groupby(["chrom", "pos"])["maf"].idxmax()]
         out_df.to_csv(
             vcf_stats,
             mode=mode,
@@ -151,26 +168,30 @@ def vcfStats(vcf: Path, vcf_stats: Path, threads: int = 4, force: bool = False) 
             float_format="%.3f",
             sep="\t",
             header=header,
+            columns=out_cols,
         )
-        out_df.to_csv(
-            left_file,
-            mode=mode,
-            index=False,
-            float_format="%.3f",
-            sep="\t",
-            header=header,
-        )
-        right_df = out_df.copy()
-        right_df["pos"] = right_df.apply(indel_right_pos, axis=1)
-        right_df.to_csv(
-            right_file,
-            mode=mode,
-            index=False,
-            float_format="%.3f",
-            sep="\t",
-            header=header,
-        )
+        if not snp:
+            out_df.to_csv(
+                left_file,
+                mode=mode,
+                index=False,
+                float_format="%.3f",
+                sep="\t",
+                header=header,
+            )
+            right_df = out_df.copy()
+            right_df["pos"] = right_df.apply(indel_right_pos, axis=1)
+            right_df.to_csv(
+                right_file,
+                mode=mode,
+                index=False,
+                float_format="%.3f",
+                sep="\t",
+                header=header,
+            )
 
 
 if __name__ == "__main__":
     typer.run(vcfStats)
+
+

@@ -32,8 +32,9 @@ def main(
 
     if not genome is None:
         for record in SeqIO.parse(genome, format="fasta"):
-            record.id = chrom_map_dict[record.id]
-            genome_list.append(record)
+            if record.id in chrom_map_dict:
+                record.id = chrom_map_dict[record.id]            
+                genome_list.append(record)
 
         out_genome_name = f"rename.{genome.name}"
         out_genome_path = genome.parent / out_genome_name

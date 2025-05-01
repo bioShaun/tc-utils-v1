@@ -1,3 +1,4 @@
+from enum import StrEnum
 from pathlib import Path
 
 import delegator
@@ -34,24 +35,33 @@ def extract_snpeff_anno(vcf_path: Path, snpeff_dir: Path, force: bool) -> Path:
     return annotation_file
 
 
+class AnnoType(StrEnum):
+    EGGNOG = "eggnot"
+    TABLE = "table"
+
+
 def main(
     snpeff_vcf: Path,
-    eggnog_anno: Path,
+    anno_file: Path,
     out_file: Path,
     snpeff_dir: Path,
     force: bool = False,
+    anno_type: AnnoType = AnnoType.EGGNOG,
 ) -> None:
     logger.info("extract snpeff annotation ...")
     snpeff_anno_file = extract_snpeff_anno(
         vcf_path=snpeff_vcf, snpeff_dir=snpeff_dir, force=force
     )
-    eggnog_df = pd.read_table(eggnog_anno, sep="\t", skiprows=4, usecols=[0, 7])
-    eggnog_df.columns = ["transcript_id", "description"]
+    if anno_type == AnnoType.EGGNOG:
+        ann_df = pd.read_table(anno_file, sep="\t", skiprows=4, usecols=[0, 7])
+        ann_df.columns = ["transcript_id", "description"]
+    else:
+        ann_df = pd.read_table(anno_file, sep="\t")
     snpeff_df = pd.read_table(snpeff_anno_file)
     snpeff_df.rename(columns=COLUMN_MAP, inplace=True)
-    snpeff_df.drop_duplicates(subset=["chrom", "pos"])
+    snpeff_df.drop_duplicates(subset=["chrom", "pos"], inplace=True)
     logger.info("merge annotation ...")
-    merged_df = snpeff_df.merge(eggnog_df, how="left")
+    merged_df = snpeff_df.merge(ann_df, how="left")
     merged_df.fillna("--", inplace=True)
     logger.info("save annotation ...")
     merged_df.to_csv(out_file, sep="\t", index=False)

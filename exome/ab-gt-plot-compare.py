@@ -102,6 +102,7 @@ def main(
     chr_size: Path,
     compare_list: Path,
     out_dir: Path,
+    diff_only: bool = False,
 ) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     chr_df = pd.read_table(
@@ -116,12 +117,19 @@ def main(
             mask1 = compare_gt_df[row.a] != "./."
             mask2 = compare_gt_df[row.b] != "./."
             non_miss_gt_df = compare_gt_df[mask1 & mask2].copy()
-            same_df = non_miss_gt_df[non_miss_gt_df[row.a] == non_miss_gt_df[row.b]]
-            diff_df = non_miss_gt_df[non_miss_gt_df[row.a] != non_miss_gt_df[row.b]]
+            same_df = non_miss_gt_df[
+                non_miss_gt_df[row.a] == non_miss_gt_df[row.b]
+            ].copy()
+            diff_df = non_miss_gt_df[
+                non_miss_gt_df[row.a] != non_miss_gt_df[row.b]
+            ].copy()
             same_df[compare_name] = "SAME"
             diff_df[compare_name] = "DIFF"
-            add_compare_df = pd.concat([same_df, diff_df])
-            child_df = add_compare_df[["CHROM", "POS", compare_name]]
+            if diff_only:
+                child_df = diff_df[["CHROM", "POS", compare_name]]
+            else:
+                add_compare_df = pd.concat([same_df, diff_df])
+                child_df = add_compare_df[["CHROM", "POS", compare_name]]
             plot_origin(chr_df, child_df, out_dir, compare_name)
 
 
