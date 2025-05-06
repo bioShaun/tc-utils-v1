@@ -28,6 +28,19 @@ class InsDelCount:
     del_count: int
 
 
+def extract_alleles(variant_string) -> str:
+    """
+    从变异字符串中提取 REF 和 ALT allele，包括 SNP 和 InDel。
+    """
+    match = re.search(r"\[([ACGT\-]+)/([ACGT\-]+)\]", variant_string)
+    if match:
+        ref = match.group(1)
+        alt = match.group(2)
+        return f"{ref}/{alt}"
+    else:
+        return "-/-"
+
+
 def get_cigar_list(cigar: str) -> List[Tuple[int, str]]:
     """
     Parse a CIGAR string into a list of tuples.
@@ -153,6 +166,16 @@ def paf2idmap(
             columns=["chrom", "pos_0", "pos", "id", "mapq", "strand"],
         )
 
+        pos_file = id_map.with_suffix(".pos.tsv")
+        if "alleles" not in filter_df.columns:
+            filter_df["alleles"] = "-/-"
+        filter_df.to_csv(
+            pos_file,
+            sep="\t",
+            index=False,
+            columns=["chrom", "pos", "alleles"],
+        )
+
     return id_map_df
 
 
@@ -242,7 +265,8 @@ def fasta_from_probe_table(probe_table: Path) -> Tuple[pd.DataFrame, Path]:
     probe_df["seq_length"] = probe_df["sequence"].map(len)
     probe_df["offset_start"] = probe_df["Flank"].map(lambda x: x.index("["))
     probe_df["offset_end"] = probe_df["seq_length"] - probe_df["offset_start"] - 1
-    return probe_df[["id", "offset_start", "offset_end"]].copy(), probe_fasta
+    probe_df["alleles"] = probe_df["Flank"].map(lambda x: extract_alleles(x))
+    return probe_df[["id", "offset_start", "offset_end", "alleles"]].copy(), probe_fasta
 
 
 def extract_cigar_from_line(line: str) -> str:
@@ -404,7 +428,7 @@ def realign2(
 
 
 def new_probe_start(row: pd.Series) -> int:
-    if 'probe_type' not in row:
+    if "probe_type" not in row:
         return row["pos"] - 1 - (row["probe_length"] // 2) + row["offset"]
     if row["probe_type"] == "center":
         return row["pos"] - 1 - (row["probe_length"] // 2) + row["offset"]
@@ -441,7 +465,7 @@ def adjust_annotation_by_realign2(annotation: Path, id_map: Path) -> None:
     id_map_df["chrom"] = id_map_df["id"].map(lambda x: "_".join(x.split("_")[:-1]))
     id_map_df["pos"] = id_map_df["id"].map(lambda x: int(x.split("_")[-1]))
     id_map_df.drop(["id", "new_id"], axis=1, inplace=True)
-    anno_df['chrom'] = anno_df['chrom'].astype('str')
+    anno_df["chrom"] = anno_df["chrom"].astype("str")
     re_id_df = (
         id_map_df.merge(anno_df)
         .drop(["chrom", "pos"], axis=1)
