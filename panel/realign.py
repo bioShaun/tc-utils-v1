@@ -173,7 +173,7 @@ def paf2idmap(
             pos_file,
             sep="\t",
             index=False,
-            columns=["chrom", "pos", "alleles"],
+            columns=["chrom", "pos", "alleles", "id"],
         )
 
     return id_map_df
