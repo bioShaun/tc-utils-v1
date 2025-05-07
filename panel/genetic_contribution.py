@@ -1,5 +1,6 @@
 from functools import partial
 from pathlib import Path
+from typing import Optional
 
 import delegator
 import pandas as pd
@@ -108,6 +109,7 @@ def plot(
     chrom_info: Path,
     out_dir: Path,
     plot_bin=1.0,
+    rscript_bin_path: Optional[Path] = None,
 ):
     """生成绘图数据"""
     plot_data_dir = out_dir / "plot_data"
@@ -121,8 +123,12 @@ def plot(
     plot_df.to_csv(plot_data, index=False, sep="\t")
     plot_dir = out_dir / "plot"
     plot_dir.mkdir(parents=True, exist_ok=True)
+    if rscript_bin_path is not None:
+        rscript_path = rscript_bin_path / "Rscript"
+    else:
+        rscript_path = "Rscript"
     plot_cmd = (
-        f"Rscript {PLOT_R} --plot_file {plot_data} --out_prefix {plot_dir}/{offspring} "
+        f"{rscript_path} {PLOT_R} --plot_file {plot_data} --out_prefix {plot_dir}/{offspring} "
         f"--chr_size {chrom_info} --p1_name {p1} --p2_name {p2} --offspring_name {offspring}_specific --same_name all_same "
         f'--p1_color "yellow" --p2_color "#000080" --offspring_color "#E41A1C" --same_color "#696969" --bin_size {plot_bin}'
     )
