@@ -1,3 +1,4 @@
+import shutil
 from functools import partial
 from pathlib import Path
 from typing import Optional
@@ -134,6 +135,8 @@ def plot(
     )
     # print(plot_cmd)
     delegator.run(plot_cmd)
+    # 删除做图数据
+    shutil.rmtree(plot_data)
 
 
 def main(
