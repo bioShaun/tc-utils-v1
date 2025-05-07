@@ -153,6 +153,7 @@ def main(
             "p1",
             "p2",
         ],
+        comment="#",
     )
     chrom_info_df = pd.read_table(chrom_info)
     for _, row in parent_offspring_df.iterrows():
