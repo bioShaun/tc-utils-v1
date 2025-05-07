@@ -146,13 +146,30 @@ def main(
 ):
     """
     过滤 VCF 文件中的聚簇 SNP，并使用 bgzip 压缩输出结果。
+    如果 output_file 以 .gz 结尾，则覆盖该文件；
+    否则在 output_file 后添加 .gz 后缀。
     """
     logger.info(f"开始过滤 VCF: {vcf_file} -> {output_file}")
     try:
-        filter_stream(vcf_file, output_file, window_size, snp_count)
+        # 根据传入后缀决定实际写入路径和压缩目标
+        if output_file.suffix in [".gz", ".bgz"]:
+            # output_file = out.vcf.gz -> base = out.vcf
+            base_path = output_file.with_suffix("")
+            uncompressed = base_path
+            final_compressed = output_file
+        else:
+            uncompressed = output_file
+            final_compressed = output_file.with_suffix(output_file.suffix + ".gz")
+
+        filter_stream(vcf_file, uncompressed, window_size, snp_count)
         bgzip_exe = find_bgzip(bgzip_path)
-        subprocess.run([str(bgzip_exe), "-f", str(output_file)], check=True)
-        logger.info(f"成功压缩输出文件为 {output_file}.gz")
+        # 压缩并覆盖或生成最终文件
+        subprocess.run([str(bgzip_exe), "-f", str(uncompressed)], check=True)
+        # 如果生成文件名不匹配用户期望，重命名一次
+        generated = Path(str(uncompressed) + ".gz")
+        if generated != final_compressed:
+            generated.replace(final_compressed)
+        logger.info(f"成功压缩输出文件为 {final_compressed}")
     except Exception as e:
         logger.error(f"过滤或压缩过程中出现错误: {e}")
         raise typer.Exit(code=1)
