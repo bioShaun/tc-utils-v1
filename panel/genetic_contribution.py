@@ -142,6 +142,7 @@ def main(
     chrom_info: Path,
     out_dir: Path,
     plot_bin: float = 1.0,
+    rscript_bin_path: Optional[Path] = None,
 ):
     out_dir.mkdir(parents=True, exist_ok=True)
     parent_offspring_df = pd.read_table(
@@ -159,7 +160,17 @@ def main(
         out_df = filter_vcf(vcf_file, p1, p2, offspring)
         out_df = out_df.merge(chrom_info_df)
         merge_genetic_contribution(out_df, p1, p2, offspring, out_dir)
-        plot(out_df, p1, p2, offspring, chrom_info, out_dir, plot_bin=plot_bin)
+        plot(
+            out_df,
+            p1,
+            p2,
+            offspring,
+            chrom_info,
+            out_dir,
+            plot_bin=plot_bin,
+            rscript_bin_path=rscript_bin_path,
+        )
+
         # out_df.to_csv(out_dir / f"{offspring}.csv", index=False)
 
 
