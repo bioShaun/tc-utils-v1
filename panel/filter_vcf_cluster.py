@@ -6,6 +6,7 @@ from collections import deque
 from pathlib import Path
 
 import typer
+from tqdm import tqdm
 
 # 配置日志
 logger = logging.getLogger(__name__)
@@ -98,7 +99,7 @@ def filter_stream(
             buffer.append(first_var)
 
         # 逐行处理
-        for line in infile:
+        for line in tqdm(infile, desc="Processing variants", unit="lines"):
             # 跳过头部或空行
             if not line.strip() or line.startswith("#"):
                 continue
