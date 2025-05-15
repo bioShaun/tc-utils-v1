@@ -84,36 +84,6 @@ def compare_gt(df: pd.DataFrame, compare_a: str, compare_b: str, human: bool = T
     total_a_not_equal_b_percent = (
         0 if non_miss_count == 0 else 100 * total_a_not_equal_b / non_miss_count
     )
-    # if human:
-    #     return {
-    #         "A": compare_a,
-    #         "B": compare_b,
-    #         "总位点数": len(df),
-    #         "有效位点": non_miss_count,
-    #         "A_纯合": a_hom_count,
-    #         "A_杂合": a_het_count,
-    #         "B_纯合": b_hom_count,
-    #         "B_杂合": b_het_count,
-    #         "整体相似度": total_a_equal_b_out,
-    #         "纯合相似度": homo_equal_count_out,
-    #         "杂合相似度": het_equal_count_out,
-    #     }
-    # return {
-    #     "A": compare_a,
-    #     "B": compare_b,
-    #     "总位点数": len(df),
-    #     "有效位点": non_miss_count,
-    #     "A_纯合": a_hom_count,
-    #     "A_杂合": a_het_count,
-    #     "B_纯合": b_hom_count,
-    #     "B_杂合": b_het_count,
-    #     "整体相似度": total_a_equal_b,
-    #     "整体相似度%": total_a_equal_b_percent,
-    #     "纯合相似度": homo_equal_count,
-    #     "纯合相似度%": homo_equal_percent,
-    #     "杂合相似度": het_equal_count,
-    #     "杂合相似度%": het_equal_percent,
-    # }
     return [
         compare_a,
         compare_b,
@@ -137,7 +107,6 @@ def compare_gt(df: pd.DataFrame, compare_a: str, compare_b: str, human: bool = T
 def main(
     input_file: Path,
     output_file: Path,
-    chrom_stats: bool = False,
     force: bool = False,
     human: bool = True,
     input_type: InputType = InputType.VCF,
