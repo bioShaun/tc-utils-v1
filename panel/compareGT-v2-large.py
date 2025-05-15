@@ -44,7 +44,7 @@ def map_gt(gt: str) -> str:
     return "HET"
 
 
-def compare_gt(df: pd.DataFrame, compare_a: str, compare_b: str, human: bool = True):
+def compare_gt(df: pd.DataFrame, compare_a: str, compare_b: str):
     stats_gt_df = df[[compare_a, compare_b]].map(map_gt)
     mask1 = stats_gt_df[compare_a] != "MISS"
     mask2 = stats_gt_df[compare_b] != "MISS"
@@ -108,7 +108,6 @@ def main(
     input_file: Path,
     output_file: Path,
     force: bool = False,
-    human: bool = True,
     input_type: InputType = InputType.VCF,
     sample_file: Optional[Path] = typer.Option(None),
     compare_list: Optional[Path] = typer.Option(None),
@@ -128,7 +127,7 @@ def main(
         compare_dict = [{"A": a, "B": b} for a, b in combinations(sample_list, 2)]
         compare_df = pd.DataFrame(compare_dict)
 
-    with open(output_file, "w") as out_inf:
+    with open(output_file, "w", encoding="utf-8") as out_inf:
         out_inf.write(
             "A\tB\t总位点数\t有效位点\tA_纯合\tA_杂合\tB_纯合\tB_杂合\t整体相似度\t整体相似度%\t纯合相似度\t纯合相似度%\t杂合相似度\t杂合相似度%\t整体差异位点数\t整体差异%\n"
         )
@@ -136,9 +135,7 @@ def main(
             row_a, row_b = str(row.A), str(row.B)
             if row_a in df.columns and row_b in df.columns:
                 # sample_stats_list.append(compare_gt(df, row.A, row.B, human=human))  # type: ignore
-                out_line_list = [
-                    str(each) for each in compare_gt(df, row_a, row_b, human=human)
-                ]
+                out_line_list = [str(each) for each in compare_gt(df, row_a, row_b)]
                 out_line_str = "\t".join(out_line_list)
                 out_inf.write(f"{out_line_str}\n")
 
