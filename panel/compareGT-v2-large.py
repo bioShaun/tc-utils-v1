@@ -1,5 +1,7 @@
 from enum import Enum
+from itertools import combinations
 from pathlib import Path
+from typing import Optional
 
 import delegator
 import pandas as pd
@@ -134,13 +136,13 @@ def compare_gt(df: pd.DataFrame, compare_a: str, compare_b: str, human: bool = T
 
 def main(
     input_file: Path,
-    compare_list: Path,
     output_file: Path,
     chrom_stats: bool = False,
     force: bool = False,
     human: bool = True,
     input_type: InputType = InputType.VCF,
-    sample_file: Path = typer.Option(None),
+    sample_file: Optional[Path] = typer.Option(None),
+    compare_list: Optional[Path] = typer.Option(None),
 ):
     if input_type == InputType.VCF:
         gt_file = vcf2gt(input_file, force=force)
@@ -151,7 +153,11 @@ def main(
             raise ValueError("Must provide sample_list if input_type is not VCF")
         sample_list = pd.read_csv(sample_file, header=None)[0].tolist()
     df = pd.read_table(gt_file, header=None, names=[*LOCATION_COLS, *sample_list])
-    compare_df = pd.read_table(compare_list, header=None, names=["A", "B"])
+    if compare_list is not None:
+        compare_df = pd.read_table(compare_list, header=None, names=["A", "B"])
+    else:
+        compare_dict = [{"A": a, "B": b} for a, b in combinations(sample_list, 2)]
+        compare_df = pd.DataFrame(compare_dict)
 
     with open(output_file, "w") as out_inf:
         out_inf.write(
