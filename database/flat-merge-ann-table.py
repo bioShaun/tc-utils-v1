@@ -31,7 +31,13 @@ def split_accession(accession: str) -> Tuple[str, str, int, int]:
     return sample_id, genotype, int(reference_depth), int(alternate_depth)
 
 
-def main(gt_table: Path, ann_table: Path, out_table: Path):
+def main(
+    gt_table: Path,
+    ann_table: Path,
+    out_table: Path,
+    min_depth: int = 5,
+    min_maf: float = 0.2,
+):
     flat_gt_table_file = flat_gt_table(gt_table)
     flat_gt_df = pd.read_table(
         flat_gt_table_file,
@@ -45,6 +51,12 @@ def main(gt_table: Path, ann_table: Path, out_table: Path):
     flat_gt_df[["sample_id", "genotype", "ref_depth", "alt_depth"]] = (
         flat_gt_df["accession"].map(split_accession).to_list()  # type: ignore
     )
+    flat_gt_df["total_depth"] = flat_gt_df["ref_depth"] + flat_gt_df["alt_depth"]
+    flat_gt_df["allele_freq"] = flat_gt_df["alt_depth"] / flat_gt_df["total_depth"]
+    flat_gt_df = flat_gt_df[
+        (flat_gt_df["total_depth"] >= min_depth)
+        & (flat_gt_df["allele_freq"] >= min_maf)
+    ]
     flat_gt_df = flat_gt_df[flat_gt_df["genotype"] != "./."]
     ann_df = pd.read_table(
         ann_table,
