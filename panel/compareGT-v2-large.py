@@ -129,14 +129,14 @@ def main(
 
     with open(output_file, "w", encoding="utf-8") as out_inf:
         out_inf.write(
-            "A\tB\t总位点数\t有效位点\tA_纯合\tA_杂合\tB_纯合\tB_杂合\t整体相似度\t整体相似度%\t纯合相似度\t纯合相似度%\t杂合相似度\t杂合相似度%\t整体差异位点数\t整体差异%\n"
+            "A,B,总位点数,有效位点,A_纯合,A_杂合,B_纯合,B_杂合,整体相似度,整体相似度%,纯合相似度,纯合相似度%,杂合相似度,杂合相似度%,整体差异位点数,整体差异%\n"
         )
         for row in tqdm(compare_df.itertuples(), total=len(compare_df)):
             row_a, row_b = str(row.A), str(row.B)
             if row_a in df.columns and row_b in df.columns:
                 # sample_stats_list.append(compare_gt(df, row.A, row.B, human=human))  # type: ignore
                 out_line_list = [str(each) for each in compare_gt(df, row_a, row_b)]
-                out_line_str = "\t".join(out_line_list)
+                out_line_str = ",".join(out_line_list)
                 out_inf.write(f"{out_line_str}\n")
 
 
