@@ -9,7 +9,7 @@ import csv
 import io
 import tempfile
 from pathlib import Path
-from unittest.mock import ANY, MagicMock, patch
+from unittest.mock import ANY, MagicMock, mock_open, patch
 
 import numpy as np
 import pytest
@@ -32,38 +32,106 @@ class MockVariant:
 
 
 @pytest.fixture
-def mock_variant_snp():
-    """创建模拟SNP变异位点"""
-    return MockVariant("chr1", 1000, "A", ["T"], [0, 1, 1, 2, 3], 0.4)
+def mock_variant_data_snp():
+    """创建模拟SNP变异位点数据"""
+    return va.VariantData(
+        chrom="chr1",
+        pos=1000,
+        ref="A",
+        alt=["T"],
+        gt_types=[0, 1, 1, 2, 3],
+        aaf=0.4,
+        is_snp=True,
+    )
 
 
 @pytest.fixture
-def mock_variant_non_snp():
-    """创建模拟非SNP变异位点"""
-    variant = MockVariant("chr1", 2000, "A", ["TG"], [0, 1, 2, 0, 1], 0.3)
-    variant.is_snp = False
-    return variant
+def mock_variant_data_non_snp():
+    """创建模拟非SNP变异位点数据"""
+    return va.VariantData(
+        chrom="chr1",
+        pos=2000,
+        ref="A",
+        alt=["TG"],
+        gt_types=[0, 1, 2, 0, 1],
+        aaf=0.3,
+        is_snp=False,
+    )
 
 
 @pytest.fixture
-def mock_variant_multi_alt():
-    """创建模拟多等位基因变异位点"""
-    return MockVariant("chr1", 3000, "A", ["T", "G"], [0, 1, 2, 0, 1], 0.3)
+def mock_variant_data_multi_alt():
+    """创建模拟多等位基因变异位点数据"""
+    return va.VariantData(
+        chrom="chr1",
+        pos=3000,
+        ref="A",
+        alt=["T", "G"],
+        gt_types=[0, 1, 2, 0, 1],
+        aaf=0.3,
+        is_snp=True,
+    )
 
 
 @pytest.fixture
-def mock_variants():
-    """创建模拟变异位点列表"""
+def mock_variant_data_list():
+    """创建模拟变异位点数据列表"""
     return [
         # 正常SNP
-        MockVariant("chr1", 1000, "A", ["T"], [0, 1, 1, 2, 3], 0.4),
+        va.VariantData(
+            chrom="chr1",
+            pos=1000,
+            ref="A",
+            alt=["T"],
+            gt_types=[0, 1, 1, 2, 3],
+            aaf=0.4,
+            is_snp=True,
+        ),
         # 非SNP (将被跳过)
-        MockVariant("chr1", 2000, "A", ["TG"], [0, 1, 2, 0, 1], 0.3),
+        va.VariantData(
+            chrom="chr1",
+            pos=2000,
+            ref="A",
+            alt=["TG"],
+            gt_types=[0, 1, 2, 0, 1],
+            aaf=0.3,
+            is_snp=False,
+        ),
         # 多个替代等位基因 (将被跳过)
-        MockVariant("chr1", 3000, "A", ["T", "G"], [0, 1, 2, 0, 1], 0.3),
+        va.VariantData(
+            chrom="chr1",
+            pos=3000,
+            ref="A",
+            alt=["T", "G"],
+            gt_types=[0, 1, 2, 0, 1],
+            aaf=0.3,
+            is_snp=True,
+        ),
         # 正常SNP，有缺失值
-        MockVariant("chr2", 1500, "C", ["G"], [0, 3, 1, 2, 3], 0.25),
+        va.VariantData(
+            chrom="chr2",
+            pos=1500,
+            ref="C",
+            alt=["G"],
+            gt_types=[0, 3, 1, 2, 3],
+            aaf=0.25,
+            is_snp=True,
+        ),
     ]
+
+
+def test_variant_to_data():
+    """测试变异位点转换为数据"""
+    variant = MockVariant("chr1", 1000, "A", ["T"], [0, 1, 1, 2, 3], 0.4)
+    data = va.variant_to_data(variant)
+
+    assert data.chrom == "chr1"
+    assert data.pos == 1000
+    assert data.ref == "A"
+    assert data.alt == ["T"]
+    assert data.gt_types == [0, 1, 1, 2, 3]
+    assert data.aaf == 0.4
+    assert data.is_snp == True
 
 
 def test_vcf_stats_to_dict():
@@ -81,9 +149,9 @@ def test_vcf_stats_to_dict():
     assert data["maf"] == 0.25
 
 
-def test_process_variant_snp(mock_variant_snp):
+def test_process_variant_snp(mock_variant_data_snp):
     """测试处理SNP变异位点"""
-    result = va.process_variant(mock_variant_snp)
+    result = va.process_variant(mock_variant_data_snp)
 
     assert result is not None
     assert result.chrom == "chr1"
@@ -94,24 +162,24 @@ def test_process_variant_snp(mock_variant_snp):
     assert result.maf == 0.4
 
 
-def test_process_variant_non_snp(mock_variant_non_snp):
+def test_process_variant_non_snp(mock_variant_data_non_snp):
     """测试处理非SNP变异位点"""
-    result = va.process_variant(mock_variant_non_snp)
+    result = va.process_variant(mock_variant_data_non_snp)
     assert result is None
 
 
-def test_process_variant_multi_alt(mock_variant_multi_alt):
+def test_process_variant_multi_alt(mock_variant_data_multi_alt):
     """测试处理多等位基因变异位点"""
-    result = va.process_variant(mock_variant_multi_alt)
+    result = va.process_variant(mock_variant_data_multi_alt)
     assert result is None
 
 
-def test_process_variant_batch(mock_variants):
+def test_process_variant_batch(mock_variant_data_list):
     """测试批处理变异位点"""
-    results = va.process_variant_batch(mock_variants)
+    results = va.process_variant_batch(mock_variant_data_list)
 
-    # 应该只处理3个变异位点
-    assert len(results) == 3
+    # 应该只处理2个变异位点（第1个和第4个）
+    assert len(results) == 2
 
     # 检查第一个结果
     assert results[0].chrom == "chr1"
@@ -119,14 +187,9 @@ def test_process_variant_batch(mock_variants):
     assert results[0].alleles == "A,T"
 
     # 检查第二个结果
-    assert results[1].chrom == "chr1"
-    assert results[1].pos == 2000
-    assert results[1].alleles == "A,TG"
-
-    # 检查第三个结果
-    assert results[2].chrom == "chr2"
-    assert results[2].pos == 1500
-    assert results[2].alleles == "C,G"
+    assert results[1].chrom == "chr2"
+    assert results[1].pos == 1500
+    assert results[1].alleles == "C,G"
 
 
 def test_write_results():
@@ -217,13 +280,22 @@ def test_stream_process_vcf(mock_process, mock_open_vcf):
 
 @patch("panel.simple_vcf_stats_large.ProcessPoolExecutor")
 @patch("panel.simple_vcf_stats_large.print_progress")
-def test_process_variants_in_parallel(mock_print_progress, mock_executor):
+@patch("panel.simple_vcf_stats_large.variant_to_data")
+def test_process_variants_in_parallel(
+    mock_variant_to_data, mock_print_progress, mock_executor
+):
     """测试并行处理变异位点"""
     # 设置模拟对象
     mock_vcf = MagicMock()
     mock_vcf.__iter__.return_value = [
         MockVariant("chr1", 1000, "A", ["T"], [0, 1, 1, 2, 3], 0.4),
         MockVariant("chr2", 1500, "C", ["G"], [0, 3, 1, 2, 3], 0.25),
+    ]
+
+    # 设置variant_to_data的返回值
+    mock_variant_to_data.side_effect = [
+        va.VariantData("chr1", 1000, "A", ["T"], [0, 1, 1, 2, 3], 0.4, True),
+        va.VariantData("chr2", 1500, "C", ["G"], [0, 3, 1, 2, 3], 0.25, True),
     ]
 
     mock_writer = MagicMock()
@@ -245,6 +317,7 @@ def test_process_variants_in_parallel(mock_print_progress, mock_executor):
     assert count == 2
     assert mock_print_progress.call_count == 2
     assert executor_instance.submit.call_count == 2
+    assert mock_variant_to_data.call_count == 2
 
 
 def test_print_progress(capsys):

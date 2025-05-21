@@ -42,22 +42,56 @@ class VcfStats:
         }
 
 
-def process_variant(variant: Any) -> Optional[VcfStats]:
+@dataclass
+class VariantData:
+    """存储变异位点数据的可序列化数据类"""
+
+    chrom: str
+    pos: int
+    ref: str
+    alt: List[str]
+    gt_types: List[int]
+    aaf: float
+    is_snp: bool
+
+
+def variant_to_data(variant: Any) -> VariantData:
     """
-    处理单个变异位点
+    将cyvcf2.Variant对象转换为可序列化的VariantData
 
     参数:
     variant: cyvcf2.Variant对象
 
     返回:
+    VariantData: 可序列化的变异位点数据
+    """
+    return VariantData(
+        chrom=variant.CHROM,
+        pos=variant.POS,
+        ref=variant.REF,
+        alt=list(variant.ALT),
+        gt_types=variant.gt_types.tolist(),  # 将numpy数组转换为列表
+        aaf=variant.aaf,
+        is_snp=variant.is_snp,
+    )
+
+
+def process_variant(variant_data: VariantData) -> Optional[VcfStats]:
+    """
+    处理单个变异位点
+
+    参数:
+    variant_data: VariantData对象
+
+    返回:
     Optional[VcfStats]: 如果是有效的SNP，返回统计信息，否则返回None
     """
     # 跳过非双等位基因位点
-    if not variant.is_snp or len(variant.ALT) != 1:
+    if not variant_data.is_snp or len(variant_data.alt) != 1:
         return None
 
     # 获取基因型数据
-    gt_types = variant.gt_types  # 0=HOM_REF, 1=HET, 2=HOM_ALT, 3=UNKNOWN
+    gt_types = np.array(variant_data.gt_types)  # 0=HOM_REF, 1=HET, 2=HOM_ALT, 3=UNKNOWN
     n_samples = len(gt_types)
 
     # 计算统计信息
@@ -65,7 +99,7 @@ def process_variant(variant: Any) -> Optional[VcfStats]:
     het_count = np.sum(gt_types == 1)
 
     # 计算等位基因频率
-    alt_freq = variant.aaf
+    alt_freq = variant_data.aaf
     ref_freq = 1 - alt_freq
     maf = min(ref_freq, alt_freq)
 
@@ -76,28 +110,28 @@ def process_variant(variant: Any) -> Optional[VcfStats]:
 
     # 创建结果
     return VcfStats(
-        chrom=variant.CHROM,
-        pos=variant.POS,
-        alleles=f"{variant.REF},{','.join(variant.ALT)}",
+        chrom=variant_data.chrom,
+        pos=variant_data.pos,
+        alleles=f"{variant_data.ref},{','.join(variant_data.alt)}",
         missing=missing_rate,
         het=het_rate,
         maf=maf,
     )
 
 
-def process_variant_batch(variants: List[Any]) -> List[VcfStats]:
+def process_variant_batch(variant_data_list: List[VariantData]) -> List[VcfStats]:
     """
     处理一批变异位点
 
     参数:
-    variants: 变异位点列表
+    variant_data_list: 变异位点数据列表
 
     返回:
     List[VcfStats]: 有效SNP的统计信息列表
     """
     results = []
-    for variant in variants:
-        result = process_variant(variant)
+    for variant_data in variant_data_list:
+        result = process_variant(variant_data)
         if result:
             results.append(result)
     return results
@@ -246,7 +280,9 @@ def process_variants_in_parallel(
         # 处理变异位点
         variant_count = 0
         for variant in vcf:
-            batch.append(variant)
+            # 转换为可序列化的数据
+            variant_data = variant_to_data(variant)
+            batch.append(variant_data)
             variant_count += 1
 
             if len(batch) >= batch_size:
