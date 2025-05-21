@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional
 import pandas as pd
 import pysam
 import typer
+from tqdm import tqdm
 
 
 @dataclass
@@ -148,7 +149,7 @@ def process_vcf(vcf_file: Path, output_file: Optional[Path] = None) -> pd.DataFr
     results = []
 
     # 遍历VCF文件中的每个变异位点
-    for record in vcf:
+    for record in tqdm(vcf, desc="Processing VCF"):
         result = process_variant(record)
         if result:
             results.append(result)
