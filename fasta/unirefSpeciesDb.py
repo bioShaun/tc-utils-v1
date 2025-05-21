@@ -1,16 +1,17 @@
+import gzip
+import re
+from pathlib import Path
+from typing import Dict, Optional
+
+import pandas as pd
 import typer
 from Bio import SeqIO
-from pathlib import Path
-import pandas as pd
-from typing import Dict, Optional
-import re
-from tqdm import tqdm
-import gzip
 from loguru import logger
+from tqdm import tqdm
 
 
 def parseUnirefDescription(description: str) -> Optional[Dict[str, str]]:
-    pattern = re.compile("(.*) n=(\d+) Tax=(.*) TaxID=(\d+) RepID=(.*)")
+    pattern = re.compile(r"(.*) n=(\d+) Tax=(.*) TaxID=(\d+) RepID=(.*)")
     match_res = pattern.match(description)
     if match_res:
         anno, n, tax, taxid, repid = match_res.groups()

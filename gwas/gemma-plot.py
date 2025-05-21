@@ -49,7 +49,8 @@ def main(out_dir: Path, chr_prefix: str = typer.Option(None)):
             qq_plot_png = out_dir / f"{gt}_{model}_{each_test}.QQ.png"
             if not qq_plot_png.is_file():
                 ax = qqplot(
-                    data=plot_df[f"p_{each_test}"], title=f"{gt} {model_name} ({test_name})"
+                    data=plot_df[f"p_{each_test}"],
+                    title=f"{gt} {model_name} ({test_name})",
                 )
                 qq_plot_prefix = out_dir / f"{gt}_{model}_{each_test}.QQ"
                 plt.savefig(f"{qq_plot_prefix}.png", dpi=300)

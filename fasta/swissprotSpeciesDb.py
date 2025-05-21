@@ -1,16 +1,17 @@
+import gzip
+import re
+from pathlib import Path
+from typing import Dict, Optional
+
+import pandas as pd
 import typer
 from Bio import SeqIO
-from pathlib import Path
-import pandas as pd
-from typing import Dict, Optional
-import re
-from tqdm import tqdm
-import gzip
 from loguru import logger
+from tqdm import tqdm
 
 
 def parseSwissprotDescription(description: str) -> Optional[Dict[str, str]]:
-    pattern = re.compile("(.*) OS=(.*) OX=(\d+) GN=(.*) PE=(\d+) SV=(\d+)")
+    pattern = re.compile(r"(.*) OS=(.*) OX=(\d+) GN=(.*) PE=(\d+) SV=(\d+)")
     match_res = pattern.match(description)
     if match_res:
         anno, os, ox, gn, pe, sv = match_res.groups()
