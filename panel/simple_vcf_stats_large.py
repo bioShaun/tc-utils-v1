@@ -324,7 +324,7 @@ def main(
     结果以TSV格式保存，可用于后续分析。
 
     示例:
-        python vcf_analyzer.py input.vcf.gz -o output.tsv -p 4 -b 2000
+        python simple_vcf_stats_large.py input.vcf.gz -o output.tsv -p 4 -b 2000
     """
     # 如果未提供输出文件，则使用默认名称
     if output is None:
