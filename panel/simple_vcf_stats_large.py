@@ -157,7 +157,7 @@ def stream_process_vcf(
     output_file: Path,
     num_processes: Optional[int] = None,
     batch_size: int = 1000,
-    progress_callback: Optional[Callable[[int, Optional[int]], None]] = None,
+    progress_callback: Optional[Callable[[int], None]] = None,
 ) -> Tuple[int, float]:
     """
     使用cyvcf2流式处理VCF文件
@@ -167,7 +167,7 @@ def stream_process_vcf(
     output_file: 输出表格文件路径
     num_processes: 并行处理的进程数，默认为CPU核心数
     batch_size: 每批处理的记录数
-    progress_callback: 进度回调函数，接收当前处理的变异位点数和总变异位点数
+    progress_callback: 进度回调函数，接收当前处理的变异位点数
 
     返回:
     Tuple[int, float]: (处理的变异位点数, 处理时间)
@@ -181,14 +181,6 @@ def stream_process_vcf(
     # 打开VCF文件
     vcf = open_vcf_file(vcf_file)
 
-    # 尝试获取总变异位点数
-    total_variants = None
-    try:
-        if hasattr(vcf, "n_variants"):
-            total_variants = vcf.n_variants
-    except:
-        pass
-
     # 创建CSV写入器
     with open(output_file, "w", newline="") as f:
         fieldnames = ["chrom", "pos", "alleles", "missing", "het", "maf"]
@@ -197,7 +189,7 @@ def stream_process_vcf(
 
         # 使用ProcessPoolExecutor进行并行处理
         variant_count = process_variants_in_parallel(
-            vcf, writer, num_processes, batch_size, progress_callback, total_variants
+            vcf, writer, num_processes, batch_size, progress_callback
         )
 
     # 计算总处理时间
@@ -210,8 +202,7 @@ def process_variants_in_parallel(
     writer: csv.DictWriter,
     num_processes: int,
     batch_size: int,
-    progress_callback: Optional[Callable[[int, Optional[int]], None]],
-    total_variants: Optional[int],
+    progress_callback: Optional[Callable[[int], None]],
 ) -> int:
     """
     并行处理VCF文件中的变异位点
@@ -222,7 +213,6 @@ def process_variants_in_parallel(
     num_processes: 并行处理的进程数
     batch_size: 每批处理的记录数
     progress_callback: 进度回调函数
-    total_variants: 总变异位点数
 
     返回:
     int: 处理的变异位点数
@@ -256,7 +246,7 @@ def process_variants_in_parallel(
 
             # 更新进度
             if progress_callback:
-                progress_callback(variant_count, total_variants)
+                progress_callback(variant_count)
 
             # 定期检查完成的任务
             if variant_count % (batch_size * 10) == 0:
@@ -276,38 +266,6 @@ def process_variants_in_parallel(
     return variant_count
 
 
-def create_progress_bar(show_progress: bool) -> Optional[tqdm]:
-    """
-    创建进度条
-
-    参数:
-    show_progress: 是否显示进度条
-
-    返回:
-    Optional[tqdm]: 进度条对象，如果不显示则为None
-    """
-    if show_progress:
-        return tqdm(desc="处理变异位点")
-    return None
-
-
-def update_progress_bar(
-    pbar: Optional[tqdm], current: int, total: Optional[int]
-) -> None:
-    """
-    更新进度条
-
-    参数:
-    pbar: 进度条对象
-    current: 当前进度
-    total: 总数
-    """
-    if pbar:
-        pbar.update(1)
-        if total and pbar.total is None:
-            pbar.total = total
-
-
 def main(
     vcf_file: Path = typer.Argument(..., help="输入VCF文件路径"),
     output: Optional[Path] = typer.Option(None, "--output", "-o", help="输出文件路径"),
@@ -324,7 +282,7 @@ def main(
     结果以TSV格式保存，可用于后续分析。
 
     示例:
-        python simple_vcf_stats_large.py input.vcf.gz -o output.tsv -p 4 -b 2000
+        python vcf_analyzer.py input.vcf.gz -o output.tsv -p 4 -b 2000
     """
     # 如果未提供输出文件，则使用默认名称
     if output is None:
@@ -337,10 +295,13 @@ def main(
         typer.echo(f"批处理大小: {batch_size}")
 
         # 创建进度条
-        pbar = create_progress_bar(not no_progress)
+        pbar = None
+        if not no_progress:
+            pbar = tqdm(desc="处理变异位点")
 
-        def update_progress(current, total):
-            update_progress_bar(pbar, current, total)
+        def update_progress(current):
+            if pbar:
+                pbar.update(1)
 
         variant_count, elapsed_time = stream_process_vcf(
             vcf_file,

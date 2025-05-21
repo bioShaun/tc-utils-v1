@@ -235,43 +235,9 @@ def test_process_variants_in_parallel(mock_executor):
     executor_instance.submit.return_value = future
 
     # 调用函数
-    count = va.process_variants_in_parallel(
-        mock_vcf, mock_writer, 2, 1, mock_progress, 2
-    )
+    count = va.process_variants_in_parallel(mock_vcf, mock_writer, 2, 1, mock_progress)
 
     # 检查结果
     assert count == 2
     assert mock_progress.call_count == 2
     assert executor_instance.submit.call_count == 2
-
-
-def test_create_progress_bar():
-    """测试创建进度条"""
-    # 显示进度条
-    pbar = va.create_progress_bar(True)
-    assert pbar is not None
-    pbar.close()
-
-    # 不显示进度条
-    pbar = va.create_progress_bar(False)
-    assert pbar is None
-
-
-def test_update_progress_bar():
-    """测试更新进度条"""
-    # 创建模拟进度条
-    pbar = MagicMock()
-
-    # 更新进度
-    va.update_progress_bar(pbar, 10, 100)
-
-    # 检查调用
-    pbar.update.assert_called_once_with(1)
-
-    # 测试设置总数
-    pbar.total = None
-    va.update_progress_bar(pbar, 10, 100)
-    assert pbar.total == 100
-
-    # 测试无进度条情况
-    va.update_progress_bar(None, 10, 100)  # 不应抛出异常
