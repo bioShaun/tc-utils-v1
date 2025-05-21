@@ -8,6 +8,7 @@ VCF文件流式分析工具
 
 import csv
 import multiprocessing
+import sys
 import time
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
@@ -16,7 +17,6 @@ from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple
 
 import numpy as np
 import typer
-from tqdm import tqdm
 
 
 @dataclass
@@ -152,12 +152,25 @@ def open_vcf_file(vcf_file: Path):
     return cyvcf2.VCF(str(vcf_file))
 
 
+def print_progress(current: int, interval: int = 10000) -> None:
+    """
+    打印进度信息
+
+    参数:
+    current: 当前处理的记录数
+    interval: 打印间隔
+    """
+    if current % interval == 0:
+        sys.stdout.write(f"\r已处理 {current:,} 个变异位点...")
+        sys.stdout.flush()
+
+
 def stream_process_vcf(
     vcf_file: Path,
     output_file: Path,
     num_processes: Optional[int] = None,
     batch_size: int = 1000,
-    progress_callback: Optional[Callable[[int], None]] = None,
+    show_progress: bool = True,
 ) -> Tuple[int, float]:
     """
     使用cyvcf2流式处理VCF文件
@@ -167,7 +180,7 @@ def stream_process_vcf(
     output_file: 输出表格文件路径
     num_processes: 并行处理的进程数，默认为CPU核心数
     batch_size: 每批处理的记录数
-    progress_callback: 进度回调函数，接收当前处理的变异位点数
+    show_progress: 是否显示进度
 
     返回:
     Tuple[int, float]: (处理的变异位点数, 处理时间)
@@ -189,11 +202,17 @@ def stream_process_vcf(
 
         # 使用ProcessPoolExecutor进行并行处理
         variant_count = process_variants_in_parallel(
-            vcf, writer, num_processes, batch_size, progress_callback
+            vcf, writer, num_processes, batch_size, show_progress
         )
 
     # 计算总处理时间
     elapsed_time = time.time() - start_time
+
+    # 清理进度显示
+    if show_progress:
+        sys.stdout.write("\r" + " " * 50 + "\r")  # 清除当前行
+        sys.stdout.flush()
+
     return variant_count, elapsed_time
 
 
@@ -202,7 +221,7 @@ def process_variants_in_parallel(
     writer: csv.DictWriter,
     num_processes: int,
     batch_size: int,
-    progress_callback: Optional[Callable[[int], None]],
+    show_progress: bool,
 ) -> int:
     """
     并行处理VCF文件中的变异位点
@@ -212,7 +231,7 @@ def process_variants_in_parallel(
     writer: CSV写入器
     num_processes: 并行处理的进程数
     batch_size: 每批处理的记录数
-    progress_callback: 进度回调函数
+    show_progress: 是否显示进度
 
     返回:
     int: 处理的变异位点数
@@ -245,8 +264,8 @@ def process_variants_in_parallel(
                 batch = []
 
             # 更新进度
-            if progress_callback:
-                progress_callback(variant_count)
+            if show_progress:
+                print_progress(variant_count)
 
             # 定期检查完成的任务
             if variant_count % (batch_size * 10) == 0:
@@ -273,7 +292,7 @@ def main(
         None, "--processes", "-p", help="并行处理的进程数"
     ),
     batch_size: int = typer.Option(1000, "--batch-size", "-b", help="每批处理的记录数"),
-    no_progress: bool = typer.Option(False, "--no-progress", help="不显示进度条"),
+    no_progress: bool = typer.Option(False, "--no-progress", help="不显示进度"),
 ):
     """
     从VCF文件提取信息并生成表格
@@ -294,28 +313,12 @@ def main(
         typer.echo(f"使用进程数: {processes or '自动'}")
         typer.echo(f"批处理大小: {batch_size}")
 
-        # 创建进度条
-        pbar = None
-        if not no_progress:
-            pbar = tqdm(desc="处理变异位点")
-
-        def update_progress(current):
-            if pbar:
-                pbar.update(1)
-
         variant_count, elapsed_time = stream_process_vcf(
-            vcf_file,
-            output,
-            processes,
-            batch_size,
-            update_progress if not no_progress else None,
+            vcf_file, output, processes, batch_size, not no_progress
         )
 
-        if pbar:
-            pbar.close()
-
         # 显示结果
-        typer.echo(f"\n处理完成!")
+        typer.echo(f"处理完成!")
         typer.echo(f"总变异位点数: {variant_count}")
         typer.echo(f"处理时间: {elapsed_time:.2f}秒")
         typer.echo(f"处理速度: {variant_count/elapsed_time:.2f}变异位点/秒")

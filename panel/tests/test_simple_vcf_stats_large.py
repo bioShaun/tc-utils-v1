@@ -9,7 +9,7 @@ import csv
 import io
 import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
 import numpy as np
 import pytest
@@ -199,7 +199,11 @@ def test_stream_process_vcf(mock_process, mock_open_vcf):
 
         # 调用函数
         variant_count, elapsed_time = va.stream_process_vcf(
-            Path("dummy.vcf"), output_file, num_processes=2, batch_size=50
+            Path("dummy.vcf"),
+            output_file,
+            num_processes=2,
+            batch_size=50,
+            show_progress=False,
         )
 
         # 检查结果
@@ -208,11 +212,12 @@ def test_stream_process_vcf(mock_process, mock_open_vcf):
 
         # 验证调用
         mock_open_vcf.assert_called_once()
-        mock_process.assert_called_once()
+        mock_process.assert_called_once_with(mock_vcf, ANY, 2, 50, False)
 
 
 @patch("panel.simple_vcf_stats_large.ProcessPoolExecutor")
-def test_process_variants_in_parallel(mock_executor):
+@patch("panel.simple_vcf_stats_large.print_progress")
+def test_process_variants_in_parallel(mock_print_progress, mock_executor):
     """测试并行处理变异位点"""
     # 设置模拟对象
     mock_vcf = MagicMock()
@@ -222,7 +227,6 @@ def test_process_variants_in_parallel(mock_executor):
     ]
 
     mock_writer = MagicMock()
-    mock_progress = MagicMock()
 
     # 设置executor
     executor_instance = MagicMock()
@@ -235,9 +239,24 @@ def test_process_variants_in_parallel(mock_executor):
     executor_instance.submit.return_value = future
 
     # 调用函数
-    count = va.process_variants_in_parallel(mock_vcf, mock_writer, 2, 1, mock_progress)
+    count = va.process_variants_in_parallel(mock_vcf, mock_writer, 2, 1, True)
 
     # 检查结果
     assert count == 2
-    assert mock_progress.call_count == 2
+    assert mock_print_progress.call_count == 2
     assert executor_instance.submit.call_count == 2
+
+
+def test_print_progress(capsys):
+    """测试打印进度"""
+    # 调用函数
+    va.print_progress(10000)
+
+    # 捕获输出
+    captured = capsys.readouterr()
+    assert "已处理 10,000 个变异位点" in captured.out
+
+    # 测试不满足间隔的情况
+    va.print_progress(9999)
+    captured = capsys.readouterr()
+    assert captured.out == ""  # 不应该有输出
