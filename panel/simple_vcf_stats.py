@@ -159,7 +159,7 @@ def process_vcf(vcf_file: Path, output_file: Optional[Path] = None) -> pd.DataFr
 
     # 保存到文件
     if output_file:
-        df.to_csv(output_file, index=False)
+        df.to_csv(output_file, index=False, sep="\t")
 
     return df
 
@@ -173,7 +173,7 @@ def main(
     """
     # 如果未提供输出文件，则使用默认名称
     if output is None:
-        output = Path(f"{vcf_file.stem}_stats.csv")
+        output = Path(f"{vcf_file.stem}_stats.tsv")
 
     # 处理VCF文件
     df = process_vcf(vcf_file, output)
