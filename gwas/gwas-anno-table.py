@@ -1,5 +1,6 @@
 from enum import StrEnum
 from pathlib import Path
+from typing import Optional
 
 import delegator
 import pandas as pd
@@ -42,29 +43,34 @@ class AnnoType(StrEnum):
 
 def main(
     snpeff_vcf: Path,
-    anno_file: Path,
     out_file: Path,
     snpeff_dir: Path,
     force: bool = False,
     anno_type: AnnoType = AnnoType.EGGNOG,
+    anno_file: Optional[Path] = None,
 ) -> None:
     logger.info("extract snpeff annotation ...")
     snpeff_anno_file = extract_snpeff_anno(
         vcf_path=snpeff_vcf, snpeff_dir=snpeff_dir, force=force
     )
-    if anno_type == AnnoType.EGGNOG:
-        ann_df = pd.read_table(anno_file, sep="\t", skiprows=4, usecols=[0, 7])
-        ann_df.columns = ["transcript_id", "description"]
-    else:
-        ann_df = pd.read_table(anno_file, sep="\t")
+
     snpeff_df = pd.read_table(snpeff_anno_file)
     snpeff_df.rename(columns=COLUMN_MAP, inplace=True)
     snpeff_df.drop_duplicates(subset=["chrom", "pos"], inplace=True)
-    logger.info("merge annotation ...")
-    merged_df = snpeff_df.merge(ann_df, how="left")
-    merged_df.fillna("--", inplace=True)
-    logger.info("save annotation ...")
-    merged_df.to_csv(out_file, sep="\t", index=False)
+    if anno_file is None:
+        logger.info("save annotation ...")
+        snpeff_df.to_csv(out_file, sep="\t", index=False)
+    else:
+        if anno_type == AnnoType.EGGNOG:
+            ann_df = pd.read_table(anno_file, sep="\t", skiprows=4, usecols=[0, 7])
+            ann_df.columns = ["transcript_id", "description"]
+        else:
+            ann_df = pd.read_table(anno_file, sep="\t")
+        logger.info("merge annotation ...")
+        merged_df = snpeff_df.merge(ann_df, how="left")
+        merged_df.fillna("--", inplace=True)
+        logger.info("save annotation ...")
+        merged_df.to_csv(out_file, sep="\t", index=False)
 
 
 if __name__ == "__main__":
