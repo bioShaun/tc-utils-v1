@@ -2,7 +2,7 @@
 """
 VCF文件流式分析工具
 
-此脚本使用cyvcf2库高效处理VCF文件，计算每个变异位点的统计信息。
+此脚本使用pysam库高效处理VCF文件，计算每个变异位点的统计信息。
 支持流式处理大型文件，并提供并行计算功能。
 """
 
@@ -50,29 +50,74 @@ class VariantData:
     pos: int
     ref: str
     alt: List[str]
-    gt_types: List[int]
+    gt_types: List[int]  # 0=HOM_REF, 1=HET, 2=HOM_ALT, 3=UNKNOWN
     aaf: float
     is_snp: bool
 
 
-def variant_to_data(variant: Any) -> VariantData:
+def variant_to_data(variant: Any, samples: List[str]) -> VariantData:
     """
-    将cyvcf2.Variant对象转换为可序列化的VariantData
+    将pysam.VariantRecord对象转换为可序列化的VariantData
 
     参数:
-    variant: cyvcf2.Variant对象
+    variant: pysam.VariantRecord对象
+    samples: 样本名称列表
 
     返回:
     VariantData: 可序列化的变异位点数据
     """
+    # 提取基因型数据
+    gt_types = []
+    alt_allele_count = 0
+    total_allele_count = 0
+
+    for sample in samples:
+        # 获取样本的基因型
+        if sample not in variant.samples:
+            gt_types.append(3)  # 未知/缺失
+            continue
+
+        call = variant.samples[sample]
+
+        # 检查是否有基因型数据
+        if "GT" not in call or call["GT"] is None or None in call["GT"]:
+            gt_types.append(3)  # 未知/缺失
+            continue
+
+        # 解析基因型
+        gt = call["GT"]
+
+        # 计算等位基因频率
+        for allele in gt:
+            if allele is not None and allele > 0:  # 非参考等位基因
+                alt_allele_count += 1
+            if allele is not None:  # 任何非缺失等位基因
+                total_allele_count += 1
+
+        # 确定基因型类型
+        if gt[0] == 0 and gt[1] == 0:  # 纯合参考
+            gt_types.append(0)
+        elif gt[0] != gt[1]:  # 杂合
+            gt_types.append(1)
+        elif gt[0] > 0 and gt[1] > 0:  # 纯合变异
+            gt_types.append(2)
+        else:  # 其他情况
+            gt_types.append(3)
+
+    # 计算等位基因频率
+    aaf = alt_allele_count / total_allele_count if total_allele_count > 0 else 0
+
+    # 检查是否为SNP
+    is_snp = all(len(alt) == 1 and len(variant.ref) == 1 for alt in variant.alts)
+
     return VariantData(
-        chrom=variant.CHROM,
-        pos=variant.POS,
-        ref=variant.REF,
-        alt=list(variant.ALT),
-        gt_types=variant.gt_types.tolist(),  # 将numpy数组转换为列表
-        aaf=variant.aaf,
-        is_snp=variant.is_snp,
+        chrom=variant.chrom,
+        pos=variant.pos,
+        ref=variant.ref,
+        alt=list(variant.alts) if variant.alts else [],
+        gt_types=gt_types,
+        aaf=aaf,
+        is_snp=is_snp,
     )
 
 
@@ -170,20 +215,20 @@ def process_completed_futures(futures: Dict[Any, bool], writer: csv.DictWriter) 
 
 def open_vcf_file(vcf_file: Path):
     """
-    打开VCF文件并返回cyvcf2.VCF对象
+    打开VCF文件并返回pysam.VariantFile对象
 
     参数:
     vcf_file: VCF文件路径
 
     返回:
-    cyvcf2.VCF: VCF文件对象
+    pysam.VariantFile: VCF文件对象
     """
     try:
-        import cyvcf2
+        import pysam
     except ImportError:
-        raise ImportError("请先安装cyvcf2库: pip install cyvcf2")
+        raise ImportError("请先安装pysam库: pip install pysam")
 
-    return cyvcf2.VCF(str(vcf_file))
+    return pysam.VariantFile(str(vcf_file))
 
 
 def print_progress(current: int, interval: int = 10000) -> None:
@@ -207,7 +252,7 @@ def stream_process_vcf(
     show_progress: bool = True,
 ) -> Tuple[int, float]:
     """
-    使用cyvcf2流式处理VCF文件
+    使用pysam流式处理VCF文件
 
     参数:
     vcf_file: VCF文件路径
@@ -227,6 +272,7 @@ def stream_process_vcf(
 
     # 打开VCF文件
     vcf = open_vcf_file(vcf_file)
+    samples = list(vcf.header.samples)
 
     # 创建CSV写入器
     with open(output_file, "w", newline="") as f:
@@ -236,7 +282,7 @@ def stream_process_vcf(
 
         # 使用ProcessPoolExecutor进行并行处理
         variant_count = process_variants_in_parallel(
-            vcf, writer, num_processes, batch_size, show_progress
+            vcf, samples, writer, num_processes, batch_size, show_progress
         )
 
     # 计算总处理时间
@@ -252,6 +298,7 @@ def stream_process_vcf(
 
 def process_variants_in_parallel(
     vcf,
+    samples: List[str],
     writer: csv.DictWriter,
     num_processes: int,
     batch_size: int,
@@ -261,7 +308,8 @@ def process_variants_in_parallel(
     并行处理VCF文件中的变异位点
 
     参数:
-    vcf: cyvcf2.VCF对象
+    vcf: pysam.VariantFile对象
+    samples: 样本名称列表
     writer: CSV写入器
     num_processes: 并行处理的进程数
     batch_size: 每批处理的记录数
@@ -281,7 +329,7 @@ def process_variants_in_parallel(
         variant_count = 0
         for variant in vcf:
             # 转换为可序列化的数据
-            variant_data = variant_to_data(variant)
+            variant_data = variant_to_data(variant, samples)
             batch.append(variant_data)
             variant_count += 1
 
@@ -333,7 +381,7 @@ def main(
     """
     从VCF文件提取信息并生成表格
 
-    此脚本使用cyvcf2库进行高效的VCF文件处理，计算每个变异位点的缺失率、杂合率和次等位基因频率(MAF)。
+    此脚本使用pysam库进行高效的VCF文件处理，计算每个变异位点的缺失率、杂合率和次等位基因频率(MAF)。
     结果以TSV格式保存，可用于后续分析。
 
     示例:
@@ -373,7 +421,7 @@ def main(
 
     except ImportError as e:
         typer.echo(f"错误: {e}", err=True)
-        typer.echo("请安装cyvcf2: pip install cyvcf2", err=True)
+        typer.echo("请安装pysam: pip install pysam", err=True)
         raise typer.Exit(code=1)
     except Exception as e:
         typer.echo(f"处理过程中发生错误: {e}", err=True)
