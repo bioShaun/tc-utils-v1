@@ -1,0 +1,9 @@
+pandas
+numpy
+matplotlib
+typer
+tqdm
+delegator
+loguru
+pandera
+attrs
