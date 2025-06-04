@@ -7,3 +7,5 @@ delegator
 loguru
 pandera
 attrs
+pysam
+pytest-cov
