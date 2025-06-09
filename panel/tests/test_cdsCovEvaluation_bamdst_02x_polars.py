@@ -22,6 +22,8 @@ from panel.cdsCovEvaluation_bamdst_02x_polars import (
     write_output,
 )
 
+BAMDST_HEADER = ["#Chr", "Pos", "Raw Depth"]
+
 
 # ---- 日志桥接 fixture ----
 @pytest.fixture(autouse=True)
@@ -135,6 +137,7 @@ class TestLoadSingleDepthFile:
 
         f = tmp_path / "depth.tsv.gz"
         with gzip.open(f, "wt") as fp:
+            fp.write("\t".join(BAMDST_HEADER) + "\n")
             fp.write("\n".join(lines))
         return f
 
@@ -172,6 +175,7 @@ class TestLoadBedFiles:
             d.mkdir()
             lines = [f"chr1\t{100+i}\t{10*(i+1)}" for i in range(nrows)]
             with gzip.open(d / "depth.tsv.gz", "wt") as fp:
+                fp.write("\t".join(BAMDST_HEADER) + "\n")
                 fp.write("\n".join(lines))
         return tmp_path
 
@@ -272,6 +276,7 @@ class TestMain:
             d.mkdir(parents=True)
             lines = ["chr1\t100\t10", "chr1\t200\t20", "chr1\t300\t15"]
             with gzip.open(d / "depth.tsv.gz", "wt") as fp:
+                fp.write("\t".join(BAMDST_HEADER) + "\n")
                 fp.write("\n".join(lines))
         sample_file = tmp_path / "samples.txt"
         sample_file.write_text("s1\ns2\n")
@@ -375,6 +380,7 @@ class TestIntegration:
             d = cds_dir / s
             d.mkdir(parents=True)
             with gzip.open(d / "depth.tsv.gz", "wt") as fp:
+                fp.write("\t".join(BAMDST_HEADER) + "\n")
                 fp.write("\n".join([f"chr1\t{i*10}\t{10+i}" for i in range(5)]))
 
         sample_file = tmp_path / "samples.txt"
@@ -417,6 +423,7 @@ def test_large_dataset_performance(tmp_path):
         d.mkdir(parents=True)
         content = [f"chr1\t{j*10}\t{10 + (j+i)%30}" for j in range(num_regions)]
         with gzip.open(d / "depth.tsv.gz", "wt") as fp:
+            fp.write("\t".join(BAMDST_HEADER) + "\n")
             fp.write("\n".join(content))
     out = tmp_path / "o.tsv"
     app = typer.Typer()

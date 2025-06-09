@@ -102,7 +102,7 @@ def load_single_depth_file(
 ) -> Optional[pl.DataFrame]:
     try:
         logging.debug(f"Loading depth file: {depth_file}")
-        df_i = pl.read_csv(depth_file, separator="\t", has_header=False)
+        df_i = pl.read_csv(depth_file, separator="\t", has_header=True)
         if df_i.is_empty():
             logging.warning(f"Empty depth file: {depth_file}")
             return None
@@ -146,13 +146,14 @@ def load_bed_files(
             bed_df = pl.read_csv(
                 bed_list[0],
                 separator="\t",
-                has_header=False,
+                has_header=True,
             )
+            print(bed_df.columns)
             bed_df = (
                 bed_df.select(
                     [
-                        pl.col(bed_df.columns[0]).alias("chrom"),
-                        pl.col(bed_df.columns[1]).alias("end"),
+                        pl.col("#Chr").alias("chrom"),
+                        pl.col("Pos").alias("end"),
                     ]
                 )
                 .with_columns((pl.col("end") - 1).alias("start"))
