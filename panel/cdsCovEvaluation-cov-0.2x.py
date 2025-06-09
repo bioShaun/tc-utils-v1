@@ -33,24 +33,25 @@ def merge_chr(df: pd.DataFrame, split_bed: Path) -> pd.DataFrame:
 def load_bed_files(
     bed_dir: Path,
     sample_list: Optional[List[str]] = None,
-    header: bool = True,
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     df_list = []
-    bed_list = sorted(list(bed_dir.glob("*/region.tsv.gz")))
-    has_header = 
+    bed_list = list(bed_dir.glob("*.bed"))
     bed_df = pd.read_table(bed_list[0], usecols=[0, 1, 2])
     bed_df.columns = ["chrom", "start", "end"]
     for bed_i in bed_list:
         logger.info(f"Load {bed_i} ...")
-        sample_name = bed_i.parent.name
+        sample_name = bed_i.stem.rstrip(".cov")
         if sample_list is not None:
             if sample_name not in sample_list:
                 continue
-        df_i = pd.read_table(bed_i, usecols=[3])
-        df_i.columns = [sample_name]
+        df_i = pd.read_table(
+            bed_i, header=None, names=["start", "end", "depth"], usecols=[1, 2, 3]
+        )
+        df_i["span"] = df_i["end"] - df_i["start"]
+        df_i[sample_name] = df_i["depth"] / df_i["span"]
         depth_02x: float = df_i[sample_name].mean() * 0.2
         df_i[sample_name] = df_i[sample_name] >= depth_02x
-        df_list.append(df_i)
+        df_list.append(df_i[[sample_name]])
     df = reduce(
         lambda x, y: pd.merge(x, y, left_index=True, right_index=True),
         df_list,
@@ -61,7 +62,6 @@ def load_bed_files(
 def main(
     cds_cov_dir: Path,
     out_file: Path,
-    header: bool = True,
     split_bed: Path = typer.Option(None),
     sample_path: Optional[Path] = typer.Option(None),
 ) -> None:
