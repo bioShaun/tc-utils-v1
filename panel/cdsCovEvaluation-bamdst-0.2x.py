@@ -74,6 +74,7 @@ def main(
     if not split_bed is None:
         bed_df = merge_chr(bed_df, split_bed)
     cover_ratio_df = pd.concat([bed_df, cover_ratio_df], axis=1)
+
     cover_ratio_df.to_csv(out_file, index=False, float_format="%.3f", sep="\t")
 
 
