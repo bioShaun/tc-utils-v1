@@ -54,7 +54,7 @@ def load_bed_files(
         lambda x, y: pd.merge(x, y, left_index=True, right_index=True),
         df_list,
     )
-    return bed_df, df
+    return bed_df[["chrom", "start", "end"]], df
 
 
 def main(
