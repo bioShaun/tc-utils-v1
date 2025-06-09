@@ -136,7 +136,7 @@ def load_bed_files(
 ) -> Tuple[pl.DataFrame, pl.DataFrame]:
     try:
         validate_input_path(bed_dir, "directory")
-        bed_list = sorted(list(bed_dir.glob("*/depth.tsv")))
+        bed_list = sorted(list(bed_dir.glob("*/depth.tsv.gz")))
         if not bed_list:
             raise FileProcessingError(f"No depth.tsv files found in {bed_dir}")
         logging.info(f"Found {len(bed_list)} depth files")
@@ -221,7 +221,6 @@ def load_sample_list(sample_path: Path) -> List[str]:
         return sample_list
     except Exception as e:
         raise FileProcessingError(f"Failed to load sample list from {sample_path}: {e}")
-
 
 
 def write_output(

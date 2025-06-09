@@ -1,3 +1,4 @@
+import gzip
 import logging
 from pathlib import Path
 
@@ -130,8 +131,11 @@ class TestMergeChr:
 # ========== load_single_depth_file ==========
 class TestLoadSingleDepthFile:
     def create_depth_file(self, tmp_path, lines):
-        f = tmp_path / "depth.tsv"
-        f.write_text("\n".join(lines))
+        import gzip
+
+        f = tmp_path / "depth.tsv.gz"
+        with gzip.open(f, "wt") as fp:
+            fp.write("\n".join(lines))
         return f
 
     def test_load_single_depth_file_success(self, tmp_path):
@@ -167,7 +171,8 @@ class TestLoadBedFiles:
             d = tmp_path / s
             d.mkdir()
             lines = [f"chr1\t{100+i}\t{10*(i+1)}" for i in range(nrows)]
-            (d / "depth.tsv").write_text("\n".join(lines))
+            with gzip.open(d / "depth.tsv.gz", "wt") as fp:
+                fp.write("\n".join(lines))
         return tmp_path
 
     def test_load_bed_files_success(self, tmp_path):
@@ -266,7 +271,8 @@ class TestMain:
             d = cds_dir / s
             d.mkdir(parents=True)
             lines = ["chr1\t100\t10", "chr1\t200\t20", "chr1\t300\t15"]
-            (d / "depth.tsv").write_text("\n".join(lines))
+            with gzip.open(d / "depth.tsv.gz", "wt") as fp:
+                fp.write("\n".join(lines))
         sample_file = tmp_path / "samples.txt"
         sample_file.write_text("s1\ns2\n")
         split_bed_file = tmp_path / "split.bed"
@@ -368,8 +374,9 @@ class TestIntegration:
         for s in ["a", "b"]:
             d = cds_dir / s
             d.mkdir(parents=True)
-            dfile = d / "depth.tsv"
-            dfile.write_text("\n".join([f"chr1\t{i*10}\t{10+i}" for i in range(5)]))
+            with gzip.open(d / "depth.tsv.gz", "wt") as fp:
+                fp.write("\n".join([f"chr1\t{i*10}\t{10+i}" for i in range(5)]))
+
         sample_file = tmp_path / "samples.txt"
         sample_file.write_text("a\nb\n")
         split_bed_file = tmp_path / "split.bed"
@@ -409,7 +416,8 @@ def test_large_dataset_performance(tmp_path):
         d = cds_dir / f"s{i}"
         d.mkdir(parents=True)
         content = [f"chr1\t{j*10}\t{10 + (j+i)%30}" for j in range(num_regions)]
-        (d / "depth.tsv").write_text("\n".join(content))
+        with gzip.open(d / "depth.tsv.gz", "wt") as fp:
+            fp.write("\n".join(content))
     out = tmp_path / "o.tsv"
     app = typer.Typer()
     app.command()(main)
