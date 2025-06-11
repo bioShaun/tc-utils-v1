@@ -92,6 +92,12 @@ def write_nextflow_input(fq_df: pd.DataFrame, output_dir: Path):
             f.write(f"{cmd}\n")
 
 
+def log_miss(df: pd.DataFrame):
+    miss_df = df[df["path"].isna()]
+    miss_samples = miss_df["sample_id"].unique()
+    logger.info(f"缺失 {len(miss_samples)} 个样品的数据: {miss_samples}")
+
+
 @app.command()
 def main(
     sample_info: Path = typer.Option(
