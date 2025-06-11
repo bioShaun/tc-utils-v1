@@ -121,7 +121,7 @@ def run_scripts_in_parallel(scripts_dir: Path, max_workers=8):
 
 @app.command()
 def main(
-    sample_info: Path = typer.Option(
+    sample_info: Path = typer.Argument(
         ..., help="样品信息TSV文件，必须包含libid、sample_id、batch_dir列"
     ),
     base_dir: Path = typer.Option(BASE_DIR, help="包含所有FASTQ路径的文本文件"),
