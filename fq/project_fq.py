@@ -125,7 +125,6 @@ def main(
         ..., help="样品信息TSV文件，必须包含libid、sample_id、batch_dir列"
     ),
     base_dir: Path = typer.Option(BASE_DIR, help="包含所有FASTQ路径的文本文件"),
-    data_cuoff: float = typer.Option(0.01, help="数据量阈值"),
     output_dir: Optional[Path] = typer.Option(
         None, help="Nextflow输入bash文件保存目录"
     ),
@@ -140,10 +139,8 @@ def main(
         usecols=[0, 1, 2, 3],
     )
 
-    passed_sample_df = sample_df[sample_df["data_size"] >= data_cuoff]
-
     libid_map = load_config(base_dir)
-    add_fq_df = passed_sample_df.merge(libid_map, how="left")
+    add_fq_df = sample_df.merge(libid_map, how="left")
     log_miss(add_fq_df)
     add_fq_df.to_csv(check_file, sep="\t", index=False)
     if output_dir is not None:
