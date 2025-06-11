@@ -78,7 +78,7 @@ def group_fastq_by_sample(libid_map, libid_to_sample):
 
 def merge_or_link_sh(fq_list: List[str], name: str):
     if len(fq_list) == 1:
-        return f"ln -s {fq_list[0]} {name}"
+        return f"cp {fq_list[0]} {name}"
     return f"cat {' '.join(fq_list)} > {name}"
 
 
@@ -89,7 +89,7 @@ def write_nextflow_input(fq_df: pd.DataFrame, output_dir: Path):
         out_fq = output_dir.absolute() / f"{sample_id}.{read_type}.fq.gz"
         fq_list = sorted(sample_df["path"].to_list())
         cmd_file = scripts_dir / f"mergeFastq-{sample_id}-{read_type}.sh"
-        cmd = merge_or_link_sh(fq_list, str(output_dir))
+        cmd = merge_or_link_sh(fq_list, str(out_fq))
         with open(cmd_file, "w") as f:
             f.write(f"{cmd}\n")
 
