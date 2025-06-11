@@ -102,11 +102,13 @@ class FastqProcessor:
 
         return pd.DataFrame(libid_map)
 
-    def read_or_build_config(self, fq_line_dir: Path) -> pd.DataFrame:
+    def read_or_build_config(
+        self, fq_line_dir: Path, force_rebuild: bool = False
+    ) -> pd.DataFrame:
         """读取或构建配置文件"""
         config_file = fq_line_dir / "libid_fastq_config.tsv"
 
-        if config_file.exists():
+        if not force_rebuild and config_file.exists():
             try:
                 logger.info(f"使用已有配置文件: {config_file}")
                 df = pd.read_table(config_file)
@@ -130,7 +132,9 @@ class FastqProcessor:
 
         return libid_map
 
-    def load_config(self, fq_lines: np.ndarray) -> pd.DataFrame:
+    def load_config(
+        self, fq_lines: np.ndarray, force_rebuild: bool = False
+    ) -> pd.DataFrame:
         """加载所有相关的配置"""
         libid_map_list = []
         target_dirs = []
@@ -363,18 +367,9 @@ def run(
         # 初始化处理器
         processor = FastqProcessor(base_dir)
 
-        # 如果需要强制重建，删除现有配置文件
-        if force_rebuild:
-            logger.info("强制重建模式：删除现有配置文件")
-            for date_dir in base_dir.glob("20*"):
-                for tcwl_dir in date_dir.glob("tcwl-*"):
-                    config_file = tcwl_dir / "libid_fastq_config.tsv"
-                    if config_file.exists():
-                        config_file.unlink()
-
         # 加载配置
         logger.info("加载FASTQ文件配置")
-        libid_map = processor.load_config(sample_libs)
+        libid_map = processor.load_config(sample_libs, force_rebuild=force_rebuild)
 
         if libid_map.empty:
             logger.error("未找到任何FASTQ文件配置")
