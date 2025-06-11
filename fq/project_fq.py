@@ -99,7 +99,9 @@ def main(
     ),
     base_dir: Path = typer.Option(..., help="包含所有FASTQ路径的文本文件"),
     data_cuoff: float = typer.Option(0.01, help="数据量阈值"),
-    output: Path = typer.Option("nextflow_input.tsv", help="Nextflow输入TSV输出文件"),
+    output_dir: Path = typer.Option(
+        "nextflow_dir", help="Nextflow输入bash文件保存目录"
+    ),
 ):
     sample_df = pd.read_table(
         sample_info,
@@ -112,8 +114,10 @@ def main(
 
     libid_map = load_config(base_dir)
     add_fq_df = passed_sample_df.merge(libid_map, how="left")
-    add_fq_df.to_csv(output, sep="\t", index=False)
-    typer.echo(f"已写入Nextflow输入文件: {output}")
+    # add_fq_df.to_csv(output, sep="\t", index=False)
+    output_dir.mkdir(exist_ok=True, parents=True)
+    write_nextflow_input(add_fq_df, base_dir)
+    typer.echo(f"已写入Nextflow输入文件: {output_dir}")
 
 
 if __name__ == "__main__":
