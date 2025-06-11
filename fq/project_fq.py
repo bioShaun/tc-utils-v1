@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pandas as pd
 import typer
+from loguru import logger
 
 app = typer.Typer()
 
@@ -41,21 +42,27 @@ def build_libid_fastq_map(fastq_path: Path) -> pd.DataFrame:
     return pd.DataFrame(libid_map)
 
 
-def read_or_build_config(base_dir: Path) -> pd.DataFrame:
-    config_file = base_dir / "libid_fastq_config.tsv"
+def read_or_build_config(fq_line_dir: Path) -> pd.DataFrame:
+    config_file = fq_line_dir / "libid_fastq_config.tsv"
     if config_file.exists():
         typer.echo(f"使用已有配置文件: {config_file}")
         return pd.read_table(config_file)
-    else:
-        libid_map_list = []
-        for each_path in base_dir.glob("*/tcwl-*"):
-            if each_path.parent.name.startswith("20"):
-                libid_map = build_libid_fastq_map(each_path)
-                libid_map["dir_name"] = each_path.name
-                libid_map_list.append(libid_map)
-        all_libid_map = pd.concat(libid_map_list)
-        all_libid_map.to_csv(config_file, sep="\t", index=False)
-        return all_libid_map
+
+    libid_map = build_libid_fastq_map(fq_line_dir)
+    libid_map["dir_name"] = fq_line_dir.name
+    libid_map.to_csv(config_file, sep="\t", index=False)
+    return libid_map
+
+
+def load_config(base_dir: Path) -> pd.DataFrame:
+    libid_map_list = []
+    for each_path in base_dir.glob("*/tcwl-*"):
+        if each_path.parent.name.startswith("20"):
+            logger.info(f"获取libid-fastq配置：{each_path.name}")
+            libid_map = read_or_build_config(each_path)
+            libid_map_list.append(libid_map)
+    all_libid_map = pd.concat(libid_map_list)
+    return all_libid_map
 
 
 def group_fastq_by_sample(libid_map, libid_to_sample):
