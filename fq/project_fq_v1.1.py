@@ -433,6 +433,7 @@ def validate(
             sample_info,
             header=None,
             names=["libid", "sample_id", "data_size", "dir_name"],
+            usecols=[0, 1, 2, 3],
         )
         sample_df = validate_sample_info(sample_df)
 
