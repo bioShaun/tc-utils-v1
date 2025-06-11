@@ -121,6 +121,7 @@ def main(
 
     libid_map = load_config(base_dir)
     add_fq_df = passed_sample_df.merge(libid_map, how="left")
+    log_miss(add_fq_df)
     add_fq_df.to_csv(check_file, sep="\t", index=False)
     if output_dir is not None:
         output_dir.mkdir(exist_ok=True, parents=True)
