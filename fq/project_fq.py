@@ -3,6 +3,7 @@
 
 from collections import defaultdict
 from pathlib import Path
+from typing import List
 
 import pandas as pd
 import typer
@@ -75,19 +76,21 @@ def group_fastq_by_sample(libid_map, libid_to_sample):
     return sample_files
 
 
-def write_nextflow_input(sample_files, output_file: Path):
-    rows = []
-    for sample_id, reads in sample_files.items():
-        for read_type, paths in reads.items():
-            rows.append(
-                {
-                    "sample_id": sample_id,
-                    "read_type": read_type,
-                    "input_files": ",".join(paths),
-                }
-            )
-    df = pd.DataFrame(rows)
-    df.to_csv(output_file, sep="\t", index=False)
+def merge_or_link_sh(fq_list: List[str], name: str):
+    if len(fq_list) == 1:
+        return f"cp {fq_list[0]} {name}"
+    return f"cat {' '.join(fq_list)} > {name}"
+
+
+def write_nextflow_input(fq_df: pd.DataFrame, output_file: Path):
+    with open(output_file, "w") as f:
+        for (sample_id, read_type), sample_df in fq_df.groupby(
+            ["sample_id", "read_type"]
+        ):
+            out_fq = f"{sample_id}.{read_type}.fq.gz"
+            fq_list = sorted(sample_df["path"].to_list())
+            cmd = merge_or_link_sh(fq_list, out_fq)
+            f.write(f"{cmd}\n")
 
 
 @app.command()
@@ -96,16 +99,20 @@ def main(
         ..., help="样品信息TSV文件，必须包含libid、sample_id、batch_dir列"
     ),
     base_dir: Path = typer.Option(..., help="包含所有FASTQ路径的文本文件"),
+    data_cuoff: float = typer.Option(0.01, help="数据量阈值"),
     output: Path = typer.Option("nextflow_input.tsv", help="Nextflow输入TSV输出文件"),
 ):
     sample_df = pd.read_table(
         sample_info,
         header=None,
-        names=["libid", "sample_id", "dir_name"],
-        usecols=[0, 1, 3],
+        names=["libid", "sample_id", "data_size", "dir_name"],
+        usecols=[0, 1, 2, 3],
     )
+
+    passed_sample_df = sample_df[sample_df["data_size"] >= data_cuoff]
+
     libid_map = load_config(base_dir)
-    add_fq_df = sample_df.merge(libid_map, how="left")
+    add_fq_df = passed_sample_df.merge(libid_map, how="left")
     add_fq_df.to_csv(output, sep="\t", index=False)
     typer.echo(f"已写入Nextflow输入文件: {output}")
 
