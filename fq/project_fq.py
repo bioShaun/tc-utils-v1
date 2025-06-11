@@ -1,0 +1,107 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+from collections import defaultdict
+from pathlib import Path
+
+import pandas as pd
+import typer
+
+app = typer.Typer()
+
+
+def parse_fastq_filename(sample_path: Path):
+    filename = sample_path.name
+    fastqs = list(sample_path.glob("*.fastq.gz"))
+
+    lib_id = filename.split("-")[-1]
+    lib_info = []
+
+    for fq in fastqs:
+        if fq.name.endswith("combined_R1.fastq.gz"):
+            read_type = "R1"
+        elif fq.name.endswith("combined_R2.fastq.gz"):
+            read_type = "R2"
+        else:
+            raise Exception("无法识别的fastq文件名")
+        lib_info.append(
+            {"libid": lib_id, "read_type": read_type, "path": fq.absolute()}
+        )
+    return lib_info
+
+
+def build_libid_fastq_map(fastq_path: Path) -> pd.DataFrame:
+    libid_map = []
+    for path in fastq_path.glob("Sample*"):
+        try:
+            info = parse_fastq_filename(path)
+            libid_map.extend(info)
+        except Exception:
+            continue
+    return pd.DataFrame(libid_map)
+
+
+def read_or_build_config(base_dir: Path) -> pd.DataFrame:
+    config_file = base_dir / "libid_fastq_config.tsv"
+    if config_file.exists():
+        typer.echo(f"使用已有配置文件: {config_file}")
+        return pd.read_table(config_file)
+    else:
+        libid_map_list = []
+        for each_path in base_dir.glob("*/tcwl-*"):
+            if each_path.parent.name.startswith("20"):
+                libid_map = build_libid_fastq_map(each_path)
+                libid_map["dir_name"] = each_path.name
+                libid_map_list.append(libid_map)
+        all_libid_map = pd.concat(libid_map_list)
+        all_libid_map.to_csv(config_file, sep="\t", index=False)
+        return all_libid_map
+
+
+def group_fastq_by_sample(libid_map, libid_to_sample):
+    sample_files = defaultdict(lambda: defaultdict(list))
+    for libid, reads in libid_map.items():
+        sample_id = libid_to_sample.get(libid)
+        if sample_id:
+            for read_type, paths in reads.items():
+                sample_files[sample_id][read_type].extend(paths)
+    return sample_files
+
+
+def write_nextflow_input(sample_files, output_file: Path):
+    rows = []
+    for sample_id, reads in sample_files.items():
+        for read_type, paths in reads.items():
+            rows.append(
+                {
+                    "sample_id": sample_id,
+                    "read_type": read_type,
+                    "input_files": ",".join(paths),
+                }
+            )
+    df = pd.DataFrame(rows)
+    df.to_csv(output_file, sep="\t", index=False)
+
+
+@app.command()
+def main(
+    sample_info: Path = typer.Option(
+        ..., help="样品信息TSV文件，必须包含libid、sample_id、batch_dir列"
+    ),
+    base_dir: Path = typer.Option(..., help="包含所有FASTQ路径的文本文件"),
+    output: Path = typer.Option("nextflow_input.tsv", help="Nextflow输入TSV输出文件"),
+):
+    sample_df = pd.read_table(
+        sample_info,
+        header=None,
+        names=["libid", "sample_id", "dir_name"],
+        usecols=[0, 1, 3],
+    )
+    libid_map = read_or_build_config(base_dir)
+    add_fq_df = sample_df.merge(libid_map, how="left")
+    add_fq_df.to_csv(output, sep="\t", index=False)
+    typer.echo(f"已写入Nextflow输入文件: {output}")
+
+
+if __name__ == "__main__":
+    app()

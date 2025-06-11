@@ -148,7 +148,6 @@ def load_bed_files(
                 separator="\t",
                 has_header=True,
             )
-            print(bed_df.columns)
             bed_df = (
                 bed_df.select(
                     [
