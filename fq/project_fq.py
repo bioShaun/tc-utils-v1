@@ -104,7 +104,7 @@ def main(
         names=["libid", "sample_id", "dir_name"],
         usecols=[0, 1, 3],
     )
-    libid_map = read_or_build_config(base_dir)
+    libid_map = load_config(base_dir)
     add_fq_df = sample_df.merge(libid_map, how="left")
     add_fq_df.to_csv(output, sep="\t", index=False)
     typer.echo(f"已写入Nextflow输入文件: {output}")
