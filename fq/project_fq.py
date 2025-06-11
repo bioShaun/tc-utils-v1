@@ -14,6 +14,8 @@ from tqdm import tqdm
 
 app = typer.Typer()
 
+BASE_DIR = Path("/public/home/zxchen/data_trans")
+
 
 def parse_fastq_filename(sample_path: Path):
     filename = sample_path.name
@@ -122,7 +124,7 @@ def main(
     sample_info: Path = typer.Option(
         ..., help="样品信息TSV文件，必须包含libid、sample_id、batch_dir列"
     ),
-    base_dir: Path = typer.Option(..., help="包含所有FASTQ路径的文本文件"),
+    base_dir: Path = typer.Option(BASE_DIR, help="包含所有FASTQ路径的文本文件"),
     data_cuoff: float = typer.Option(0.01, help="数据量阈值"),
     output_dir: Optional[Path] = typer.Option(
         None, help="Nextflow输入bash文件保存目录"
