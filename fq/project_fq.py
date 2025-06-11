@@ -83,11 +83,13 @@ def merge_or_link_sh(fq_list: List[str], name: str):
 
 
 def write_nextflow_input(fq_df: pd.DataFrame, output_dir: Path):
+    scripts_dir = output_dir / "scripts"
+    scripts_dir.mkdir(exist_ok=True, parents=True)
     for (sample_id, read_type), sample_df in fq_df.groupby(["sample_id", "read_type"]):
-        out_fq = f"{sample_id}.{read_type}.fq.gz"
+        out_fq = output_dir.absolute() / f"{sample_id}.{read_type}.fq.gz"
         fq_list = sorted(sample_df["path"].to_list())
-        cmd_file = output_dir / f"mergeFastq-{sample_id}-{read_type}.sh"
-        cmd = merge_or_link_sh(fq_list, out_fq)
+        cmd_file = scripts_dir / f"mergeFastq-{sample_id}-{read_type}.sh"
+        cmd = merge_or_link_sh(fq_list, str(output_dir))
         with open(cmd_file, "w") as f:
             f.write(f"{cmd}\n")
 
