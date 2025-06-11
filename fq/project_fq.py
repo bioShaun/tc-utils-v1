@@ -84,7 +84,7 @@ def merge_or_link_sh(fq_list: List[str], name: str):
     return f"cat {' '.join(fq_list)} > {name}"
 
 
-def write_nextflow_input(fq_df: pd.DataFrame, output_dir: Path):
+def write_nextflow_input(fq_df: pd.DataFrame, output_dir: Path, run=False, threads=8):
     scripts_dir = output_dir / "scripts"
     scripts_dir.mkdir(exist_ok=True, parents=True)
     for (sample_id, read_type), sample_df in fq_df.groupby(["sample_id", "read_type"]):
@@ -94,6 +94,8 @@ def write_nextflow_input(fq_df: pd.DataFrame, output_dir: Path):
         cmd = merge_or_link_sh(fq_list, str(out_fq))
         with open(cmd_file, "w") as f:
             f.write(f"{cmd}\n")
+    if run:
+        run_scripts_in_parallel(scripts_dir, max_workers=threads)
 
 
 def log_miss(df: pd.DataFrame):
@@ -141,10 +143,8 @@ def main(
     add_fq_df.to_csv(check_file, sep="\t", index=False)
     if output_dir is not None:
         output_dir.mkdir(exist_ok=True, parents=True)
-        write_nextflow_input(add_fq_df, output_dir)
+        write_nextflow_input(add_fq_df, output_dir, run=run, threads=threads)
         typer.echo(f"已写入Nextflow输入文件: {output_dir}")
-        if run:
-            run_scripts_in_parallel(output_dir, max_workers=threads)
 
 
 if __name__ == "__main__":
