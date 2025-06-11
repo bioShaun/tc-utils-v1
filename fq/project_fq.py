@@ -126,7 +126,7 @@ def main(
     ),
     base_dir: Path = typer.Option(BASE_DIR, help="包含所有FASTQ路径的文本文件"),
     output_dir: Optional[Path] = typer.Option(
-        None, help="Nextflow输入bash文件保存目录"
+        Path("raw_data"), help="fastq文件输出目录"
     ),
     check_file: Path = typer.Option("check_file.tsv", help="检查文件"),
     threads: int = typer.Option(8, help="线程数"),
