@@ -107,7 +107,10 @@ def write_nextflow_input(fq_df: pd.DataFrame, output_dir: Path, run=False, threa
 def log_miss(df: pd.DataFrame):
     miss_df = df[df["path"].isna()]
     miss_samples = miss_df["sample_id"].unique()
-    logger.info(f"缺失 {len(miss_samples)} 个样品的数据: {miss_samples}")
+    if len(miss_samples):
+        logger.error(f"缺失 {len(miss_samples)} 个样品的数据: {miss_samples}")
+    else:
+        logger.success("所有样品数据已找到")
 
 
 def run_script(script_path):
