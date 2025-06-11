@@ -3,13 +3,14 @@
 
 import subprocess
 from collections import defaultdict
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import List, Optional
 
 import pandas as pd
 import typer
 from loguru import logger
+from tqdm import tqdm
 
 app = typer.Typer()
 
@@ -111,7 +112,9 @@ def run_script(script_path):
 def run_scripts_in_parallel(scripts_dir: Path, max_workers=8):
     scripts = list(scripts_dir.glob("mergeFastq-*.sh"))
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        executor.map(run_script, scripts)
+        futures = [executor.submit(run_script, script) for script in scripts]
+        for _ in tqdm(as_completed(futures), total=len(futures), desc="Processing"):
+            pass
 
 
 @app.command()
