@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import subprocess
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import List, Optional
 
@@ -100,6 +102,16 @@ def log_miss(df: pd.DataFrame):
     logger.info(f"缺失 {len(miss_samples)} 个样品的数据: {miss_samples}")
 
 
+def run_script(script_path):
+    subprocess.run(["bash", str(script_path)], check=True)
+
+
+def run_scripts_in_parallel(scripts_dir: Path, max_workers=8):
+    scripts = list(scripts_dir.glob("mergeFastq-*.sh"))
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        executor.map(run_script, scripts)
+
+
 @app.command()
 def main(
     sample_info: Path = typer.Option(
@@ -111,6 +123,8 @@ def main(
         None, help="Nextflow输入bash文件保存目录"
     ),
     check_file: Path = typer.Option("check_file.tsv", help="检查文件"),
+    threads: int = typer.Option(8, help="线程数"),
+    run: bool = typer.Option(False, help="是否检查数据量是否满足要求"),
 ):
     sample_df = pd.read_table(
         sample_info,
@@ -129,6 +143,8 @@ def main(
         output_dir.mkdir(exist_ok=True, parents=True)
         write_nextflow_input(add_fq_df, output_dir)
         typer.echo(f"已写入Nextflow输入文件: {output_dir}")
+        if run:
+            run_scripts_in_parallel(output_dir, max_workers=threads)
 
 
 if __name__ == "__main__":
