@@ -116,7 +116,7 @@ def main(
     add_fq_df = passed_sample_df.merge(libid_map, how="left")
     # add_fq_df.to_csv(output, sep="\t", index=False)
     output_dir.mkdir(exist_ok=True, parents=True)
-    write_nextflow_input(add_fq_df, base_dir)
+    write_nextflow_input(add_fq_df, output_dir)
     typer.echo(f"已写入Nextflow输入文件: {output_dir}")
 
 
