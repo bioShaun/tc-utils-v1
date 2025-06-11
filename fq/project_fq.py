@@ -142,7 +142,7 @@ def main(
         usecols=[0, 1, 2, 3],
     )
 
-    sample_libs = sample_df["libid"].unique()
+    sample_libs = sample_df["dir_name"].unique()
 
     libid_map = load_config(base_dir, sample_libs)
     add_fq_df = sample_df.merge(libid_map, how="left")
