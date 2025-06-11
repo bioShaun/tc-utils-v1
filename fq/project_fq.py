@@ -65,9 +65,9 @@ def load_config(base_dir: Path, fq_lines: np.ndarray) -> pd.DataFrame:
     libid_map_list = []
     for each_path in base_dir.glob("*/tcwl-*"):
         if each_path.parent.name.startswith("20"):
-            logger.info(f"获取libid-fastq配置：{each_path.name}")
             if each_path.name not in fq_lines:
                 continue
+            logger.info(f"获取libid-fastq配置：{each_path.name}")
             libid_map = read_or_build_config(each_path)
             libid_map_list.append(libid_map)
     all_libid_map = pd.concat(libid_map_list)
