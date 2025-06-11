@@ -227,7 +227,7 @@ class ScriptRunner:
 
 
 def write_nextflow_input(
-    fq_df: pd.DataFrame, output_dir: Path, run: bool = False, threads: int = 8
+    fq_df: pd.DataFrame, output_dir: Path, threads: int = 8
 ) -> Optional[Dict[str, int]]:
     """写入Nextflow输入文件"""
     if fq_df.empty:
@@ -266,7 +266,7 @@ def write_nextflow_input(
 
     logger.info(f"生成了 {script_count} 个脚本文件")
 
-    if run and script_count > 0:
+    if script_count > 0:
         return ScriptRunner.run_scripts_in_parallel(scripts_dir, max_workers=threads)
 
     return None
@@ -328,7 +328,6 @@ def run(
     ),
     check_file: Path = typer.Option("check_file.tsv", help="检查结果输出文件"),
     threads: int = typer.Option(8, min=1, max=32, help="并行处理线程数"),
-    run: bool = typer.Option(False, help="是否立即执行合并脚本"),
     force_rebuild: bool = typer.Option(False, help="强制重建配置文件"),
 ):
     """
@@ -400,9 +399,7 @@ def run(
             output_dir.mkdir(exist_ok=True, parents=True)
             logger.info(f"生成Nextflow输入文件到: {output_dir}")
 
-            results = write_nextflow_input(
-                merged_df, output_dir, run=run, threads=threads
-            )
+            results = write_nextflow_input(merged_df, output_dir, threads=threads)
 
             if results:
                 logger.info(f"脚本执行结果: {results}")
