@@ -102,6 +102,7 @@ def main(
     output_dir: Path = typer.Option(
         "nextflow_dir", help="Nextflow输入bash文件保存目录"
     ),
+    check_file: Path = typer.Option("check_file.tsv", help="检查文件"),
 ):
     sample_df = pd.read_table(
         sample_info,
@@ -114,7 +115,7 @@ def main(
 
     libid_map = load_config(base_dir)
     add_fq_df = passed_sample_df.merge(libid_map, how="left")
-    # add_fq_df.to_csv(output, sep="\t", index=False)
+    add_fq_df.to_csv(check_file, sep="\t", index=False)
     output_dir.mkdir(exist_ok=True, parents=True)
     write_nextflow_input(add_fq_df, output_dir)
     typer.echo(f"已写入Nextflow输入文件: {output_dir}")
