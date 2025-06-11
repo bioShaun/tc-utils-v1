@@ -3,7 +3,7 @@
 
 from collections import defaultdict
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 import pandas as pd
 import typer
@@ -99,8 +99,8 @@ def main(
     ),
     base_dir: Path = typer.Option(..., help="包含所有FASTQ路径的文本文件"),
     data_cuoff: float = typer.Option(0.01, help="数据量阈值"),
-    output_dir: Path = typer.Option(
-        "nextflow_dir", help="Nextflow输入bash文件保存目录"
+    output_dir: Optional[Path] = typer.Option(
+        None, help="Nextflow输入bash文件保存目录"
     ),
     check_file: Path = typer.Option("check_file.tsv", help="检查文件"),
 ):
@@ -117,8 +117,9 @@ def main(
     add_fq_df = passed_sample_df.merge(libid_map, how="left")
     add_fq_df.to_csv(check_file, sep="\t", index=False)
     output_dir.mkdir(exist_ok=True, parents=True)
-    write_nextflow_input(add_fq_df, output_dir)
-    typer.echo(f"已写入Nextflow输入文件: {output_dir}")
+    if output_dir is not None:
+        write_nextflow_input(add_fq_df, output_dir)
+        typer.echo(f"已写入Nextflow输入文件: {output_dir}")
 
 
 if __name__ == "__main__":
