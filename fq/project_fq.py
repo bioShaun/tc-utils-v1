@@ -7,6 +7,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import List, Optional
 
+import numpy as np
 import pandas as pd
 import typer
 from loguru import logger
@@ -60,11 +61,13 @@ def read_or_build_config(fq_line_dir: Path) -> pd.DataFrame:
     return libid_map
 
 
-def load_config(base_dir: Path) -> pd.DataFrame:
+def load_config(base_dir: Path, fq_lines: np.ndarray) -> pd.DataFrame:
     libid_map_list = []
     for each_path in base_dir.glob("*/tcwl-*"):
         if each_path.parent.name.startswith("20"):
             logger.info(f"获取libid-fastq配置：{each_path.name}")
+            if each_path.name not in fq_lines:
+                continue
             libid_map = read_or_build_config(each_path)
             libid_map_list.append(libid_map)
     all_libid_map = pd.concat(libid_map_list)
@@ -138,6 +141,8 @@ def main(
         names=["libid", "sample_id", "data_size", "dir_name"],
         usecols=[0, 1, 2, 3],
     )
+
+    sample_libs = sample_df["libid"].unique()
 
     libid_map = load_config(base_dir)
     add_fq_df = sample_df.merge(libid_map, how="left")
