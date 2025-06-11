@@ -175,7 +175,7 @@ class ScriptRunner:
     def merge_or_link_command(fq_list: List[str], output_name: str) -> str:
         """生成合并或链接命令"""
         if len(fq_list) == 1:
-            return f"ln -sf {fq_list[0]} {output_name}"  # 使用软链接节省空间
+            return f"cp {fq_list[0]} {output_name}"  # 使用软链接节省空间
         return f"cat {' '.join(fq_list)} > {output_name}"
 
     @staticmethod
@@ -318,7 +318,7 @@ def log_statistics(df: pd.DataFrame):
 
 
 @app.command()
-def main(
+def run(
     sample_info: Path = typer.Argument(
         ..., help="样品信息TSV文件，必须包含libid、sample_id、dir_name列"
     ),
