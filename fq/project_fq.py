@@ -3,7 +3,7 @@
 
 import subprocess
 import sys
-from collections import defaultdict
+from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -76,6 +76,19 @@ class FastqProcessor:
                 logger.warning(f"无法识别的FASTQ文件: {fq.name}")
 
         return lib_info
+
+    def _libid_not_duplicated(self, fq_line: Path) -> None:
+        try:
+            sample_dirs = list(fq_line.glob("Sample*"))
+        except Exception as e:
+            raise Exception(f"遍历目录失败: {e}")
+
+        libids = [dir.name.split("-")[-1] for dir in sample_dirs]
+        libid_counts = Counter(libids)
+        duplicated = {libid for libid, count in libid_counts.items() if count > 1}
+
+        if duplicated:
+            raise Exception(f"发现重复的 libid: {duplicated}，请检查目录命名！")
 
     def _determine_read_type(self, filename: str) -> Optional[str]:
         """根据文件名确定读取类型(R1/R2)"""
@@ -163,6 +176,7 @@ class FastqProcessor:
         logger.info(f"找到 {len(target_dirs)} 个匹配目录")
 
         for each_path in tqdm(target_dirs, desc="加载配置"):
+            self._libid_not_duplicated(each_path)
             try:
                 logger.info(f"获取libid-fastq配置：{each_path.name}")
                 libid_map = self.read_or_build_config(each_path)
