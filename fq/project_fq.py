@@ -30,6 +30,9 @@ READ_TYPE_PATTERNS = {
     "_2.fastq.gz": "R2",
 }
 
+# TODO sample-lib map不能有重复，需要检查
+# TODO 合并后的表格也需要检查是否有重复
+
 
 class FastqProcessor:
     """FASTQ文件处理器"""
@@ -436,7 +439,7 @@ def validate(
         sample_df = validate_sample_info(sample_df)
 
         processor = FastqProcessor(base_dir)
-        libid_map = processor.load_config(sample_df["dir_name"].unique())        
+        libid_map = processor.load_config(sample_df["dir_name"].unique())
 
         merged_df = sample_df.merge(libid_map, how="left")
         log_statistics(merged_df)
