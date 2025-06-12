@@ -383,7 +383,7 @@ def run(
 
         # 合并数据
         logger.info("合并样品信息和FASTQ配置")
-        merged_df = sample_df.merge(libid_map, on="libid", how="left")
+        merged_df = sample_df.merge(libid_map, how="left")
 
         # 记录统计信息
         log_statistics(merged_df)
@@ -436,9 +436,9 @@ def validate(
         sample_df = validate_sample_info(sample_df)
 
         processor = FastqProcessor(base_dir)
-        libid_map = processor.load_config(sample_df["dir_name"].unique())
+        libid_map = processor.load_config(sample_df["dir_name"].unique())        
 
-        merged_df = sample_df.merge(libid_map, on="libid", how="left")
+        merged_df = sample_df.merge(libid_map, how="left")
         log_statistics(merged_df)
 
         logger.success("验证完成")
