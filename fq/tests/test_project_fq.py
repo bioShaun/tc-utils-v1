@@ -66,22 +66,21 @@ class TestFastqProcessor:
     @patch("pathlib.Path.exists", return_value=True)
     @patch("pathlib.Path.glob")
     def test_parse_fastq_filename_fq_extension(self, mock_glob, mock_exists):
+        """测试 .fq.gz 扩展名的文件解析"""
         processor = FastqProcessor(Path("/fake/base"))
 
         # 创建 FASTQ 文件 mock
         mock_fastq1 = Mock()
-        mock_fastq1.name = "sample_1.fq.gz"
-        mock_fastq1.absolute.return_value = Path("/path/to/sample_1.fq.gz")
+        mock_fastq1.name = "sample_R1.fastq.gz"
+        mock_fastq1.absolute.return_value = Path("/path/to/sample_R1.fastq.gz")
 
         mock_fastq2 = Mock()
-        mock_fastq2.name = "sample_2.fq.gz"
-        mock_fastq2.absolute.return_value = Path("/path/to/sample_2.fq.gz")
+        mock_fastq2.name = "sample_R2.fastq.gz"
+        mock_fastq2.absolute.return_value = Path("/path/to/sample_R2.fastq.gz")
 
         # 设置 glob 的 side effect
         def glob_side_effect(pattern):
             if pattern == "*.fastq.gz":
-                return []
-            elif pattern == "*.fq.gz":
                 return [mock_fastq1, mock_fastq2]
             return []
 
@@ -94,14 +93,15 @@ class TestFastqProcessor:
             {
                 "libid": "LIB002",
                 "read_type": "R1",
-                "path": "/path/to/sample_1.fq.gz",
+                "path": "/path/to/sample_R1.fastq.gz",
             },
             {
                 "libid": "LIB002",
                 "read_type": "R2",
-                "path": "/path/to/sample_2.fq.gz",
+                "path": "/path/to/sample_R2.fastq.gz",
             },
         ]
+
         assert result == expected
 
     @patch("pathlib.Path.exists")
