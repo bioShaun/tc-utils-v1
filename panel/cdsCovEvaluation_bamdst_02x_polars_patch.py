@@ -104,7 +104,7 @@ def load_single_depth_file(
         logging.debug(f"Loading depth file: {depth_file}")
         lf_i = pl.scan_csv(depth_file, separator="	", has_header=True)
 
-        depth_col_name = lf_i.columns[2]
+        depth_col_name = lf_i.collect_schema().names()[2]
 
         lf_with_coords = lf_i.select(
             [
@@ -117,7 +117,7 @@ def load_single_depth_file(
         stats_df = lf_with_coords.select(
             [
                 pl.mean(depth_col_name).alias("mean_depth"),
-                pl.count().alias("record_num"),
+                pl.len().alias("record_num"),
             ]
         ).collect()
 
