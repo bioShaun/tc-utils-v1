@@ -106,6 +106,7 @@ def load_single_depth_file(
 
         depth_col_name = lf_i.collect_schema().names()[2]
 
+        # First, just get the basic columns we need
         lf_with_coords = lf_i.select(
             [
                 pl.col("#Chr").alias("chrom"),
@@ -134,12 +135,10 @@ def load_single_depth_file(
             f"Sample {sample_name}: record_num={record_num}, mean_depth={(mean_depth or 0):.2f}, threshold={depth_threshold:.2f}"
         )
 
+        # Create coverage column without start column yet
         lf_i = lf_with_coords.with_columns(
-            [
-                (pl.col("end") - 1).alias("start"),
-                (pl.col(depth_col_name) >= depth_threshold).alias(sample_name),
-            ]
-        ).select(["chrom", "start", "end", sample_name])
+            (pl.col(depth_col_name) >= depth_threshold).alias(sample_name)
+        ).select(["chrom", "end", sample_name])
         return lf_i
     except pl.exceptions.NoDataError:
         logging.warning(f"Empty depth file: {depth_file}")
@@ -162,16 +161,23 @@ def load_bed_files(
 
         lf_list = []
         processed_samples = []
+        seen_samples = set()
         for bed_file in bed_list:
             sample_name = bed_file.parent.name
             if sample_list is not None and sample_name not in sample_list:
                 logging.debug(f"Skipping sample {sample_name} (not in sample list)")
+                continue
+            if sample_name in seen_samples:
+                logging.warning(
+                    f"Duplicate sample detected ({sample_name}); skipping to avoid column conflicts"
+                )
                 continue
             logging.info(f"Processing sample: {sample_name}")
             lf_i = load_single_depth_file(bed_file, sample_name)
             if lf_i is not None:
                 lf_list.append(lf_i)
                 processed_samples.append(sample_name)
+                seen_samples.add(sample_name)
             else:
                 logging.warning(f"Failed to process sample: {sample_name}")
         if not lf_list:
@@ -183,13 +189,18 @@ def load_bed_files(
         logging.info(
             f"Building lazy query for {len(lf_list)} samples: {processed_samples}"
         )
+        # First join all DataFrames
         merged_lf = reduce(
-            lambda left, right: left.join(
-                right, on=["chrom", "start", "end"], how="full"
-            ),
+            lambda left, right: left.join(right, on=["chrom", "end"], how="full"),
             lf_list,
         )
-        merged_lf = merged_lf.fill_null(False)
+
+        # Then add start column and fill nulls
+        merged_lf = (
+            merged_lf.with_columns((pl.col("end") - 1).alias("start"))
+            .select(["chrom", "start", "end"] + processed_samples)
+            .fill_null(False)
+        )
 
         logging.info(
             "Lazy query built. Final dataframe shape will be determined on collection."
