@@ -99,17 +99,14 @@ def merge_chr(df: pl.DataFrame, split_bed: Path) -> pl.DataFrame:
 
 def load_single_depth_file(
     depth_file: Path, sample_name: str
-) -> Optional[pl.DataFrame]:
+) -> Optional[pl.LazyFrame]:
     try:
         logging.debug(f"Loading depth file: {depth_file}")
-        df_i = pl.read_csv(depth_file, separator="	", has_header=True)
-        if df_i.is_empty():
-            logging.warning(f"Empty depth file: {depth_file}")
-            return None
+        lf_i = pl.scan_csv(depth_file, separator="	", has_header=True)
 
-        depth_col_name = df_i.columns[2]
+        depth_col_name = lf_i.columns[2]
 
-        df_with_coords = df_i.select(
+        lf_with_coords = lf_i.select(
             [
                 pl.col("#Chr").alias("chrom"),
                 pl.col("Pos").alias("end"),
@@ -117,7 +114,16 @@ def load_single_depth_file(
             ]
         )
 
-        mean_depth = df_with_coords[depth_col_name].mean()
+        stats_df = lf_with_coords.select(
+            [
+                pl.mean(depth_col_name).alias("mean_depth"),
+                pl.count().alias("record_num"),
+            ]
+        ).collect()
+
+        mean_depth = stats_df["mean_depth"][0]
+        record_num = stats_df["record_num"][0]
+
         if mean_depth is None or mean_depth == 0:
             logging.warning(f"Zero or null mean depth in {sample_name}")
             depth_threshold = 0
@@ -125,16 +131,16 @@ def load_single_depth_file(
             depth_threshold = mean_depth * DEFAULT_DEPTH_THRESHOLD
 
         logging.debug(
-            f"Sample {sample_name}: record_num={df_i.shape[0]}, mean_depth={(mean_depth or 0):.2f}, threshold={depth_threshold:.2f}"
+            f"Sample {sample_name}: record_num={record_num}, mean_depth={(mean_depth or 0):.2f}, threshold={depth_threshold:.2f}"
         )
 
-        df_i = df_with_coords.with_columns(
+        lf_i = lf_with_coords.with_columns(
             [
                 (pl.col("end") - 1).alias("start"),
                 (pl.col(depth_col_name) >= depth_threshold).alias(sample_name),
             ]
         ).select(["chrom", "start", "end", sample_name])
-        return df_i
+        return lf_i
     except pl.exceptions.NoDataError:
         logging.warning(f"Empty depth file: {depth_file}")
         return None
@@ -146,7 +152,7 @@ def load_single_depth_file(
 def load_bed_files(
     bed_dir: Path,
     sample_list: Optional[List[str]] = None,
-) -> pl.DataFrame:
+) -> pl.LazyFrame:
     try:
         validate_input_path(bed_dir, "directory")
         bed_list = sorted(list(bed_dir.glob("*/depth.tsv.gz")))
@@ -154,7 +160,7 @@ def load_bed_files(
             raise FileProcessingError(f"No depth.tsv files found in {bed_dir}")
         logging.info(f"Found {len(bed_list)} depth files")
 
-        df_list = []
+        lf_list = []
         processed_samples = []
         for bed_file in bed_list:
             sample_name = bed_file.parent.name
@@ -162,28 +168,33 @@ def load_bed_files(
                 logging.debug(f"Skipping sample {sample_name} (not in sample list)")
                 continue
             logging.info(f"Processing sample: {sample_name}")
-            df_i = load_single_depth_file(bed_file, sample_name)
-            if df_i is not None:
-                df_list.append(df_i)
+            lf_i = load_single_depth_file(bed_file, sample_name)
+            if lf_i is not None:
+                lf_list.append(lf_i)
                 processed_samples.append(sample_name)
             else:
                 logging.warning(f"Failed to process sample: {sample_name}")
-        if not df_list:
-            logging.warning("No valid samples processed, returning empty dataframe")
-            return pl.DataFrame()
+        if not lf_list:
+            logging.warning("No valid samples processed, returning empty LazyFrame")
+            return pl.LazyFrame(
+                schema={"chrom": pl.Utf8, "start": pl.Int64, "end": pl.Int64}
+            )
 
-        logging.info(f"Merging data from {len(df_list)} samples: {processed_samples}")
-        merged_df = reduce(
+        logging.info(
+            f"Building lazy query for {len(lf_list)} samples: {processed_samples}"
+        )
+        merged_lf = reduce(
             lambda left, right: left.join(
                 right, on=["chrom", "start", "end"], how="outer"
             ),
-            df_list,
+            lf_list,
         )
-        # For regions not present in a sample, coverage is False (0).
-        merged_df = merged_df.fill_null(False)
+        merged_lf = merged_lf.fill_null(False)
 
-        logging.info(f"Final merged dataframe shape: {merged_df.shape}")
-        return merged_df
+        logging.info(
+            "Lazy query built. Final dataframe shape will be determined on collection."
+        )
+        return merged_lf
 
     except (FileProcessingError, DataValidationError):
         raise
@@ -256,30 +267,39 @@ def main(
             logging.info(f"Loading sample list from: {sample_path}")
             sample_list = load_sample_list(sample_path)
         logging.info("Loading BED files and depth data")
-        merged_df = load_bed_files(cds_cov_dir, sample_list=sample_list)
+        merged_lf = load_bed_files(cds_cov_dir, sample_list=sample_list)
 
-        if merged_df.is_empty() or merged_df.width <= 3:
+        if len(merged_lf.columns) <= 3:
             logging.warning("No data loaded, creating empty output file")
-            if merged_df.is_empty():
-                bed_df = pl.DataFrame(
+            # If the lazy frame is completely empty (no columns), create a base schema
+            if not merged_lf.columns:
+                bed_lf = pl.LazyFrame(
                     schema={"chrom": pl.Utf8, "start": pl.Int64, "end": pl.Int64}
                 )
             else:
-                bed_df = merged_df.select(["chrom", "start", "end"])
-            cover_ratio_df = bed_df.with_columns(pl.lit(0.0).alias("coverage_0.2x"))
+                bed_lf = merged_lf.select(["chrom", "start", "end"])
+            cover_ratio_lf = bed_lf.with_columns(pl.lit(0.0).alias("coverage_0.2x"))
         else:
-            logging.info("Calculating coverage ratios")
-            bed_df = merged_df.select(["chrom", "start", "end"])
-            df_matrix = merged_df.drop(["chrom", "start", "end"])
-            cover_ratio = calculate_coverage_ratio(df_matrix)
-            cover_ratio_df = pl.concat(
-                [bed_df, pl.DataFrame({"coverage_0.2x": cover_ratio})],
-                how="horizontal",
+            logging.info("Calculating coverage ratios lazily")
+            coord_cols = ["chrom", "start", "end"]
+            sample_cols = [col for col in merged_lf.columns if col not in coord_cols]
+
+            bed_lf = merged_lf.select(coord_cols)
+
+            cover_ratio_lf = bed_lf.with_columns(
+                (pl.sum_horizontal(sample_cols) / len(sample_cols)).alias(
+                    "coverage_0.2x"
+                )
             )
+
         if split_bed is not None:
             logging.info(f"Applying coordinate transformation using: {split_bed}")
-            cover_ratio_df = merge_chr(cover_ratio_df, split_bed)
-        write_output(cover_ratio_df, out_file)
+            cover_ratio_lf = merge_chr(cover_ratio_lf.collect(), split_bed)
+            final_df = cover_ratio_lf
+        else:
+            final_df = cover_ratio_lf.collect()
+
+        write_output(final_df, out_file)
         logging.info("Analysis completed successfully")
     except (CoverageAnalysisError, typer.Exit) as e:
         logging.error(f"Analysis failed: {e}")
