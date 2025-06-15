@@ -179,12 +179,19 @@ def load_bed_files(
             return pl.DataFrame()
 
         logging.info(f"Merging data from {len(df_list)} samples: {processed_samples}")
-        merged_df = reduce(
-            lambda left, right: left.join(
-                right, on=["chrom", "start", "end"], how="outer"
-            ),
-            df_list,
-        )
+
+        def outer_join_keep_keys(
+            left: pl.DataFrame, right: pl.DataFrame
+        ) -> pl.DataFrame:
+            key = ["chrom", "start", "end"]
+            # 做 outer join；把右表重复键列的后缀统一设成 "_dup"
+            out = left.join(
+                right, on=key, how="outer", suffix="_dup"  # 只要不是 "_right" 就行
+            )
+            # 把刚刚生成的 "_dup" 键列全部丢掉，保留左表那一份即可
+            return out.drop([f"{c}_dup" for c in key])
+
+        merged_df = reduce(outer_join_keep_keys, df_list)
         # For regions not present in a sample, coverage is False (0).
         merged_df = merged_df.fill_null(False)
 
