@@ -284,34 +284,35 @@ def main(
         logging.info("Loading BED files and depth data")
         merged_lf = load_bed_files(cds_cov_dir, sample_list=sample_list)
 
-        if len(merged_lf.collect_schema().names()) <= 3:
+        schema_names = merged_lf.collect_schema().names()
+        if len(schema_names) <= 3:
             logging.warning("No data loaded, creating empty output file")
             # If the lazy frame is completely empty (no columns), create a base schema
-            if not merged_lf.collect_schema().names():
-                bed_lf = pl.LazyFrame(
-                    schema={"chrom": pl.Utf8, "start": pl.Int64, "end": pl.Int64}
+            if not schema_names:
+                cover_ratio_lf = pl.LazyFrame(
+                    schema={
+                        "chrom": pl.Utf8,
+                        "start": pl.Int64,
+                        "end": pl.Int64,
+                        "coverage_0.2x": pl.Float64,
+                    }
                 )
             else:
-                bed_lf = merged_lf.select(["chrom", "start", "end"])
-            cover_ratio_lf = bed_lf.with_columns(pl.lit(0.0).alias("coverage_0.2x"))
+                cover_ratio_lf = merged_lf.select(
+                    ["chrom", "start", "end"]
+                ).with_columns(pl.lit(0.0).alias("coverage_0.2x"))
         else:
             logging.info("Calculating coverage ratios lazily")
             coord_cols = ["chrom", "start", "end"]
-            sample_cols = [
-                col
-                for col in merged_lf.collect_schema().names()
-                if col not in coord_cols
-            ]
+            sample_cols = [col for col in schema_names if col not in coord_cols]
 
-            bed_lf = merged_lf.select(coord_cols)
-
-            # FIX: Use pl.col() to properly reference sample columns
-            cover_ratio_lf = bed_lf.with_columns(
+            # FIX: Calculate coverage ratio in the same expression chain
+            cover_ratio_lf = merged_lf.with_columns(
                 (
                     pl.sum_horizontal([pl.col(col) for col in sample_cols])
                     / len(sample_cols)
                 ).alias("coverage_0.2x")
-            )
+            ).select(coord_cols + ["coverage_0.2x"])
 
         if split_bed is not None:
             logging.info(f"Applying coordinate transformation using: {split_bed}")
