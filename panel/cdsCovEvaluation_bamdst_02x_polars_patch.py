@@ -305,10 +305,12 @@ def main(
 
             bed_lf = merged_lf.select(coord_cols)
 
+            # FIX: Use pl.col() to properly reference sample columns
             cover_ratio_lf = bed_lf.with_columns(
-                (pl.sum_horizontal(sample_cols) / len(sample_cols)).alias(
-                    "coverage_0.2x"
-                )
+                (
+                    pl.sum_horizontal([pl.col(col) for col in sample_cols])
+                    / len(sample_cols)
+                ).alias("coverage_0.2x")
             )
 
         if split_bed is not None:
