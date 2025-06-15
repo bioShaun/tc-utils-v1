@@ -116,7 +116,7 @@ def load_single_depth_file(
         else:
             depth_threshold = mean_depth * DEFAULT_DEPTH_THRESHOLD
         logging.debug(
-            f"Sample {sample_name}: mean_depth={mean_depth:.2f}, threshold={depth_threshold:.2f}"
+            f"Sample {sample_name}: record_num={df_i.shape[0]}, mean_depth={mean_depth:.2f}, threshold={depth_threshold:.2f}"
         )
         df_i = df_i.with_columns(
             (pl.col(sample_name) >= depth_threshold).alias(sample_name)
