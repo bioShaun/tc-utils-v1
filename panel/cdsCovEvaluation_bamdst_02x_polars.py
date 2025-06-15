@@ -98,7 +98,9 @@ def merge_chr(df: pl.DataFrame, split_bed: Path) -> pl.DataFrame:
 
 
 def load_single_depth_file(
-    depth_file: Path, sample_name: str
+    depth_file: Path,
+    sample_name: str,
+    chrom_prefix: Optional[str] = None,
 ) -> Optional[pl.DataFrame]:
     try:
         logging.debug(f"Loading depth file: {depth_file}")
@@ -106,6 +108,8 @@ def load_single_depth_file(
         if df_i.is_empty():
             logging.warning(f"Empty depth file: {depth_file}")
             return None
+        if chrom_prefix is not None:
+            df_i = df_i.filter(pl.col("chrom").str.starts_with(chrom_prefix))
         # 只用第三列
         col_depth = df_i.columns[2]
         df_i = df_i.select(pl.col(col_depth).alias(sample_name))
@@ -133,6 +137,7 @@ def load_single_depth_file(
 def load_bed_files(
     bed_dir: Path,
     sample_list: Optional[List[str]] = None,
+    chrom_prefix: Optional[str] = None,
 ) -> Tuple[pl.DataFrame, pl.DataFrame]:
     try:
         validate_input_path(bed_dir, "directory")
@@ -172,7 +177,9 @@ def load_bed_files(
                 logging.debug(f"Skipping sample {sample_name} (not in sample list)")
                 continue
             logging.info(f"Processing sample: {sample_name}")
-            df_i = load_single_depth_file(bed_file, sample_name)
+            df_i = load_single_depth_file(
+                bed_file, sample_name, chrom_prefix=chrom_prefix
+            )
             if df_i is not None:
                 df_list.append(df_i)
                 processed_samples.append(sample_name)
@@ -250,6 +257,7 @@ def main(
     log_level: str = typer.Option(
         "INFO", help="Log level (DEBUG, INFO, WARNING, ERROR)"
     ),
+    chrom_prefix: Optional[str] = None,
 ) -> None:
     logging.basicConfig(
         level=log_level.upper(), format="%(asctime)s | %(levelname)s | %(message)s"
@@ -263,7 +271,9 @@ def main(
             logging.info(f"Loading sample list from: {sample_path}")
             sample_list = load_sample_list(sample_path)
         logging.info("Loading BED files and depth data")
-        bed_df, df_matrix = load_bed_files(cds_cov_dir, sample_list=sample_list)
+        bed_df, df_matrix = load_bed_files(
+            cds_cov_dir, sample_list=sample_list, chrom_prefix=chrom_prefix
+        )
         if df_matrix.is_empty():
             logging.warning("No data loaded, creating empty output file")
             cover_ratio_df = bed_df.with_columns(pl.lit(0.0).alias("coverage_0.2x"))
