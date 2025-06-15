@@ -109,7 +109,7 @@ def load_single_depth_file(
             logging.warning(f"Empty depth file: {depth_file}")
             return None
         if chrom_prefix is not None:
-            df_i = df_i.filter(pl.col("chrom").str.starts_with(chrom_prefix))
+            df_i = df_i.filter(pl.col("#Chr").str.starts_with(chrom_prefix))
         # 只用第三列
         col_depth = df_i.columns[2]
         df_i = df_i.select(pl.col(col_depth).alias(sample_name))
