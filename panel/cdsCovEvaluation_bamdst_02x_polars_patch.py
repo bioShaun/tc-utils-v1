@@ -125,7 +125,7 @@ def load_single_depth_file(
             depth_threshold = mean_depth * DEFAULT_DEPTH_THRESHOLD
 
         logging.debug(
-            f"Sample {sample_name}: record_num={df_i.shape[0]}, mean_depth={mean_depth:.2f if mean_depth else 0}, threshold={depth_threshold:.2f}"
+            f"Sample {sample_name}: record_num={df_i.shape[0]}, mean_depth={(mean_depth or 0):.2f}, threshold={depth_threshold:.2f}"
         )
 
         df_i = df_with_coords.with_columns(
