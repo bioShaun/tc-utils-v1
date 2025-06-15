@@ -163,6 +163,8 @@ def load_bed_files(
                 .with_columns((pl.col("end") - 1).alias("start"))
                 .select(["chrom", "start", "end"])
             )
+            if chrom_prefix is not None:
+                bed_df = bed_df.filter(pl.col("chrom").str.starts_with(chrom_prefix))
             validate_dataframe(bed_df, "bed_df", ["chrom", "start", "end"])
             logging.info(f"BED coordinates loaded: {bed_df.shape[0]} regions")
         except Exception as e:

@@ -117,11 +117,6 @@ def load_single_depth_file(
             ]
         )
 
-        if chrom_prefix is not None:
-            df_with_coords = df_with_coords.filter(
-                pl.col("chrom").str.starts_with(chrom_prefix)
-            )
-
         mean_depth = df_with_coords[depth_col_name].mean()
         if mean_depth is None or mean_depth == 0:
             logging.warning(f"Zero or null mean depth in {sample_name}")
@@ -129,8 +124,13 @@ def load_single_depth_file(
         else:
             depth_threshold = mean_depth * DEFAULT_DEPTH_THRESHOLD
 
+        if chrom_prefix is not None:
+            df_with_coords = df_with_coords.filter(
+                pl.col("chrom").str.starts_with(chrom_prefix)
+            )
+
         logging.debug(
-            f"Sample {sample_name}: record_num={df_i.shape[0]}, mean_depth={mean_depth:.2f}, threshold={depth_threshold:.2f}"
+            f"Sample {sample_name}: record_num={df_with_coords.shape[0]}, mean_depth={mean_depth:.2f}, threshold={depth_threshold:.2f}"
         )
 
         df_i = df_with_coords.with_columns(
