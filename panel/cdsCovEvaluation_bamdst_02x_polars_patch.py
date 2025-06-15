@@ -185,7 +185,7 @@ def load_bed_files(
         )
         merged_lf = reduce(
             lambda left, right: left.join(
-                right, on=["chrom", "start", "end"], how="outer"
+                right, on=["chrom", "start", "end"], how="full"
             ),
             lf_list,
         )
@@ -269,10 +269,10 @@ def main(
         logging.info("Loading BED files and depth data")
         merged_lf = load_bed_files(cds_cov_dir, sample_list=sample_list)
 
-        if len(merged_lf.columns) <= 3:
+        if len(merged_lf.collect_schema().names()) <= 3:
             logging.warning("No data loaded, creating empty output file")
             # If the lazy frame is completely empty (no columns), create a base schema
-            if not merged_lf.columns:
+            if not merged_lf.collect_schema().names():
                 bed_lf = pl.LazyFrame(
                     schema={"chrom": pl.Utf8, "start": pl.Int64, "end": pl.Int64}
                 )
@@ -282,7 +282,11 @@ def main(
         else:
             logging.info("Calculating coverage ratios lazily")
             coord_cols = ["chrom", "start", "end"]
-            sample_cols = [col for col in merged_lf.columns if col not in coord_cols]
+            sample_cols = [
+                col
+                for col in merged_lf.collect_schema().names()
+                if col not in coord_cols
+            ]
 
             bed_lf = merged_lf.select(coord_cols)
 
