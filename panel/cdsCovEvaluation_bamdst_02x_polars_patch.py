@@ -106,18 +106,10 @@ def load_single_depth_file(
 
         depth_col_name = lf_i.collect_schema().names()[2]
 
-        # First, just get the basic columns we need
-        lf_with_coords = lf_i.select(
+        # Calculate stats first
+        stats_df = lf_i.select(
             [
-                pl.col("#Chr").alias("chrom"),
-                pl.col("Pos").alias("end"),
-                pl.col(depth_col_name),
-            ]
-        )
-
-        stats_df = lf_with_coords.select(
-            [
-                pl.mean(depth_col_name).alias("mean_depth"),
+                pl.col(depth_col_name).mean().alias("mean_depth"),
                 pl.len().alias("record_num"),
             ]
         ).collect()
@@ -135,10 +127,16 @@ def load_single_depth_file(
             f"Sample {sample_name}: record_num={record_num}, mean_depth={(mean_depth or 0):.2f}, threshold={depth_threshold:.2f}"
         )
 
-        # Create coverage column without start column yet
-        lf_i = lf_with_coords.with_columns(
-            (pl.col(depth_col_name) >= depth_threshold).alias(sample_name)
-        ).select(["chrom", "end", sample_name])
+        # Create the coverage column
+        lf_i = lf_i.select(
+            [
+                pl.col("#Chr").alias("chrom"),
+                pl.col("Pos").cast(pl.Int64).alias("pos"),
+                (pl.col(depth_col_name).cast(pl.Float64) >= depth_threshold).alias(
+                    sample_name
+                ),
+            ]
+        )
         return lf_i
     except pl.exceptions.NoDataError:
         logging.warning(f"Empty depth file: {depth_file}")
@@ -189,15 +187,21 @@ def load_bed_files(
         logging.info(
             f"Building lazy query for {len(lf_list)} samples: {processed_samples}"
         )
-        # First join all DataFrames
+
+        # First join all DataFrames on chrom and pos
         merged_lf = reduce(
-            lambda left, right: left.join(right, on=["chrom", "end"], how="full"),
+            lambda left, right: left.join(right, on=["chrom", "pos"], how="full"),
             lf_list,
         )
 
-        # Then add start column and fill nulls
+        # Then create start and end columns and select final columns
         merged_lf = (
-            merged_lf.with_columns((pl.col("end") - 1).alias("start"))
+            merged_lf.with_columns(
+                [
+                    pl.col("pos").alias("end"),
+                    (pl.col("pos") - 1).alias("start"),
+                ]
+            )
             .select(["chrom", "start", "end"] + processed_samples)
             .fill_null(False)
         )
