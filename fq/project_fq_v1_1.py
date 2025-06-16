@@ -6,13 +6,13 @@ import sys
 from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
+from enum import StrEnum  # 确保正确导入StrEnum
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 import typer
-from Enum import StrEnum
 from loguru import logger
 from tqdm import tqdm
 
@@ -42,14 +42,15 @@ class FastqErrorType(StrEnum):
     INCOMPLETE = "INCOMPLETE"
     FORMAT = "FORMAT"
     DATA_SIZE = "DATA_SIZE"
+    LOW_DATA = "LOW_DATA"  # 添加缺失的LOW_DATA类型
 
 
 @dataclass
 class FastqError:
     """FASTQ文件错误"""
 
-    lib_id: str
-    error_type: FastqErrorType
+    name: str
+    error_type: str  # 使用字符串类型存储错误类型
     error_message: str
 
 
@@ -59,9 +60,9 @@ class FastqErrorRecorder:
 
     _errors: List[FastqError] = field(default_factory=list)
 
-    def record_error(self, lib_id: str, error_type: FastqErrorType, error_message: str):
+    def record_error(self, name: str, error_type: str, error_message: str):
         """记录错误"""
-        self._errors.append(FastqError(lib_id, error_type, error_message))
+        self._errors.append(FastqError(name, error_type, error_message))
 
     def get_errors(self) -> List[FastqError]:
         """获取所有错误"""
@@ -71,10 +72,11 @@ class FastqErrorRecorder:
 class FastqProcessor:
     """FASTQ文件处理器"""
 
-    def __init__(self, base_dir: Path, error_recorder: FastqErrorRecorder):
+    def __init__(
+        self, base_dir: Path, error_recorder: FastqErrorRecorder
+    ):  # 使用Optional类型提示
         self.base_dir = Path(base_dir)
-        if not self.base_dir.exists():
-            raise FileNotFoundError(f"基础目录不存在: {base_dir}")
+        self.error_recorder = error_recorder
 
     def parse_fastq_filename(self, sample_path: Path) -> List[Dict]:
         """解析FASTQ文件名，支持多种命名格式"""
@@ -95,7 +97,9 @@ class FastqProcessor:
         if not fastqs:
             logger.warning(f"在 {sample_path} 中未找到FASTQ文件")
             self.error_recorder.record_error(
-                lib_id, FastqErrorType.INCOMPLETE, f"未找到FASTQ文件 {sample_path}"
+                lib_id,
+                FastqErrorType.INCOMPLETE.value,  # 使用value属性
+                f"未找到FASTQ文件 {sample_path}",
             )
             return []
 
@@ -112,8 +116,8 @@ class FastqProcessor:
             else:
                 logger.warning(f"无法识别的FASTQ文件: {fq.name}")
                 self.error_recorder.record_error(
-                    lib_id=lib_id,
-                    error_type=FastqErrorType.FORMAT,
+                    name=lib_id,
+                    error_type=FastqErrorType.FORMAT.value,  # 使用value属性
                     error_message=f"无法识别的FASTQ文件: {fq.name}",
                 )
 
@@ -133,8 +137,8 @@ class FastqProcessor:
             # raise Exception(f"发现重复的 libid: {duplicated}，请检查目录命名！")
             for lib_id in duplicated:
                 self.error_recorder.record_error(
-                    lib_id=lib_id,
-                    error_type=FastqErrorType.DUPLICATED,
+                    name=lib_id,
+                    error_type=FastqErrorType[FastqErrorType.DUPLICATED],
                     error_message=f"{fq_line}发现重复的libid: {lib_id}",
                 )
 
@@ -227,7 +231,7 @@ class FastqProcessor:
             self._libid_not_duplicated(each_path)
             try:
                 logger.info(f"获取libid-fastq配置：{each_path.name}")
-                libid_map = self.read_or_build_config(each_path)
+                libid_map = self.read_or_build_config(each_path, force_rebuild)
                 if not libid_map.empty:
                     libid_map_list.append(libid_map)
             except Exception as e:
@@ -250,14 +254,14 @@ class ScriptRunner:
     def merge_or_link_command(fq_list: List[str], output_name: str) -> str:
         """生成合并或链接命令"""
         if len(fq_list) == 1:
-            return f"cp {fq_list[0]} {output_name}"  # 使用软链接节省空间
+            return f"cp {fq_list[0]} {output_name}"
         return f"cat {' '.join(fq_list)} > {output_name}"
 
     @staticmethod
     def run_script(script_path: Path) -> Tuple[bool, str]:
         """运行单个脚本"""
         try:
-            result = subprocess.run(
+            subprocess.run(
                 ["bash", str(script_path)], check=True, capture_output=True, text=True
             )
             return True, f"成功: {script_path.name}"
@@ -302,7 +306,10 @@ class ScriptRunner:
 
 
 def write_nextflow_input(
-    fq_df: pd.DataFrame, output_dir: Path, threads: int = 8
+    fq_df: pd.DataFrame,
+    output_dir: Path,
+    error_recorder: FastqErrorRecorder,
+    threads: int = 8,
 ) -> Optional[Dict[str, int]]:
     """写入Nextflow输入文件"""
     if fq_df.empty:
@@ -318,14 +325,15 @@ def write_nextflow_input(
         miss_df = sample_df[sample_df["path"].isna()]
         if not miss_df.empty:
             logger.warning(f"包含缺失路径的样品: {sample_id}-{read_type}")
+            error_recorder.record_error(
+                name=sample_id,
+                error_type=FastqErrorType.INCOMPLETE.value,
+                error_message=f"包含缺失路径的样品: {sample_id}-{read_type}"
+            )
             continue
 
         out_fq = output_dir.absolute() / f"{sample_id}.{read_type}.fq.gz"
-        fq_list = sorted(sample_df["path"].dropna().tolist())
-
-        if not fq_list:
-            logger.warning(f"样品 {sample_id}-{read_type} 没有有效的FASTQ文件")
-            continue
+        fq_list = sorted(sample_df["path"].tolist())
 
         cmd_file = scripts_dir / f"mergeFastq-{sample_id}-{read_type}.sh"
         cmd = ScriptRunner.merge_or_link_command(fq_list, str(out_fq))
@@ -333,9 +341,9 @@ def write_nextflow_input(
         try:
             with open(cmd_file, "w") as f:
                 f.write(f"#!/bin/bash\n")
-                f.write(f"set -euo pipefail\n")  # 严格错误处理
+                f.write(f"set -euo pipefail\n")
                 f.write(f"{cmd}\n")
-            cmd_file.chmod(0o755)  # 使脚本可执行
+            cmd_file.chmod(0o755)
             script_count += 1
         except Exception as e:
             logger.error(f"写入脚本文件失败 {cmd_file}: {e}")
@@ -402,18 +410,18 @@ def check_sample_map(
         logger.error("样本映射关系有重复项:")
         for row in duplicated_lines.itertuples():
             error_recorder.record_error(
-                row.libid,
-                FastqErrorType.DUPLICATED,
-                f"样本映射关系有重复项: {row.libid}-{row.sample_id}-{row.dir_name}",
+                name=str(row.libid),
+                error_type="DUPLICATED",  # 直接使用字符串
+                error_message=f"样本映射关系有重复项: {row.libid}-{row.sample_id}-{row.dir_name}",
             )
     low_data_df = df[df["data_size"] < low_data_threshold]
     if not low_data_df.empty:
         logger.warning(f"{len(low_data_df)}个样本数据量小于{low_data_threshold}G")
         for row in low_data_df.itertuples():
             error_recorder.record_error(
-                row.libid,
-                FastqErrorType.LOW_DATA,
-                f"样本数据量小于{low_data_threshold}G: {row.libid}-{row.sample_id}-{row.dir_name}",
+                name=str(row.libid),
+                error_type="INCOMPLETE",  # 直接使用字符串
+                error_message=f"样本数据量小于{low_data_threshold}G: {row.libid}-{row.sample_id}-{row.dir_name}",
             )
 
 
@@ -464,10 +472,11 @@ def run(
 
         # 初始化错误收集器
         error_collector = FastqErrorRecorder()
+        processor = FastqProcessor(base_dir, error_recorder=error_collector)
 
-        # 初始化处理器
-        processor = FastqProcessor(base_dir, error_collector)
-        check_sample_map(error_collector, sample_df, empty_data_threshold)
+        check_sample_map(
+            error_collector, sample_df, empty_data_threshold
+        )  # 使用模块级函数
 
         # 加载配置
         logger.info("加载FASTQ文件配置")
@@ -533,7 +542,9 @@ def validate(
         sample_df = validate_sample_info(sample_df)
 
         processor = FastqProcessor(base_dir)
-        processor.check_sample_map(sample_df, empty_data_threshold)
+        check_sample_map(
+            error_collector, sample_df, empty_data_threshold
+        )  # 使用模块级函数
         libid_map = processor.load_config(sample_df["dir_name"].unique())
 
         merged_df = sample_df.merge(libid_map, how="left")
