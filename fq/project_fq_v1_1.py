@@ -336,8 +336,6 @@ def write_nextflow_input(
 
     script_count = 0
 
-    r1_r2_double_check_df_list = []
-
     for (sample_id, read_type), sample_df in fq_df.groupby(["sample_id", "read_type"]):
         miss_df = sample_df[sample_df["path"].isna()]
         if not miss_df.empty:
@@ -367,7 +365,7 @@ def write_nextflow_input(
 
     logger.info(f"生成了 {script_count} 个脚本文件")
 
-    if script_count > 0:
+    if run_script and script_count > 0:
         return ScriptRunner.run_scripts_in_parallel(scripts_dir, max_workers=threads)
 
     return None
@@ -641,7 +639,7 @@ def validate(
                 run_script=False,
             )
 
-            errors = error_collector.get_errors():
+            errors = error_collector.get_errors()
             if errors:
                 for each_error in errors:
                     logger.error(f"{each_error.error_type} - {each_error.error_message}")
