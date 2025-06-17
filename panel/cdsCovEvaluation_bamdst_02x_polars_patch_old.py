@@ -98,33 +98,47 @@ def merge_chr(df: pl.DataFrame, split_bed: Path) -> pl.DataFrame:
 
 
 def load_single_depth_file(
-    depth_file: Path,
-    sample_name: str,
-    chrom_prefix: Optional[str] = None,
+    depth_file: Path, sample_name: str, chrom_prefix: Optional[str] = None
 ) -> Optional[pl.DataFrame]:
     try:
         logging.debug(f"Loading depth file: {depth_file}")
-        df_i = pl.read_csv(depth_file, separator="\t", has_header=True)
+        df_i = pl.read_csv(depth_file, separator="	", has_header=True)
         if df_i.is_empty():
             logging.warning(f"Empty depth file: {depth_file}")
             return None
-        if chrom_prefix is not None:
-            df_i = df_i.filter(pl.col("#Chr").str.starts_with(chrom_prefix))
-        # 只用第三列
-        col_depth = df_i.columns[2]
-        df_i = df_i.select(pl.col(col_depth).alias(sample_name))
-        mean_depth = df_i[sample_name].mean()
+
+        depth_col_name = df_i.columns[2]
+
+        df_with_coords = df_i.select(
+            [
+                pl.col("#Chr").alias("chrom"),
+                pl.col("Pos").alias("end"),
+                pl.col(depth_col_name),
+            ]
+        )
+
+        mean_depth = df_with_coords[depth_col_name].mean()
         if mean_depth is None or mean_depth == 0:
             logging.warning(f"Zero or null mean depth in {sample_name}")
             depth_threshold = 0
         else:
             depth_threshold = mean_depth * DEFAULT_DEPTH_THRESHOLD
+
+        if chrom_prefix is not None:
+            df_with_coords = df_with_coords.filter(
+                pl.col("chrom").str.starts_with(chrom_prefix)
+            )
+
         logging.debug(
-            f"Sample {sample_name}: record_num={df_i.shape[0]}, mean_depth={mean_depth:.2f}, threshold={depth_threshold:.2f}"
+            f"Sample {sample_name}: record_num={df_with_coords.shape[0]}, mean_depth={mean_depth:.2f}, threshold={depth_threshold:.2f}"
         )
-        df_i = df_i.with_columns(
-            (pl.col(sample_name) >= depth_threshold).alias(sample_name)
-        )
+
+        df_i = df_with_coords.with_columns(
+            [
+                (pl.col("end") - 1).alias("start"),
+                (pl.col(depth_col_name) >= depth_threshold).alias(sample_name),
+            ]
+        ).select(["chrom", "start", "end", sample_name])
         return df_i
     except pl.exceptions.NoDataError:
         logging.warning(f"Empty depth file: {depth_file}")
@@ -138,39 +152,14 @@ def load_bed_files(
     bed_dir: Path,
     sample_list: Optional[List[str]] = None,
     chrom_prefix: Optional[str] = None,
-) -> Tuple[pl.DataFrame, pl.DataFrame]:
+) -> pl.DataFrame:
     try:
         validate_input_path(bed_dir, "directory")
         bed_list = sorted(list(bed_dir.glob("*/depth.tsv.gz")))
         if not bed_list:
             raise FileProcessingError(f"No depth.tsv files found in {bed_dir}")
         logging.info(f"Found {len(bed_list)} depth files")
-        # 取第一个文件做BED
-        logging.info(f"Building BED coordinates from: {bed_list[0]}")
-        try:
-            bed_df = pl.read_csv(
-                bed_list[0],
-                separator="\t",
-                has_header=True,
-            )
-            bed_df = (
-                bed_df.select(
-                    [
-                        pl.col("#Chr").alias("chrom"),
-                        pl.col("Pos").alias("end"),
-                    ]
-                )
-                .with_columns((pl.col("end") - 1).alias("start"))
-                .select(["chrom", "start", "end"])
-            )
-            if chrom_prefix is not None:
-                bed_df = bed_df.filter(pl.col("chrom").str.starts_with(chrom_prefix))
-            validate_dataframe(bed_df, "bed_df", ["chrom", "start", "end"])
-            logging.info(f"BED coordinates loaded: {bed_df.shape[0]} regions")
-        except Exception as e:
-            raise FileProcessingError(
-                f"Failed to read BED coordinates from {bed_list[0]}: {e}"
-            )
+
         df_list = []
         processed_samples = []
         for bed_file in bed_list:
@@ -179,28 +168,36 @@ def load_bed_files(
                 logging.debug(f"Skipping sample {sample_name} (not in sample list)")
                 continue
             logging.info(f"Processing sample: {sample_name}")
-            df_i = load_single_depth_file(
-                bed_file, sample_name, chrom_prefix=chrom_prefix
-            )
+            df_i = load_single_depth_file(bed_file, sample_name, chrom_prefix)
             if df_i is not None:
                 df_list.append(df_i)
                 processed_samples.append(sample_name)
             else:
                 logging.warning(f"Failed to process sample: {sample_name}")
-        if df_list:
-            logging.info(
-                f"Merging data from {len(df_list)} samples: {processed_samples}"
+        if not df_list:
+            logging.warning("No valid samples processed, returning empty dataframe")
+            return pl.DataFrame()
+
+        logging.info(f"Merging data from {len(df_list)} samples: {processed_samples}")
+
+        def outer_join_keep_keys(
+            left: pl.DataFrame, right: pl.DataFrame
+        ) -> pl.DataFrame:
+            key = ["chrom", "start", "end"]
+            # 做 outer join；把右表重复键列的后缀统一设成 "_dup"
+            out = left.join(
+                right, on=key, how="outer", suffix="_dup"  # 只要不是 "_right" 就行
             )
-            df_matrix = pl.concat(df_list, how="horizontal")
-            if df_matrix.shape[0] != bed_df.shape[0]:
-                raise DataValidationError(
-                    f"Matrix rows ({df_matrix.shape[0]}) don't match BED regions ({bed_df.shape[0]})"
-                )
-            logging.info(f"Final matrix shape: {df_matrix.shape}")
-        else:
-            logging.warning("No valid samples processed, returning empty matrix")
-            df_matrix = pl.DataFrame()
-        return bed_df, df_matrix
+            # 把刚刚生成的 "_dup" 键列全部丢掉，保留左表那一份即可
+            return out.drop([f"{c}_dup" for c in key])
+
+        merged_df = reduce(outer_join_keep_keys, df_list)
+        # For regions not present in a sample, coverage is False (0).
+        merged_df = merged_df.fill_null(False)
+
+        logging.info(f"Final merged dataframe shape: {merged_df.shape}")
+        return merged_df
+
     except (FileProcessingError, DataValidationError):
         raise
     except Exception as e:
@@ -259,7 +256,7 @@ def main(
     log_level: str = typer.Option(
         "INFO", help="Log level (DEBUG, INFO, WARNING, ERROR)"
     ),
-    chrom_prefix: Optional[str] = None,
+    chrom_prefix: Optional[str] = typer.Option(None, help="Prefix of chromosome names"),
 ) -> None:
     logging.basicConfig(
         level=log_level.upper(), format="%(asctime)s | %(levelname)s | %(message)s"
@@ -273,17 +270,27 @@ def main(
             logging.info(f"Loading sample list from: {sample_path}")
             sample_list = load_sample_list(sample_path)
         logging.info("Loading BED files and depth data")
-        bed_df, df_matrix = load_bed_files(
+        merged_df = load_bed_files(
             cds_cov_dir, sample_list=sample_list, chrom_prefix=chrom_prefix
         )
-        if df_matrix.is_empty():
+
+        if merged_df.is_empty() or merged_df.width <= 3:
             logging.warning("No data loaded, creating empty output file")
+            if merged_df.is_empty():
+                bed_df = pl.DataFrame(
+                    schema={"chrom": pl.Utf8, "start": pl.Int64, "end": pl.Int64}
+                )
+            else:
+                bed_df = merged_df.select(["chrom", "start", "end"])
             cover_ratio_df = bed_df.with_columns(pl.lit(0.0).alias("coverage_0.2x"))
         else:
             logging.info("Calculating coverage ratios")
+            bed_df = merged_df.select(["chrom", "start", "end"])
+            df_matrix = merged_df.drop(["chrom", "start", "end"])
             cover_ratio = calculate_coverage_ratio(df_matrix)
             cover_ratio_df = pl.concat(
-                [bed_df, pl.DataFrame({"coverage_0.2x": cover_ratio})], how="horizontal"
+                [bed_df, pl.DataFrame({"coverage_0.2x": cover_ratio})],
+                how="horizontal",
             )
         if split_bed is not None:
             logging.info(f"Applying coordinate transformation using: {split_bed}")
