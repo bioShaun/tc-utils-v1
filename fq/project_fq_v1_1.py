@@ -208,7 +208,7 @@ class FastqProcessor:
                 logger.warning(f"读取配置文件失败，重新构建: {e}")
 
         libid_map = self.build_libid_fastq_map(fq_line_dir)
-        check_lib_map(self.error_recorder, df, fq_line_dir)
+        check_lib_map(self.error_recorder, libid_map, fq_line_dir)
 
         if not libid_map.empty:
             libid_map["dir_name"] = fq_line_dir.name
@@ -335,6 +335,14 @@ def write_nextflow_input(
     scripts_dir.mkdir(exist_ok=True, parents=True)
 
     script_count = 0
+    miss_df = fq_df[fq_df['path'].isna()]
+    if not miss_df.empty:
+        for row in miss_df.itertuples():
+            error_recorder.record_error(
+                name=str(row.libid),
+                error_type="INCOMPLETE",  # 直接使用字符串
+                error_message=f"{row.libid}: {row.libid}-{row.sample_id}-{row.dir_name} 没有找到数据",
+            )
 
     for (sample_id, read_type), sample_df in fq_df.groupby(["sample_id", "read_type"]):
         miss_df = sample_df[sample_df["path"].isna()]
