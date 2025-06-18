@@ -64,7 +64,6 @@ def detect_q30_anomalies(
     for base in ["mean"]:
         if base in quality_curves:
             qualities = quality_curves[base]
-            print(qualities)
             positions = list(range(len(qualities)))
 
             if len(qualities) < 10:  # 序列太短，跳过
@@ -93,7 +92,6 @@ def detect_q30_anomalies(
 
                 # 检测显著下降
                 quality_drop = abs(prev_q - current_q)
-                print(i - 1, i, quality_drop)
                 if quality_drop > dynamic_threshold:
                     anomalies.append(
                         {
@@ -210,7 +208,7 @@ def generate_report_data(anomalies, sample_name):
         **r1_info,
         **r2_info,
         "Total异常位点数量": r1_info["read1异常位点数量"]
-        + r2_info["read1异常位点数量"],
+        + r2_info["read2异常位点数量"],
     }
 
 
@@ -271,7 +269,7 @@ def main():
         report_data = generate_report_data(all_anomalies, sample_name)
         report_data_list.append(report_data)
     report_data_df = pd.DataFrame(report_data_list)
-    report_data_df.to_csv(args.output, sep="\t", index=False)
+    report_data_df.to_csv(args.output, sep="\t", index=False, float_format="%.3f")
 
 
 if __name__ == "__main__":
