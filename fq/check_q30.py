@@ -228,7 +228,7 @@ def generate_report(fastp_data, quality_data, anomalies, output_file, sample_nam
         if anomalies:
             f.write(f"发现 {len(anomalies)} 个异常位置:\n\n")
             for i, anomaly in enumerate(anomalies, 1):
-                if i == 0:
+                if i == 1:
                     f.write(
                         f"   头部平均质量: {anomaly['head_quality']:.2f}, "
                         f"尾部平均质量: {anomaly['tail_quality']:.2f}\n"
