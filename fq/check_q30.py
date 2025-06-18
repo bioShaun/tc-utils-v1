@@ -87,7 +87,7 @@ def detect_q30_anomalies(
                 smoothed_qualities.append(np.mean(qualities[start:end]))
 
             # 检测异常下降
-            for i in range(1, len(smoothed_qualities)):
+            for i in range(1, len(qualities)):
                 current_q = smoothed_qualities[i]
                 prev_q = smoothed_qualities[i - 1]
 
