@@ -261,7 +261,7 @@ def main():
         "--drop-threshold",
         type=float,
         default=0.1,
-        help="质量下降检测阈值，基于头尾差异的比例 (默认: 0.1，即10%)",
+        help="质量下降检测阈值，基于头尾差异的比例 (默认: 0.1，即10%%)",
     )
     parser.add_argument(
         "-w", "--window-size", type=int, default=5, help="滑动窗口大小 (默认: 5)"
