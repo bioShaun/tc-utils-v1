@@ -55,9 +55,10 @@ def detect_q30_anomalies(
     """
     anomalies = []
 
-    for base in ["A", "T", "C", "G"]:
+    for base in ["mean"]:
         if base in quality_curves:
             qualities = quality_curves[base]
+            print(qualities)
             positions = list(range(len(qualities)))
 
             if len(qualities) < 10:  # 序列太短，跳过
@@ -88,11 +89,12 @@ def detect_q30_anomalies(
 
             # 检测异常下降
             for i in range(1, len(qualities)):
-                current_q = smoothed_qualities[i]
-                prev_q = smoothed_qualities[i - 1]
+                current_q = qualities[i]
+                prev_q = qualities[i - 1]
 
                 # 检测显著下降
-                quality_drop = prev_q - current_q
+                quality_drop = abs(prev_q - current_q)
+                print(i-1, i, quality_drop)
                 if quality_drop > dynamic_threshold:
                     anomalies.append(
                         {
