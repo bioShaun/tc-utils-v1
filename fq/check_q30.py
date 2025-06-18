@@ -8,6 +8,7 @@ import argparse
 import json
 import sys
 from pathlib import Path
+from typing import Dict, List
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -32,9 +33,10 @@ def extract_quality_data(fastp_data):
     quality_data = {}
 
     # 提取read1和read2的质量数据
-    for read_type in ["read1_before_filtering", "read2_before_filtering"]:
+    for read_type in ["read1", "read2"]:
+        read_type_before_filter = f"{read_type}_before_filtering"
         if read_type in fastp_data:
-            read_data = fastp_data[read_type]
+            read_data = fastp_data[read_type_before_filter]
             if "quality_curves" in read_data:
                 quality_data[read_type] = read_data["quality_curves"]
 
@@ -42,7 +44,10 @@ def extract_quality_data(fastp_data):
 
 
 def detect_q30_anomalies(
-    quality_curves, threshold=30, drop_threshold=0.1, window_size=5
+    read_type: str,
+    quality_curves: Dict[str, List[float]],
+    threshold=30,
+    drop_threshold=0.1,
 ):
     """
     检测Q30异常
@@ -51,7 +56,6 @@ def detect_q30_anomalies(
     - quality_curves: 质量曲线数据
     - threshold: Q30阈值 (默认30)
     - drop_threshold: 质量下降阈值，基于头尾差异比例 (默认0.1，即10%)
-    - window_size: 滑动窗口大小 (默认5)
     """
     anomalies = []
 
@@ -80,13 +84,6 @@ def detect_q30_anomalies(
             else:
                 dynamic_threshold = 2.0  # 如果头部质量不比尾部高，使用固定阈值
 
-            # 计算滑动窗口平均值
-            smoothed_qualities = []
-            for i in range(len(qualities)):
-                start = max(0, i - window_size // 2)
-                end = min(len(qualities), i + window_size // 2 + 1)
-                smoothed_qualities.append(np.mean(qualities[start:end]))
-
             # 检测异常下降
             for i in range(1, len(qualities)):
                 current_q = qualities[i]
@@ -94,11 +91,12 @@ def detect_q30_anomalies(
 
                 # 检测显著下降
                 quality_drop = abs(prev_q - current_q)
-                print(i-1, i, quality_drop)
+                print(i - 1, i, quality_drop)
                 if quality_drop > dynamic_threshold:
                     anomalies.append(
                         {
                             "base": base,
+                            "read_type": read_type,
                             "position": positions[i],
                             "quality_before": prev_q,
                             "quality_after": current_q,
@@ -230,7 +228,18 @@ def generate_report(fastp_data, quality_data, anomalies, output_file):
         if anomalies:
             f.write(f"发现 {len(anomalies)} 个异常位置:\n\n")
             for i, anomaly in enumerate(anomalies, 1):
+                if i == 0:
+                    f.write(
+                        f"   头部平均质量: {anomaly['head_quality']:.2f}, "
+                        f"尾部平均质量: {anomaly['tail_quality']:.2f}\n"
+                    )
+                    f.write(
+                        f"   头尾差异: {anomaly['head_tail_diff']:.2f}, "
+                        f"动态阈值: {anomaly['dynamic_threshold']:.2f}\n\n"
+                    )
+                    f.write("-" * 20 + "\n")
                 f.write(
+                    f"{anomaly['read_type']}: "
                     f"{i}. 位置: {anomaly['position']}, "
                     f"质量下降: {anomaly['drop']:.2f}, "
                     f"低于Q30: {'是' if anomaly['below_q30'] else '否'}\n"
@@ -238,14 +247,7 @@ def generate_report(fastp_data, quality_data, anomalies, output_file):
                 f.write(
                     f"   质量变化: {anomaly['quality_before']:.2f} -> {anomaly['quality_after']:.2f}\n"
                 )
-                f.write(
-                    f"   头部平均质量: {anomaly['head_quality']:.2f}, "
-                    f"尾部平均质量: {anomaly['tail_quality']:.2f}\n"
-                )
-                f.write(
-                    f"   头尾差异: {anomaly['head_tail_diff']:.2f}, "
-                    f"动态阈值: {anomaly['dynamic_threshold']:.2f}\n\n"
-                )
+
         else:
             f.write("未发现显著的质量异常\n")
 
@@ -286,9 +288,6 @@ def main():
         default=0.1,
         help="质量下降检测阈值，基于头尾差异的比例 (默认: 0.1，即10%%)",
     )
-    parser.add_argument(
-        "-w", "--window-size", type=int, default=5, help="滑动窗口大小 (默认: 5)"
-    )
     parser.add_argument("--plot", action="store_true", help="生成质量曲线图")
     parser.add_argument("--plot-dir", default=".", help="图片输出目录 (默认: 当前目录)")
 
@@ -309,10 +308,10 @@ def main():
     all_anomalies = []
     for read_type, quality_curves in quality_data.items():
         anomalies = detect_q30_anomalies(
+            read_type,
             quality_curves,
             threshold=args.threshold,
             drop_threshold=args.drop_threshold,
-            window_size=args.window_size,
         )
         for anomaly in anomalies:
             anomaly["read_type"] = read_type
