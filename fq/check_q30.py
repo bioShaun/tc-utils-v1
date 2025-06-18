@@ -179,7 +179,7 @@ def plot_quality_curves(quality_data, output_dir="."):
         print(f"质量曲线图已保存: {output_file}")
 
 
-def generate_report(fastp_data, quality_data, anomalies, output_file):
+def generate_report(fastp_data, quality_data, anomalies, output_file, sample_name):
     """生成检测报告"""
     with open(output_file, "w") as f:
         f.write("fastp Q30异常检测报告\n")
@@ -223,7 +223,7 @@ def generate_report(fastp_data, quality_data, anomalies, output_file):
         f.write("\n")
 
         # 异常检测结果
-        f.write("异常检测结果:\n")
+        f.write(f"异常检测结果:\t{sample_name}\t{len(anomalies)}\n")
         f.write("-" * 20 + "\n")
         if anomalies:
             f.write(f"发现 {len(anomalies)} 个异常位置:\n\n")
@@ -319,7 +319,8 @@ def main():
 
     # 生成报告
     print(f"生成报告: {args.output}")
-    generate_report(fastp_data, quality_data, all_anomalies, args.output)
+    sample_name = Path(args.json_file).stem
+    generate_report(fastp_data, quality_data, all_anomalies, args.output, sample_name)
 
     # 生成图片
     if args.plot:
