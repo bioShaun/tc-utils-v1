@@ -32,7 +32,7 @@ def extract_quality_data(fastp_data):
     quality_data = {}
 
     # 提取read1和read2的质量数据
-    for read_type in ["read1", "read2"]:
+    for read_type in ["read1_before_filtering", "read2_before_filtering"]:
         if read_type in fastp_data:
             read_data = fastp_data[read_type]
             if "quality_curves" in read_data:
