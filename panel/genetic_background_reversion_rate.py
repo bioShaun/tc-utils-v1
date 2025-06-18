@@ -4,6 +4,7 @@ from typing import Optional
 
 import pandas as pd
 import typer
+from loguru import logger
 from tqdm import tqdm
 
 
@@ -82,6 +83,12 @@ def main(
     for row in tqdm(parent.itertuples(), total=len(parent)):
         parent_id = row.Parent_id
         sample_id = row.Sample_id
+        if parent_id not in gt.columns:
+            logger.warning(f"Parent_id not found: {parent_id}")
+            continue
+        if sample_id not in gt.columns:
+            logger.warning(f"Sample_id not found: {sample_id}")
+            continue
         site_stats = cal_reversion_rate(
             df=gt, parent_col=str(parent_id), sample_col=str(sample_id)
         )
