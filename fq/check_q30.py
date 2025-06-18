@@ -32,7 +32,7 @@ def extract_quality_data(fastp_data):
     quality_data = {}
 
     # 提取read1和read2的质量数据
-    for read_type in ["read1_before_filtering", "read2_before_filtering"]:
+    for read_type in ["read1", "read2"]:
         if read_type in fastp_data:
             read_data = fastp_data[read_type]
             if "quality_curves" in read_data:
@@ -116,6 +116,14 @@ def calculate_q30_rate(quality_curves, threshold=30):
     """计算Q30比率"""
     q30_rates = {}
 
+    # 使用mean质量曲线计算Q30比率
+    if "mean" in quality_curves:
+        qualities = quality_curves["mean"]
+        q30_count = sum(1 for q in qualities if q >= threshold)
+        q30_rate = q30_count / len(qualities) if qualities else 0
+        q30_rates["mean"] = q30_rate
+
+    # 同时也计算各个碱基的Q30比率（如果存在）
     for base in ["A", "T", "C", "G"]:
         if base in quality_curves:
             qualities = quality_curves[base]
@@ -131,14 +139,28 @@ def plot_quality_curves(quality_data, output_dir="."):
     for read_type, quality_curves in quality_data.items():
         plt.figure(figsize=(12, 8))
 
-        colors = {"A": "brown", "T": "red", "C": "blue", "G": "green"}
+        colors = {"A": "brown", "T": "red", "C": "blue", "G": "green", "mean": "black"}
 
+        # 优先绘制mean曲线
+        if "mean" in quality_curves:
+            qualities = quality_curves["mean"]
+            positions = list(range(len(qualities)))
+            plt.plot(
+                positions, qualities, color=colors["mean"], label="mean", linewidth=3
+            )
+
+        # 绘制各个碱基的曲线
         for base in ["A", "T", "C", "G"]:
             if base in quality_curves:
                 qualities = quality_curves[base]
                 positions = list(range(len(qualities)))
                 plt.plot(
-                    positions, qualities, color=colors[base], label=base, linewidth=2
+                    positions,
+                    qualities,
+                    color=colors[base],
+                    label=base,
+                    linewidth=2,
+                    alpha=0.7,
                 )
 
         # 添加Q30参考线
@@ -207,8 +229,7 @@ def generate_report(fastp_data, quality_data, anomalies, output_file):
             f.write(f"发现 {len(anomalies)} 个异常位置:\n\n")
             for i, anomaly in enumerate(anomalies, 1):
                 f.write(
-                    f"{i}. 碱基: {anomaly['base']}, "
-                    f"位置: {anomaly['position']}, "
+                    f"{i}. 位置: {anomaly['position']}, "
                     f"质量下降: {anomaly['drop']:.2f}, "
                     f"低于Q30: {'是' if anomaly['below_q30'] else '否'}\n"
                 )
@@ -261,7 +282,7 @@ def main():
         "--drop-threshold",
         type=float,
         default=0.1,
-        help="质量下降检测阈值，基于头尾差异的比例 (默认: 0.1，即10%)",
+        help="质量下降检测阈值，基于头尾差异的比例 (默认: 0.1，即10%%)",
     )
     parser.add_argument(
         "-w", "--window-size", type=int, default=5, help="滑动窗口大小 (默认: 5)"
