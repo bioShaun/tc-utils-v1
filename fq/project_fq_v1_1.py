@@ -92,6 +92,8 @@ class FastqProcessor:
             fastqs.extend(sample_path.glob(pattern))
 
         lib_id = filename.split("-")[-1]
+        if lib_id.isdigit():
+            lib_id = "-".join(filename.split("-")[-2:])
         lib_info = []
 
         if not fastqs:
@@ -335,7 +337,7 @@ def write_nextflow_input(
     scripts_dir.mkdir(exist_ok=True, parents=True)
 
     script_count = 0
-    miss_df = fq_df[fq_df['path'].isna()]
+    miss_df = fq_df[fq_df["path"].isna()]
     if not miss_df.empty:
         for row in miss_df.itertuples():
             error_recorder.record_error(
@@ -650,7 +652,9 @@ def validate(
             errors = error_collector.get_errors()
             if errors:
                 for each_error in errors:
-                    logger.error(f"{each_error.error_type} - {each_error.error_message}")
+                    logger.error(
+                        f"{each_error.error_type} - {each_error.error_message}"
+                    )
             else:
                 logger.success(f"检查完成：没有发现问题！")
 
