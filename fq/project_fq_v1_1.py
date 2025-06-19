@@ -467,7 +467,7 @@ def check_lib_map(
             error_reccoder.record_error(
                 name=str(row.libid),
                 error_type=FastqErrorType.DUPLICATED.value,  # 直接使用字符串
-                error_message=f"文库映射关系有重复项: {row.libid}-{row.sample_id}-{row.dir_name}",
+                error_message=f"文库映射关系有重复项: {row.libid}-{row.dir_name}",
             )
 
 
