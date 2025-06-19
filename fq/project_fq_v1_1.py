@@ -135,7 +135,7 @@ class FastqProcessor:
 
         return lib_info
 
-    def _libid_not_duplicated(self, fq_line: Path) -> None:
+    def _libid_not_duplicated(self, lib_map: pd.DataFrame) -> None:
         try:
             sample_dirs = list(fq_line.glob("Sample*"))
         except Exception as e:
@@ -244,7 +244,6 @@ class FastqProcessor:
         logger.info(f"找到 {len(target_dirs)} 个匹配目录")
 
         for each_path in tqdm(target_dirs, desc="加载配置"):
-            self._libid_not_duplicated(each_path)
             try:
                 logger.info(f"获取libid-fastq配置：{each_path.name}")
                 libid_map = self.read_or_build_config(each_path, force_rebuild)
@@ -456,11 +455,19 @@ def check_lib_map(
     r1_r2_count_df = df[["libid", "read_type"]].value_counts().unstack(1).reset_index()
     r1_r2_ne_df = r1_r2_count_df[r1_r2_count_df["R1"] != r1_r2_count_df["R2"]]
     if not r1_r2_ne_df.empty:
-        for row in r1_r2_ne_df:
+        for row in r1_r2_ne_df.itertuples():
             error_reccoder.record_error(
                 name=str(row.libid),
                 error_type="INCOMPLETE",  # 直接使用字符串
                 error_message=f"文库映射关系有误: {fq_line_dir} - {row.libid} - R1 R2 not equal",
+            )
+    duplicated_libid_df = df[df.duplicated(subset=["libid"])]
+    if not duplicated_libid_df.empty:
+        for row in duplicated_libid_df.itertuples():
+            error_reccoder.record_error(
+                name=str(row.libid),
+                error_type=FastqErrorType.DUPLICATED.value,  # 直接使用字符串
+                error_message=f"文库映射关系有重复项: {row.libid}-{row.sample_id}-{row.dir_name}",
             )
 
 
