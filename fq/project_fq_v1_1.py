@@ -69,6 +69,14 @@ class FastqErrorRecorder:
         return self._errors
 
 
+def extract_lib_id(lib_path: Path) -> str:
+    name = lib_path.name
+    lib_id = name.split("-")[-1]
+    if lib_id.isdigit():
+        lib_id = "-".join(name.split("-")[-2:])
+    return lib_id
+
+
 class FastqProcessor:
     """FASTQ文件处理器"""
 
@@ -91,9 +99,7 @@ class FastqProcessor:
         for pattern in FASTQ_EXTENSIONS:
             fastqs.extend(sample_path.glob(pattern))
 
-        lib_id = filename.split("-")[-1]
-        if lib_id.isdigit():
-            lib_id = "-".join(filename.split("-")[-2:])
+        lib_id = extract_lib_id(sample_path)
         lib_info = []
 
         if not fastqs:
@@ -135,13 +141,13 @@ class FastqProcessor:
 
         return lib_info
 
-    def _libid_not_duplicated(self, lib_map: pd.DataFrame) -> None:
+    def _libid_not_duplicated(self, fq_line: Path) -> None:
         try:
             sample_dirs = list(fq_line.glob("Sample*"))
         except Exception as e:
             raise Exception(f"遍历目录失败: {e}")
 
-        libids = [dir.name.split("-")[-1] for dir in sample_dirs]
+        libids = [extract_lib_id(each_dir) for each_dir in sample_dirs]
         libid_counts = Counter(libids)
         duplicated = {libid for libid, count in libid_counts.items() if count > 1}
 
@@ -460,14 +466,6 @@ def check_lib_map(
                 name=str(row.libid),
                 error_type="INCOMPLETE",  # 直接使用字符串
                 error_message=f"文库映射关系有误: {fq_line_dir} - {row.libid} - R1 R2 not equal",
-            )
-    duplicated_libid_df = df[df.duplicated(subset=["libid"])]
-    if not duplicated_libid_df.empty:
-        for row in duplicated_libid_df.itertuples():
-            error_reccoder.record_error(
-                name=str(row.libid),
-                error_type=FastqErrorType.DUPLICATED.value,  # 直接使用字符串
-                error_message=f"文库映射关系有重复项: {row.libid}-{row.dir_name}",
             )
 
 
