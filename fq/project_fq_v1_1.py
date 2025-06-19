@@ -250,6 +250,7 @@ class FastqProcessor:
         logger.info(f"找到 {len(target_dirs)} 个匹配目录")
 
         for each_path in tqdm(target_dirs, desc="加载配置"):
+            self._libid_not_duplicated(each_path)
             try:
                 logger.info(f"获取libid-fastq配置：{each_path.name}")
                 libid_map = self.read_or_build_config(each_path, force_rebuild)
