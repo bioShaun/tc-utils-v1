@@ -4,9 +4,11 @@ import delegator
 import pandas as pd
 import typer
 from loguru import logger
+from pyfaidx import Fasta
 
 
-def make_id_vcf(id_file: Path) -> Path:
+def make_id_vcf(id_file: Path, ref_fa: Path) -> Path:
+    ref_fasta = Fasta(ref_fa)
     id_vcf_file = Path(f"{id_file}.vcf")
     with open(id_file, "r") as id_inf, open(id_vcf_file, "w") as vcf_inf:
         vcf_inf.write(f"##fileformat=VCFv4.2\n")
@@ -15,8 +17,13 @@ def make_id_vcf(id_file: Path) -> Path:
             each_id = line.strip()
             chrom = "-".join(each_id.split("_")[:-1])
             pos = each_id.split("_")[-1]
-            vcf_inf.write(f"{chrom}\t{pos}\t{each_id}\t.\t.\t.\t.\t.\n")
+            ref_seq = fetch_ref_nucleotide(ref_fasta, chrom, pos)
+            vcf_inf.write(f"{chrom}\t{pos}\t{each_id}\t{ref_seq}\t.\t.\t.\t.\n")
     return id_vcf_file
+
+
+def fetch_ref_nucleotide(ref_fa: Fasta, chrom: str, pos: int) -> str:
+    return str(ref_fa[chrom][pos - 1 : pos].seq) if chrom in ref_fa else "N"
 
 
 def make_chain(
