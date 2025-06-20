@@ -35,6 +35,7 @@ def make_chain(
     out_dir: Path,
 ) -> None:
     """Make a chain file from a reference and query file."""
+    logger.info(f"Generating vcf from ID file: {id_file}")
     vcf: Path = make_id_vcf(id_file, ref_fa)
     outdir: Path = id_file.parent
     lift_over_vcf: Path = outdir / f"liftover.{id_file.name}.vcf.gz"
