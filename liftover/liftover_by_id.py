@@ -5,6 +5,7 @@ import pandas as pd
 import typer
 from loguru import logger
 from pyfaidx import Fasta
+from tqdm import tqdm
 
 
 def make_id_vcf(id_file: Path, ref_fa: Path) -> Path:
@@ -13,7 +14,7 @@ def make_id_vcf(id_file: Path, ref_fa: Path) -> Path:
     with open(id_file, "r") as id_inf, open(id_vcf_file, "w") as vcf_inf:
         vcf_inf.write(f"##fileformat=VCFv4.2\n")
         vcf_inf.write("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n")
-        for line in id_inf:
+        for line in tqdm(id_inf, desc="Processing IDs"):
             each_id = line.strip()
             chrom = "-".join(each_id.split("_")[:-1])
             pos = int(each_id.split("_")[-1])
