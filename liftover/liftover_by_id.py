@@ -16,7 +16,7 @@ def make_id_vcf(id_file: Path, ref_fa: Path) -> Path:
         for line in id_inf:
             each_id = line.strip()
             chrom = "-".join(each_id.split("_")[:-1])
-            pos = each_id.split("_")[-1]
+            pos = int(each_id.split("_")[-1])
             ref_seq = fetch_ref_nucleotide(ref_fasta, chrom, pos)
             vcf_inf.write(f"{chrom}\t{pos}\t{each_id}\t{ref_seq}\t.\t.\t.\t.\n")
     return id_vcf_file
@@ -34,7 +34,7 @@ def make_chain(
     out_dir: Path,
 ) -> None:
     """Make a chain file from a reference and query file."""
-    vcf: Path = make_id_vcf(id_file)
+    vcf: Path = make_id_vcf(id_file, ref_fa)
     outdir: Path = id_file.parent
     lift_over_vcf: Path = outdir / f"liftover.{id_file.name}.vcf.gz"
     rejected_vcf: Path = outdir / f"rejected.{id_file.name}.vcf.gz"
@@ -72,7 +72,7 @@ def make_chain(
     logger.info(f"Running bedtools sort: {sort_cmd}")
     delegator.run(sort_cmd)
     snp_calling_bed = out_dir / f"{probe_name}.snpcalling.bed"
-    spa missed_sample_set = set() missed_sample_set = set()n_bed_cmd = f"bedtools slop -i {probe_bed} -g {ref_fa_idx} -b 200 | bedtools merge -i - > {snp_calling_bed}"
+    span_bed_cmd = f"bedtools slop -i {probe_bed} -g {ref_fa_idx} -b 200 | bedtools merge -i - > {snp_calling_bed}"
     logger.info(f"Running bedtools span bed: {span_bed_cmd}")
     delegator.run(span_bed_cmd)
     # rm raw bed
