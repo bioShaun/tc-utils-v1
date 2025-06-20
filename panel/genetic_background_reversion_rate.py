@@ -74,6 +74,7 @@ def main(
     gt_file: Path, parent_file: Path, output_file: Path, va_id: Optional[Path] = None
 ):
     gt = pd.read_csv(gt_file, sep="\t")
+    missed_samples_set = set()
     if va_id is not None:
         va_id_list = pd.read_csv(va_id, sep="\t", header=None)[0].tolist()
         gt["variant_id"] = gt["CHROM"].astype(str) + "_" + gt["POS"].astype(str)
@@ -85,9 +86,11 @@ def main(
         sample_id = row.Sample_id
         if parent_id not in gt.columns:
             logger.warning(f"Parent_id not found: {parent_id}")
+            missed_samples_set.add(parent_id)
             continue
         if sample_id not in gt.columns:
             logger.warning(f"Sample_id not found: {sample_id}")
+            missed_samples_set.add(sample_id)
             continue
         site_stats = cal_reversion_rate(
             df=gt, parent_col=str(parent_id), sample_col=str(sample_id)
@@ -102,6 +105,10 @@ def main(
         parent.loc[row.Index, "HET_rate"] = site_stats.het_rate
     parent = parent[parent["N_rate"] < 1]
     parent.to_excel(output_file, index=False, float_format="%.3f", na_rep="NA")
+    missed_sample_file = output_file.with_suffix(".missed_samples.txt")
+    with open(missed_sample_file, "w") as f:
+        for sample_id in missed_samples_set:
+            f.write(f"{sample_id}\n")
 
 
 if __name__ == "__main__":

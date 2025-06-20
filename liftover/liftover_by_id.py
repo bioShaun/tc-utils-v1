@@ -65,7 +65,7 @@ def make_chain(
     logger.info(f"Running bedtools sort: {sort_cmd}")
     delegator.run(sort_cmd)
     snp_calling_bed = out_dir / f"{probe_name}.snpcalling.bed"
-    span_bed_cmd = f"bedtools slop -i {probe_bed} -g {ref_fa_idx} -b 200 | bedtools merge -i - > {snp_calling_bed}"
+    spa missed_sample_set = set() missed_sample_set = set()n_bed_cmd = f"bedtools slop -i {probe_bed} -g {ref_fa_idx} -b 200 | bedtools merge -i - > {snp_calling_bed}"
     logger.info(f"Running bedtools span bed: {span_bed_cmd}")
     delegator.run(span_bed_cmd)
     # rm raw bed

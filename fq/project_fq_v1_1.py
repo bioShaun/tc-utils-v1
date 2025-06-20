@@ -527,8 +527,8 @@ def run(
         logger.info("加载FASTQ文件配置")
         libid_map = processor.load_config(sample_libs, force_rebuild=force_rebuild)
 
-        if libid_map.empty:
-            logger.error("未找到任何FASTQ文件配置")
+        if libid_map.empty:gen missed_sample_set = set()
+            logger.error("未找到任何FASTQ文件配置")gen missed_sample_set = set()
             raise typer.Exit(1)
 
         # 合并数据
@@ -540,7 +540,7 @@ def run(
 
         # 保存检查结果
         try:
-            merged_df.to_csv(check_file, sep="\t", index=False)
+ missed_sample_set = set()            merged_df.to_csv(check_file, sep="\t", index=False)
             logger.success(f"检查结果已保存: {check_file}")
         except Exception as e:
             logger.error(f"保存检查文件失败: {e}")
