@@ -8,9 +8,12 @@ from pyfaidx import Fasta
 from tqdm import tqdm
 
 
-def make_id_vcf(id_file: Path, ref_fa: Path) -> Path:
+def make_id_vcf(id_file: Path, ref_fa: Path, force: bool) -> Path:
     ref_fasta = Fasta(ref_fa)
     id_vcf_file = Path(f"{id_file}.vcf")
+    if id_vcf_file.exists() and not force:
+        logger.info(f"VCF file {id_vcf_file} already exists. Skipping creation.")
+        return id_vcf_file
     with open(id_file, "r") as id_inf, open(id_vcf_file, "w") as vcf_inf:
         vcf_inf.write(f"##fileformat=VCFv4.2\n")
         vcf_inf.write("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n")
@@ -33,10 +36,11 @@ def make_chain(
     ref_fa: Path,
     query_fa: Path,
     out_dir: Path,
+    force: bool = False,
 ) -> None:
     """Make a chain file from a reference and query file."""
     logger.info(f"Generating vcf from ID file: {id_file}")
-    vcf: Path = make_id_vcf(id_file, ref_fa)
+    vcf: Path = make_id_vcf(id_file, ref_fa, force=force)
     outdir: Path = id_file.parent
     lift_over_vcf: Path = outdir / f"liftover.{id_file.name}.vcf.gz"
     rejected_vcf: Path = outdir / f"rejected.{id_file.name}.vcf.gz"
@@ -45,8 +49,13 @@ def make_chain(
         f"--new-assembly {query_fa} "
         f"--chain {chain} --vcf {vcf} --output {lift_over_vcf} --fail {rejected_vcf} "
     )
-    logger.info(f"Running liftover: {liftover_cmd}")
-    delegator.run(liftover_cmd)
+    if force or not lift_over_vcf.is_file():
+        logger.info(f"Running liftover command: {liftover_cmd}")
+        delegator.run(liftover_cmd)
+    else:
+        logger.info(
+            f"Lifted over VCF already exists: {lift_over_vcf}. Skipping liftover."
+        )
     lift_bed = pd.read_table(
         lift_over_vcf,
         header=None,
@@ -66,7 +75,7 @@ def make_chain(
     probe_id_file = out_dir / f"{probe_name}.id"
     lift_bed.to_csv(probe_id_file, sep="\t", index=False, header=False, columns=["id"])
     lift_bed.to_csv(
-        raw_bed, sep="\t", index=False, header=False, names=["chrom", "start", "pos"]
+        raw_bed, sep="\t", index=False, header=False, columns=["chrom", "start", "pos"]
     )
     ref_fa_idx = f"{ref_fa}.fai"
     probe_bed = out_dir / f"{probe_name}.bed"
@@ -83,24 +92,3 @@ def make_chain(
 
 if __name__ == "__main__":
     typer.run(make_chain)
-
-
-def assign_groups(node, threshold, group_dict=None):
-    if group_dict is None:
-        group_dict = {}
-
-    if node.is_leaf():
-        return group_dict
-
-    dist = node.get_distance(node.get_tree_root())
-    if dist > threshold:
-        group_num = int(dist // threshold) + 1
-        for leaf in node.get_leaves():
-            # 只有当样品还没有被分组时才分配新组
-            if leaf.name not in group_dict:
-                group_dict[leaf.name] = f"Group{group_num}"
-
-    for child in node.children:
-        assign_groups(child, threshold, group_dict)
-
-    return group_dict
