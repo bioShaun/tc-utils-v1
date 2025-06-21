@@ -65,14 +65,13 @@ def make_chain(
         compression="gzip",
     )
     lift_bed["start"] = lift_bed["pos"] - 1
-    lift_bed["id"] = lift_bed["chrom"] + "_" + lift_bed["start"].astype(str)
+    lift_bed["id"] = lift_bed["chrom"] + "_" + lift_bed["pos"].astype(str)
     lift_bed.drop_duplicates(inplace=True)
     outdir.mkdir(exist_ok=True, parents=True)
     raw_bed = outdir / f"raw.{id_file.stem}.bed"
     probe_name = id_file.stem
 
     probe_id_file = outdir / f"{probe_name}.id"
-    lift_bed.to_csv(probe_id_file, sep="\t", index=False, header=False, columns=["id"])
     lift_bed.to_csv(
         raw_bed, sep="\t", index=False, header=False, columns=["chrom", "start", "pos"]
     )
@@ -81,6 +80,21 @@ def make_chain(
     sort_cmd = f"bedtools sort -i {raw_bed} -g {ref_fa_idx} > {probe_bed}"
     logger.info(f"Running bedtools sort: {sort_cmd}")
     delegator.run(sort_cmd)
+    # Create a sorted bed file with unique IDs
+    logger.info(f"Creating sorted id file : {probe_id_file}")
+    sorted_lift_bed = pd.read_table(
+        probe_bed,
+        header=None,
+        sep="\t",
+        names=["chrom", "start", "end"],
+    )
+    sorted_lift_bed["id"] = (
+        sorted_lift_bed["chrom"] + "_" + sorted_lift_bed["end"].astype(str)
+    )
+    sorted_lift_bed.to_csv(
+        probe_id_file, sep="\t", index=False, header=False, columns=["id"]
+    )
+
     snp_calling_bed = outdir / f"{probe_name}.snpcalling.bed"
     span_bed_cmd = f"bedtools slop -i {probe_bed} -g {ref_fa_idx} -b 100 | bedtools merge -i - > {snp_calling_bed}"
     logger.info(f"Running bedtools span bed: {span_bed_cmd}")
