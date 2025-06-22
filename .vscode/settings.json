@@ -1,10 +1,4 @@
 {
-  "python.formatting.provider": "none",
-  "[python]": {
-    "editor.defaultFormatter": "ms-python.black-formatter"
-  },
-  "CodeGPT.apiKey": "CodeGPT Plus Beta",
-  "cSpell.words": ["Indel", "itertuples"],
-  "python.languageServer": "None",
-  "r.lsp.promptToInstall": false
+  "r.lsp.promptToInstall": false,
+  "nextflow.telemetry.enabled": true
 }
