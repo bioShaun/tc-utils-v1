@@ -115,12 +115,14 @@ def main(
     target_sample_list = pd.read_csv(target_sample_path, sep="\t", header=None)[
         0
     ].to_list()
-    all_sample_list = pd.read_csv(all_sample_path, sep="\t", header=None)[0].to_list()
-    background_sample_list = list(set(all_sample_list) - set(target_sample_list))
     # Summarize the gene mutations
     if all_sample_path is None:
         merged_count_sample = gene_mutants_summary(df, target_sample_list, "目标样品")
     else:
+        all_sample_list = pd.read_csv(all_sample_path, sep="\t", header=None)[
+            0
+        ].to_list()
+        background_sample_list = list(set(all_sample_list) - set(target_sample_list))
         merged_count_sample = gene_mutants_summary(
             df, target_sample_list, "目标样品"
         ).merge(
