@@ -96,7 +96,10 @@ def gene_mutants_summary(
 
 
 def main(
-    db_file: Path, output_file: Path, target_sample_path: Path, all_sample_path: Path
+    db_file: Path,
+    output_file: Path,
+    target_sample_path: Path,
+    all_sample_path: Optional[Path],
 ):
     """Summarize gene mutations in a database file.
 
@@ -115,12 +118,15 @@ def main(
     all_sample_list = pd.read_csv(all_sample_path, sep="\t", header=None)[0].to_list()
     background_sample_list = list(set(all_sample_list) - set(target_sample_list))
     # Summarize the gene mutations
-    merged_count_sample = gene_mutants_summary(
-        df, target_sample_list, "目标样品"
-    ).merge(
-        gene_mutants_summary(df, background_sample_list, "其他样品"),
-        how="left",
-    )
+    if all_sample_path is None:
+        merged_count_sample = gene_mutants_summary(df, target_sample_list, "目标样品")
+    else:
+        merged_count_sample = gene_mutants_summary(
+            df, target_sample_list, "目标样品"
+        ).merge(
+            gene_mutants_summary(df, background_sample_list, "其他样品"),
+            how="left",
+        )
 
     int_cols = [each for each in merged_count_sample.columns if "数" in each]
     merged_count_sample[int_cols] = merged_count_sample[int_cols].fillna(0).astype(int)
