@@ -17,9 +17,11 @@ HEADER_MAP = {
 
 
 def gene_mutants_summary(
-    va_df: pd.DataFrame, sample_df: List[str], prefix: str
+    va_df: pd.DataFrame, sample_list: List[str], prefix: str
 ) -> pd.DataFrame:
-    df = va_df[va_df["sample_id"].isin(sample_df)].copy()
+    va_df["sample_id"] = va_df["sample_id"].astype(str)
+    sample_list = [str(x) for x in sample_list]
+    df = va_df[va_df["sample_id"].isin(sample_list)].copy()
 
     stop_df = df[(df["type"].str.contains("stop")) & (df["impact"] == "HIGH")]
     frame_shift_df = df[(df["type"].str.contains("frameshift"))]
