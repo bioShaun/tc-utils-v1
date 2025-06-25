@@ -101,7 +101,7 @@ def main(
     db_file: Path,
     output_file: Path,
     target_sample_path: Path,
-    all_sample_path: Optional[Path],
+    all_sample_path: Optional[Path] = None,
 ):
     """Summarize gene mutations in a database file.
 
