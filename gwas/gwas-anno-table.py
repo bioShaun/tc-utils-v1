@@ -63,7 +63,7 @@ def main(
     else:
         if anno_type == AnnoType.EGGNOG:
             ann_df = pd.read_table(anno_file, sep="\t", skiprows=4, usecols=[0, 7])
-            ann_df.columns = ["transcript_id", "description"]
+            ann_df.columns = ["transcript_id", "eggnog_description", "PFAM"]
         else:
             ann_df = pd.read_table(anno_file, sep="\t")
         logger.info("merge annotation ...")
