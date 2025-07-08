@@ -40,7 +40,7 @@ def main(bed: Path, gtf: Path):
                         else:
                             if int(each_inter[0]) != 0:
                                 raise ValueError(f"超过染色体长度, {eachline}")
-                            output_line_cp[4] = each_inter[1]
+                            output_line_cp[4] = str(each_inter[1])
                         output_str = "\t".join(output_line_cp)
                         print(output_str)
                     else:
