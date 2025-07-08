@@ -91,11 +91,11 @@ class VCFGeneticAnalyzer:
                     # gt: e.g. [0, 1, True], or [None, None, False] (缺失)
                     if gt[0] is None or gt[1] is None or gt[0] == -1 or gt[1] == -1:
                         gt_str = "./."
-                    elif gt[0] != gt[1]:
-                        af = variant.gt_alt_freqs[n]
-                        if af < 0.2 or af > 0.8:
-                            gt_str = "./."
-                        gt_str = f"{gt[0]}/{gt[1]}"
+                    # elif gt[0] != gt[1]:
+                    #     af = variant.gt_alt_freqs[n]
+                    #     if af < 0.2 or af > 0.8:
+                    #         gt_str = "./."
+                    #     gt_str = f"{gt[0]}/{gt[1]}"
                     else:
                         sep = "/"  # 实际上cyvcf2能区分phase，这里只用'/'即可
                         gt_str = f"{gt[0]}{sep}{gt[1]}"
@@ -375,21 +375,33 @@ class VCFGeneticAnalyzer:
                     else:
                         inconsistent_count += 1
                         # 只保存前100个不一致的详情
-                        if len(inconsistent_details) < 100:
-                            inconsistent_details.append(
-                                {
-                                    "variant_id": variant_id,
-                                    "chrom": self.variant_info.loc[variant_id, "CHROM"],
-                                    "pos": self.variant_info.loc[variant_id, "POS"],
-                                    "ref": self.variant_info.loc[variant_id, "REF"],
-                                    "alt": self.variant_info.loc[variant_id, "ALT"],
-                                    "father_gt": father_gt,
-                                    "mother_gt": mother_gt,
-                                    "child_gt": child_gt,
-                                    "issue": explanation,
-                                }
-                            )
-
+                        # if len(inconsistent_details) < 100:
+                        #     inconsistent_details.append(
+                        #         {
+                        #             "variant_id": variant_id,
+                        #             "chrom": self.variant_info.loc[variant_id, "CHROM"],
+                        #             "pos": self.variant_info.loc[variant_id, "POS"],
+                        #             "ref": self.variant_info.loc[variant_id, "REF"],
+                        #             "alt": self.variant_info.loc[variant_id, "ALT"],
+                        #             "father_gt": father_gt,
+                        #             "mother_gt": mother_gt,
+                        #             "child_gt": child_gt,
+                        #             "issue": explanation,
+                        #         }
+                        #     )
+                    inconsistent_details.append(
+                        {
+                            "variant_id": variant_id,
+                            "chrom": self.variant_info.loc[variant_id, "CHROM"],
+                            "pos": self.variant_info.loc[variant_id, "POS"],
+                            "ref": self.variant_info.loc[variant_id, "REF"],
+                            "alt": self.variant_info.loc[variant_id, "ALT"],
+                            "father_gt": father_gt,
+                            "mother_gt": mother_gt,
+                            "child_gt": child_gt,
+                            "issue": explanation,
+                        }
+                    )
             # 计算一致性比例
             valid_variants = total_variants - missing_count
             consistency_rate = (

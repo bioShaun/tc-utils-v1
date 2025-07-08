@@ -12,7 +12,7 @@ def main(gtf: Path) -> None:
             line_inf = line.strip().split("\t")
             out_inf = line
             # tr_id = line_inf[-1].split()[1]
-            tr_id = re.search('transcript_id "(\S+)"', line_inf[-1]).groups()[0]
+            tr_id = re.search(r'transcript_id "(\S+)"', line_inf[-1]).groups()[0]
             strand = line_inf[6]
             if strand not in ["+", "-"]:
                 line_inf[6] = "+"
@@ -25,7 +25,7 @@ def main(gtf: Path) -> None:
             if "gene_id" not in line:
                 gene_id = line.strip().split()[-1]
                 new_out_inf = f"{line.strip()} gene_id {gene_id}\n"
-            tr_dict[tr_id][line_inf[2]].append(new_out_inf + '\n')
+            tr_dict[tr_id][line_inf[2]].append(new_out_inf + "\n")
     with out_gtf.open("w") as out:
         for transcript in tr_dict:
             for feature in ["transcript", "exon", "CDS"]:
