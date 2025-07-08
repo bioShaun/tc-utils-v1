@@ -2,6 +2,7 @@ from math import e
 from pathlib import Path
 
 import typer
+from matplotlib.cbook import contiguous_regions
 
 
 def main(bed: Path, gtf: Path):
@@ -32,7 +33,7 @@ def main(bed: Path, gtf: Path):
             output_line_cp = output_line[:]
             if chrom in chr_dict:
                 for each_inter in chr_dict[chrom]:
-                    if int(start) >= each_inter[0]:
+                    if int(start) >= each_inter[0] and int(start) <= each_inter[1]:
                         output_line_cp[0] = chr_dict[chrom][each_inter]
                         output_line_cp[3] = str(int(start) - each_inter[0])
                         if int(end) <= each_inter[1]:
