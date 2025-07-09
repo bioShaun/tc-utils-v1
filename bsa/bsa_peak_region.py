@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Optional
 
 import polars as pl
 import typer
@@ -18,8 +19,9 @@ def qtlseqr_snpIndex_filter(df: pl.LazyFrame, ci_col: str) -> pl.LazyFrame:
 
 
 def qtlseqr_candidate_filter(df: pl.LazyFrame, stats_col: str, ci: str) -> pl.LazyFrame:
+    df_unique = df.unique(subset=["CHROM", "POS"])
     df_stats = (
-        df.select(
+        df_unique.select(
             [
                 pl.col(stats_col).mean().alias("mean"),
                 pl.col(stats_col).std().alias("std"),
@@ -105,7 +107,7 @@ def merge_qtlseqr_candidate(data_dir: Path, ci: str) -> pl.DataFrame:
     ed_df = qtlseqr_candidate_filter(qtlseqr_df, "fitted", ci)
     merged_df = (
         pl.concat([snpindex_df, gprime_df, ed_df])
-        .unique(subset=["CHROM", "POS"])
+        .unique(subset=["CHROM", "POS", "REF", "ALT", "Feature", "Transcript"])
         .collect()
     )
 
@@ -115,35 +117,32 @@ def merge_qtlseqr_candidate(data_dir: Path, ci: str) -> pl.DataFrame:
     )
 
 
-def fetch_qtlseqr_dir(data_dir: Path) -> Path:
-    for each_path in data_dir.glob("*QTLseqr*"):
+def fetch_analysis_dir(data_dir: Path, pattern: str) -> Optional[Path]:
+    for each_path in data_dir.glob(pattern):
         if each_path.is_dir():
             return each_path
-    raise FileNotFoundError(f"QTLseqr dir not found in {data_dir}")
-
-
-def fetch_varbscore_dir(data_dir: Path) -> Path:
-    for each_path in data_dir.glob("*varBScore*"):
-        if each_path.is_dir():
-            return each_path
-    raise FileNotFoundError(f"VarBscore dir not found in {data_dir}")
+    return None
 
 
 def main(
     bsa_dir: Path = typer.Argument(..., help="BSA dir"),
 ) -> None:
     for ci in ["CI_95", "CI_99"]:
+        # VarFilter candidate
+
         # VarBscore candidate
-        varbscore_ci_df = varbscore_candidate_filter(bsa_dir, ci)
-        varbscore_dir = fetch_varbscore_dir(bsa_dir)
-        varbscore_ci_file = varbscore_dir / f"VarBscore_{ci}.csv"
-        varbscore_ci_df.write_csv(varbscore_ci_file)
+        varbscore_dir = fetch_analysis_dir(bsa_dir, "*varBScore*")
+        if varbscore_dir is not None:
+            varbscore_ci_df = varbscore_candidate_filter(bsa_dir, ci)
+            varbscore_ci_file = varbscore_dir / f"VarBscore_{ci}.csv"
+            varbscore_ci_df.write_csv(varbscore_ci_file)
 
         # QTLseqr candidate
-        qtlseqr_ci_df = merge_qtlseqr_candidate(bsa_dir, ci)
-        qtlseqr_dir = fetch_qtlseqr_dir(bsa_dir)
-        qtlseqr_ci_file = qtlseqr_dir / f"QTLseqr_{ci}.csv"
-        qtlseqr_ci_df.write_csv(qtlseqr_ci_file)
+        qtlseqr_dir = fetch_analysis_dir(bsa_dir, "*QTLseqr*")
+        if qtlseqr_dir is not None:
+            qtlseqr_ci_df = merge_qtlseqr_candidate(bsa_dir, ci)
+            qtlseqr_ci_file = qtlseqr_dir / f"QTLseqr_{ci}.csv"
+            qtlseqr_ci_df.write_csv(qtlseqr_ci_file)
 
 
 if __name__ == "__main__":
