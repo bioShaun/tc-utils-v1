@@ -20,11 +20,18 @@ MODELS = {
 
 
 def main(
-    data_dir: Path, out_dir: Optional[Path] = None, chr_prefix: str = typer.Option(None)
+    data_dir: Path,
+    out_dir: Optional[Path] = None,
+    chr_prefix: str = typer.Option(None),
+    chr_list_file: Optional[Path] = None,
 ):
     for each_file in data_dir.glob("*/*assoc.txt"):
         file_path = each_file.parent
         df = pd.read_table(each_file)
+        df["chr"] = df["chr"].astype(str)
+        if chr_list_file:
+            chr_list = pd.read_table(chr_list_file, header=None)[0].to_list()
+            df = df[df["chr"].isin(chr_list)]
         plot_dir = file_path if out_dir is None else out_dir
         if chr_prefix:
             df["chr"] = df["chr"].map(lambda x: x.lstrip(chr_prefix))
