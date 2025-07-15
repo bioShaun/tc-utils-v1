@@ -18,6 +18,32 @@ def qtlseqr_snpIndex_filter(df: pl.LazyFrame, ci_col: str) -> pl.LazyFrame:
     )
 
 
+def varfilter_candidate_regions(data_dir: Path, ci_number: float) -> pl.DataFrame:
+    df = fetch_lazy_df(data_dir, "*varFilter/var.filter.density.csv")
+    df_stats = df.select(
+        [pl.col("variantCount").quantile(ci_number).alias("q_value")]
+    ).collect()
+
+    q_value = df_stats["q_value"][0]
+    df_filtered = df.filter(pl.col("variantCount") > q_value).collect()
+    return df_filtered
+
+
+def varfilter_candidate_filter(data_dir: Path, ci_number: float) -> pl.DataFrame:
+    candidate_region = varfilter_candidate_regions(data_dir, ci_number)
+    candidate_df_list = []
+    varfilter_df = fetch_lazy_df(data_dir, "*varFilter/data/*.csv")
+    for row in candidate_region.iter_rows(named=True):
+        candidate_df_list.append(
+            varfilter_df.filter(
+                (pl.col("CHROM") == row["chrom"])
+                & (pl.col("POS") >= row["start"])
+                & (pl.col("POS") <= row["end"])
+            )
+        )
+    return pl.concat(candidate_df_list).collect()
+
+
 def qtlseqr_candidate_filter(df: pl.LazyFrame, stats_col: str, ci: str) -> pl.LazyFrame:
     df_unique = df.unique(subset=["CHROM", "POS"])
     df_stats = (
@@ -129,7 +155,13 @@ def main(
 ) -> None:
     for ci in ["CI_95", "CI_99"]:
         # VarFilter candidate
-
+        varFilter_dir = fetch_analysis_dir(bsa_dir, "*varFilter*")
+        if varFilter_dir is not None:
+            ci_number = int(ci.split("_")[1])
+            q_number = ci_number / 100
+            varfilter_ci_df = varfilter_candidate_filter(bsa_dir, q_number)
+            varfilter_ci_file = varFilter_dir / f"VarFilter_top{100 - ci_number}%.csv"
+            varfilter_ci_df.write_csv(varfilter_ci_file)
         # VarBscore candidate
         varbscore_dir = fetch_analysis_dir(bsa_dir, "*varBScore*")
         if varbscore_dir is not None:

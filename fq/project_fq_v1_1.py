@@ -331,6 +331,7 @@ def write_nextflow_input(
     fq_df: pd.DataFrame,
     output_dir: Path,
     error_recorder: FastqErrorRecorder,
+    warning_recorder: FastqErrorRecorder,
     threads: int = 8,
     run_script: bool = True,
 ) -> Optional[Dict[str, int]]:
@@ -381,8 +382,21 @@ def write_nextflow_input(
 
     logger.info(f"生成了 {script_count} 个脚本文件")
 
-    if run_script and script_count > 0:
+    errors = error_recorder.get_errors()
+    if errors:
+        for each_error in errors:
+            logger.error(f"{each_error.error_type} - {each_error.error_message}")
+    warnings = warning_recorder.get_errors()
+    if warnings:
+        for each_warning in warnings:
+            logger.warning(f"{each_warning.error_type} - {each_warning.error_message}")
+
+    should_run_script = run_script and script_count > 0 and len(errors) == 0
+
+    if should_run_script:
         return ScriptRunner.run_scripts_in_parallel(scripts_dir, max_workers=threads)
+    else:
+        logger.warning("发现错误，跳过脚本执行")
 
     return None
 
@@ -433,14 +447,17 @@ def log_statistics(df: pd.DataFrame):
 
 
 def check_sample_map(
-    error_recorder: FastqErrorRecorder, df: pd.DataFrame, low_data_threshold=0.01
+    error_recorder: FastqErrorRecorder,
+    warning_recorder: FastqErrorRecorder,
+    df: pd.DataFrame,
+    low_data_threshold=0.01,
 ):
     logger.info("正在检查样本映射关系...")
     duplicated_lines = df[df.duplicated(subset=["libid", "sample_id", "dir_name"])]
     if not duplicated_lines.empty:
-        logger.error("样本映射关系有重复项:")
+        logger.warning("样本映射关系有重复项:")
         for row in duplicated_lines.itertuples():
-            error_recorder.record_error(
+            warning_recorder.record_error(
                 name=str(row.libid),
                 error_type="DUPLICATED",  # 直接使用字符串
                 error_message=f"样本映射关系有重复项: {row.libid}-{row.sample_id}-{row.dir_name}",
@@ -503,8 +520,8 @@ def run(
             sample_df = pd.read_table(
                 sample_info,
                 header=None,
-                names=["libid", "sample_id", "data_size", "dir_name"],
-                usecols=[0, 1, 2, 3],
+                names=["sample_id", "data_size", "dir_name", "libid"],
+                usecols=[1, 2, 3, 5],
             )
         except Exception as e:
             logger.error(f"读取样品信息文件失败: {e}")
@@ -517,11 +534,13 @@ def run(
 
         # 初始化错误收集器
         error_collector = FastqErrorRecorder()
+        warning_collector = FastqErrorRecorder()
         processor = FastqProcessor(base_dir, error_recorder=error_collector)
 
         check_sample_map(
-            error_collector, sample_df, empty_data_threshold
+            error_collector, warning_collector, sample_df, empty_data_threshold
         )  # 使用模块级函数
+        sample_df = sample_df.drop_duplicates(subset=["sample_id", "dir_name", "libid"])
 
         # 加载配置
         logger.info("加载FASTQ文件配置")
@@ -600,8 +619,8 @@ def validate(
             sample_df = pd.read_table(
                 sample_info,
                 header=None,
-                names=["libid", "sample_id", "data_size", "dir_name"],
-                usecols=[0, 1, 2, 3],
+                names=["sample_id", "data_size", "dir_name", "libid"],
+                usecols=[1, 2, 3, 5],
             )
         except Exception as e:
             logger.error(f"读取样品信息文件失败: {e}")
@@ -614,11 +633,14 @@ def validate(
 
         # 初始化错误收集器
         error_collector = FastqErrorRecorder()
+        warning_collector = FastqErrorRecorder()
         processor = FastqProcessor(base_dir, error_recorder=error_collector)
 
         check_sample_map(
-            error_collector, sample_df, empty_data_threshold
+            error_collector, warning_collector, sample_df, empty_data_threshold
         )  # 使用模块级函数
+
+        sample_df = sample_df.drop_duplicates(subset=["sample_id", "dir_name", "libid"])
 
         # 加载配置
         logger.info("加载FASTQ文件配置")
@@ -660,6 +682,12 @@ def validate(
                 for each_error in errors:
                     logger.error(
                         f"{each_error.error_type} - {each_error.error_message}"
+                    )
+            warnings = warning_collector.get_errors()
+            if warnings:
+                for each_warning in warnings:
+                    logger.warning(
+                        f"{each_warning.error_type} - {each_warning.error_message}"
                     )
             else:
                 logger.success(f"检查完成：没有发现问题！")
