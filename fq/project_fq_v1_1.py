@@ -391,12 +391,17 @@ def write_nextflow_input(
         for each_warning in warnings:
             logger.warning(f"{each_warning.error_type} - {each_warning.error_message}")
 
-    should_run_script = run_script and script_count > 0 and len(errors) == 0
-
-    if should_run_script:
+    if run_script:
+        if len(errors) > 0:
+            logger.warning("发现错误，跳过脚本执行")
+            return None
+        if script_count == 0:
+            logger.warning("没有生成脚本，跳过脚本执行")
+            return None
         return ScriptRunner.run_scripts_in_parallel(scripts_dir, max_workers=threads)
     else:
-        logger.warning("发现错误，跳过脚本执行")
+        if len(errors) == 0 and len(warnings) == 0:
+            logger.success(f"检查完成：没有发现问题！")
 
     return None
 
