@@ -570,7 +570,11 @@ def run(
             logger.info(f"生成Nextflow输入文件到: {output_dir}")
 
             results = write_nextflow_input(
-                merged_df, output_dir, error_collector, threads=threads
+                merged_df,
+                output_dir,
+                error_collector,
+                warning_collector,
+                threads=threads,
             )
 
             if results:
