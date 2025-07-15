@@ -677,6 +677,7 @@ def validate(
                 merged_df,
                 output_dir,
                 error_collector,
+                warning_collector,
                 threads=threads,
                 run_script=False,
             )
