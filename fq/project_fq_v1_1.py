@@ -687,21 +687,6 @@ def validate(
                 run_script=False,
             )
 
-            errors = error_collector.get_errors()
-            if errors:
-                for each_error in errors:
-                    logger.error(
-                        f"{each_error.error_type} - {each_error.error_message}"
-                    )
-            warnings = warning_collector.get_errors()
-            if warnings:
-                for each_warning in warnings:
-                    logger.warning(
-                        f"{each_warning.error_type} - {each_warning.error_message}"
-                    )
-            else:
-                logger.success(f"检查完成：没有发现问题！")
-
     except KeyboardInterrupt:
         logger.info("用户中断操作")
         raise typer.Exit(130)
