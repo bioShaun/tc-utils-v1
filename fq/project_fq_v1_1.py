@@ -465,7 +465,7 @@ def check_sample_map(
             warning_recorder.record_error(
                 name=str(row.libid),
                 error_type="DUPLICATED",  # 直接使用字符串
-                error_message=f"样本映射关系有重复项: {row.libid}-{row.sample_id}-{row.dir_name}",
+                error_message=f"样本映射关系有重复项: {row.libid} | {row.sample_id} | {row.dir_name}",
             )
     low_data_df = df[df["data_size"] < low_data_threshold]
     if not low_data_df.empty:
@@ -474,7 +474,7 @@ def check_sample_map(
             error_recorder.record_error(
                 name=str(row.libid),
                 error_type="INCOMPLETE",  # 直接使用字符串
-                error_message=f"样本数据量小于{low_data_threshold}G: {row.libid}-{row.sample_id}-{row.dir_name}",
+                error_message=f"样本数据量小于{low_data_threshold}G: {row.libid} | {row.sample_id} | {row.dir_name}",
             )
 
 
