@@ -14,9 +14,9 @@ def get_left_right_df(
 ):
     direct_df = df.copy()
     if direction == "left":
-        direct_df["pos"] = direct_df.apply(lambda x: min(x[8], x[9]) + offset, axis=1)
+        direct_df["pos"] = direct_df.apply(lambda x: min(x[8], x[9]) - offset, axis=1)
     else:
-        direct_df["pos"] = direct_df.apply(lambda x: max(x[8], x[9]) - offset, axis=1)
+        direct_df["pos"] = direct_df.apply(lambda x: max(x[8], x[9]) + offset, axis=1)
     direct_df["chrom"] = direct_df[1]
     direct_df["alleles"] = "-/-"
     direct_df["label"] = f"wheat_ssr_fq-{genome}"
