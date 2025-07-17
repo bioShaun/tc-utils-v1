@@ -32,9 +32,12 @@ def main(
 ) -> None:
 
     def get_best_and_most(test_df):
-        a = (test_df.groupby([1, 8]).size() >= 2).reset_index()
-        most_df = a[a[0]].drop(0, axis=1).merge(test_df).drop_duplicates(subset=[1, 8])
-        best_df = test_df[:1]
+        filter_df = test_df[test_df[6] == 1].copy()
+        a = (filter_df.groupby([1, 8]).size() >= 2).reset_index()
+        most_df = (
+            a[a[0]].drop(0, axis=1).merge(filter_df).drop_duplicates(subset=[1, 8])
+        )
+        best_df = filter_df[:1]
         return pd.concat([most_df, best_df]).drop_duplicates(subset=[1, 8])
 
     df_list = []
