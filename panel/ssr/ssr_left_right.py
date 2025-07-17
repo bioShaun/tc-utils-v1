@@ -43,7 +43,7 @@ def main(
     df["dup_count"] = df.groupby("raw_id").cumcount()
     df["id"] = df.apply(
         lambda row: (
-            f"{row['raw_id']}-{row['dup_count']}"
+            f"{row['raw_id']}-{row['dup_count'] + 1}"
             if row["dup_count"] > 0
             else row["raw_id"]
         ),
