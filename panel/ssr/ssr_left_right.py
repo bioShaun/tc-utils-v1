@@ -9,12 +9,14 @@ OUT_COLS = ["id", "chrom", "pos", "alleles", "label"]
 OUTDIR = Path(".")
 
 
-def get_left_right_df(df: pd.DataFrame, direction: str, genome: str, out_dir: Path):
+def get_left_right_df(
+    df: pd.DataFrame, direction: str, genome: str, out_dir: Path, offset: int
+):
     direct_df = df.copy()
     if direction == "left":
-        direct_df["pos"] = direct_df.apply(lambda x: min(x[8], x[9]), axis=1)
+        direct_df["pos"] = direct_df.apply(lambda x: min(x[8], x[9]) + offset, axis=1)
     else:
-        direct_df["pos"] = direct_df.apply(lambda x: max(x[8], x[9]), axis=1)
+        direct_df["pos"] = direct_df.apply(lambda x: max(x[8], x[9]) - offset, axis=1)
     direct_df["chrom"] = direct_df[1]
     direct_df["alleles"] = "-/-"
     direct_df["label"] = f"wheat_ssr_fq-{genome}"
@@ -26,6 +28,7 @@ def main(
     genome: str = typer.Option(..., help="Genome"),
     blast_dir: Path = typer.Argument(default=BASE_BLAST_DIR, help="Blast dir"),
     out_dir: Path = typer.Option(default=OUTDIR, help="Output dir"),
+    off_set_bp: int = typer.Option(default=10, help="Offset bp"),
 ) -> None:
 
     def get_best_and_most(test_df):
@@ -51,7 +54,7 @@ def main(
     )
 
     for direction in ["left", "right"]:
-        get_left_right_df(df, direction, genome, out_dir)
+        get_left_right_df(df, direction, genome, out_dir, off_set_bp)
 
 
 if __name__ == "__main__":
