@@ -37,9 +37,18 @@ def main(
     df_list = []
     for region_file in tqdm(blast_dir.glob("*.tsv")):
         test_df = pd.read_table(region_file, header=None)
-        test_df["id"] = region_file.stem.replace(".blast", "")
+        test_df["raw_id"] = region_file.stem.replace(".blast", "")
         df_list.append(get_best_and_most(test_df))
     df = pd.concat(df_list)
+    df["dup_count"] = df.groupby("id").cumcount()
+    df["id"] = df.apply(
+        lambda row: (
+            f"{row['raw_id']}-{row['dup_count']}"
+            if row["dup_count"] > 0
+            else row["raw_id"]
+        ),
+        axis=1,
+    )
 
     for direction in ["left", "right"]:
         get_left_right_df(df, direction, genome, out_dir)
