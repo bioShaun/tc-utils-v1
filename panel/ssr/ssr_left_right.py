@@ -32,7 +32,7 @@ def main(
 ) -> None:
 
     def get_best_and_most(test_df):
-        filter_df = test_df[test_df[6] == 1].copy()
+        filter_df = test_df[test_df[6] <= 3].copy()
         a = (filter_df.groupby([1, 8]).size() >= 2).reset_index()
         most_df = (
             a[a[0]].drop(0, axis=1).merge(filter_df).drop_duplicates(subset=[1, 8])
