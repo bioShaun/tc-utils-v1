@@ -45,11 +45,15 @@ def get_ref_alt_lengths(alleles: str) -> tuple[int, list[int]]:
     return ref_len, alt_lens
 
 
-def get_diff_len(alleles: str) -> int:
-    ref, alt = alleles.split("/")
-    if len(ref) == len(alt) == 1:
-        return 1
-    return sum(a != b for a, b in zip(ref.upper(), alt.upper()))
+def get_max_diff_len(alleles: str) -> int:
+    ref, alts = alleles.split("/")
+    alt_list = alts.split(",")
+    diff_count_list = []
+    for alt in alt_list:
+        if len(ref) == len(alt) == 1:
+            diff_count_list.append(1)
+        diff_count_list.append(sum(a != b for a, b in zip(ref.upper(), alt.upper())))
+    return max(diff_count_list)
 
 
 def get_indel_type(alleles: str) -> str:
