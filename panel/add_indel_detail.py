@@ -12,6 +12,7 @@ class IndelType(StrEnum):
     DEL = "DEL"
     INS = "INS"
     UNKNOWN = "UNKNOWN"
+    MNP = "MNP"
 
 
 def get_ref_alt_lengths(alleles: str) -> tuple[int, list[int]]:
@@ -44,6 +45,13 @@ def get_ref_alt_lengths(alleles: str) -> tuple[int, list[int]]:
     return ref_len, alt_lens
 
 
+def get_diff_len(alleles: str) -> int:
+    ref, alt = alleles.split("/")
+    if len(ref) == len(alt) == 1:
+        return 1
+    return sum(a != b for a, b in zip(ref.upper(), alt.upper()))
+
+
 def get_indel_type(alleles: str) -> str:
     """
     Given a string of alleles, determine the type of indel.
@@ -60,7 +68,9 @@ def get_indel_type(alleles: str) -> str:
     if all(ref_len == alt_len for alt_len in alt_lens):
         if ref_len == 0:
             return IndelType.UNKNOWN.value
-        return IndelType.SNP.value
+        if get_diff_len(alleles) == 1:
+            return IndelType.SNP.value
+        return IndelType.MNP.value
 
     # Check if any alternative allele is shorter than the reference
     if any(ref_len > alt_len for alt_len in alt_lens):
@@ -112,11 +122,21 @@ def test_get_indel_length(alleles, expected):
     [
         ("A/T", IndelType.SNP.value),
         ("G/C", IndelType.SNP.value),
-        ("AT/AT", IndelType.SNP.value),
-        ("A/A,T", IndelType.SNP.value),
+        ("A/G,T", IndelType.SNP.value),
     ],
 )
 def test_snp(alleles, expected_type):
+    assert get_indel_type(alleles) == expected_type
+
+
+@pytest.mark.parametrize(
+    "alleles, expected_type",
+    [
+        ("AA/TT", IndelType.MNP.value),
+        ("GC/CG", IndelType.MNP.value),
+    ],
+)
+def test_mnp(alleles, expected_type):
     assert get_indel_type(alleles) == expected_type
 
 
