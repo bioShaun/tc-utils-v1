@@ -72,7 +72,7 @@ def get_indel_type(alleles: str) -> str:
     if all(ref_len == alt_len for alt_len in alt_lens):
         if ref_len == 0:
             return IndelType.UNKNOWN.value
-        if get_diff_len(alleles) == 1:
+        if get_max_diff_len(alleles) == 1:
             return IndelType.SNP.value
         return IndelType.MNP.value
 
