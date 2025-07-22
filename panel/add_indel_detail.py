@@ -26,6 +26,8 @@ def get_ref_alt_lengths(alleles: str) -> tuple[int, list[int]]:
         A tuple where the first element is the length of the reference allele and the
         second element is a list of lengths of the alternative alleles.
     """
+    if alleles == "-/-":
+        return 0, [0]
     alleles = re.sub("-|del", "", alleles)
     if not alleles or "/" not in alleles:
         raise ValueError("Invalid alleles format")
