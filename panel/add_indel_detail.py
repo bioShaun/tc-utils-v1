@@ -181,14 +181,14 @@ def main(pos_file: Path):
     df["indel_length"] = df.apply(get_row_indel_length, axis=1)  # type: ignore
     snp_df = df[df["indel_type"] == IndelType.SNP.value]
     snp_file = pos_file.with_suffix(".snp.tsv")
-    snp_df.to_csv(snp_file, sep="\t", index=False)
+    snp_df.drop("indel_length", axis=1).to_csv(snp_file, sep="\t", index=False)
     indel_df = df[df["indel_type"] != IndelType.SNP.value]
     right_df = indel_df.copy()
     left_file = pos_file.with_suffix(".indel.left.tsv")
-    indel_df.to_csv(left_file, sep="\t", index=False)
+    indel_df.drop("indel_length", axis=1).to_csv(left_file, sep="\t", index=False)
     right_df["pos"] = right_df.apply(indel_right_pos, axis=1)
     right_file = pos_file.with_suffix(".indel.right.tsv")
-    right_df.to_csv(right_file, sep="\t", index=False)
+    right_df.drop("indel_length", axis=1).to_csv(right_file, sep="\t", index=False)
 
 
 if __name__ == "__main__":
