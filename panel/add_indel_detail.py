@@ -1,5 +1,5 @@
 import re
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
 
 import pandas as pd
@@ -7,7 +7,7 @@ import pytest
 import typer
 
 
-class IndelType(Enum):
+class IndelType(StrEnum):
     SNP = "SNP"
     DEL = "DEL"
     INS = "INS"
