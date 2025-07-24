@@ -1,5 +1,8 @@
 import re
+import signal
 import sqlite3
+import sys
+import time
 from pathlib import Path
 
 import requests
@@ -207,6 +210,21 @@ def upload_batch_daily(
 
     # 安排每天指定时间执行
     schedule.every().day.at(execute_time).do(job)
+
+    # 优雅关闭处理
+    def signal_handler(signum, frame):
+        logger.info("接收到退出信号，正在关闭调度器...")
+        sys.exit(0)
+
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+
+    logger.info(f"每日任务已安排在 {execute_time} 执行")
+
+    # 保持程序运行
+    while True:
+        schedule.run_pending()
+        time.sleep(60)  # 每分钟检查一次
 
 
 if __name__ == "__main__":
