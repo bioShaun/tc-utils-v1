@@ -148,7 +148,7 @@ class BlastConfig:
     """BLAST配置参数"""
 
     max_distance: int = 1000
-    blast_columns: List[int] = field(default_factory=lambda: [0, 1, 8, 9])
+    blast_columns: List[int] = field(default_factory=lambda: [0, 1, 3, 4, 5, 8, 9])
 
 
 class BlastProcessor:
@@ -171,7 +171,15 @@ class BlastProcessor:
             blast_df = pd.read_table(
                 blast_out,
                 header=None,
-                names=["name", "chrom", f"{prefix}_start", f"{prefix}_end"],
+                names=[
+                    "name",
+                    "chrom",
+                    f"{prefix}_length",
+                    f"{prefix}_mismatch",
+                    f"{prefix}_gap",
+                    f"{prefix}_start",
+                    f"{prefix}_end",
+                ],
                 usecols=self.config.blast_columns,
             )
 
