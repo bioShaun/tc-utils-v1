@@ -133,8 +133,12 @@ class TestSsrTableToFa:
         assert "缺少必需的列: {'right'}" == str(exc_info.value)
 
 
-def align_ssr_seq(ssr_fa: Path, blast_db: Path, threads: int = 16) -> Path:
+def align_ssr_seq(
+    ssr_fa: Path, blast_db: Path, threads: int = 16, force: bool = False
+) -> Path:
     blast_out = ssr_fa.with_suffix(".blasttab.tsv")
+    if not force and blast_out.exists():
+        return blast_out
     blast_cmd = (
         f"blastn -task blastn-short -dust no -soft_masking false -reward 1 -penalty -3 -gapopen 5 -gapextend 2 "
         f"-query {ssr_fa} -db {blast_db} -outfmt 6 -out {blast_out} -num_threads {threads}"
@@ -496,7 +500,13 @@ class TestBlastProcessor:
                 blast_processor.load_blast_df(Mock(), "left")
 
 
-def main(ssr_table: Path, blast_db: Path, out_dir: Path, threads: int = 16) -> None:
+def main(
+    ssr_table: Path,
+    blast_db: Path,
+    out_dir: Path,
+    threads: int = 16,
+    force: bool = False,
+) -> None:
     """Generate SSR positions from SSR table and blast database.
 
     Args:
@@ -514,8 +524,8 @@ def main(ssr_table: Path, blast_db: Path, out_dir: Path, threads: int = 16) -> N
     left_fa, right_fa = ssr_table_to_fa(df, out_dir)
 
     # Perform blast alignment for left and right SSR sequences
-    left_blast_out = align_ssr_seq(left_fa, blast_db, threads)
-    right_blast_out = align_ssr_seq(right_fa, blast_db, threads)
+    left_blast_out = align_ssr_seq(left_fa, blast_db, threads, force=force)
+    right_blast_out = align_ssr_seq(right_fa, blast_db, threads, force=force)
 
     # Process blast results
     processor = BlastProcessor()
