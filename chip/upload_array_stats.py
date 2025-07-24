@@ -147,7 +147,9 @@ def upload_batch(base_dir: Path, config_file: Path) -> None:
         typer.echo(f"使用已有配置文件: {config_file}")
     else:
         init_db(config_file)
-    for report_path in base_dir.glob("*/results/summary/bamdst/*.capture.report.tsv"):
+    for report_path in base_dir.glob(
+        "TC-GTS-*/results/summary/bamdst/*.capture.report.tsv"
+    ):
         chip_code = chip_code_from_file(report_path)
         project_base_dir = report_path.parent.parent.parent.parent
         genome_version = fetch_project_genome(project_base_dir)
