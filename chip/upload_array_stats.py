@@ -164,7 +164,7 @@ def upload_batch(base_dir: Path, config_file: Path) -> None:
             db_file=config_file, project_code=project_code
         )
         if upload_status == "success":
-            logger.info(f"项目 {project_name} 已上传成功")
+            logger.info(f"项目 {project_name} 已在数据库中，跳过上传")
             continue
         success = upload_one(
             report_path=report_path,
@@ -182,7 +182,7 @@ def upload_batch(base_dir: Path, config_file: Path) -> None:
                 upload_status="success",
             )
         else:
-            logger.error(f"上传失败: {project_code}")
+            logger.error(f"上传失败: {project_code} | {chip_code}")
             add_or_update(
                 db_file=config_file,
                 chip_code=chip_code,
