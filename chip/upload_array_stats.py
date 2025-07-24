@@ -109,7 +109,7 @@ def add_or_update(
         cur = conn.cursor()
         cur.execute(
             """
-        REPLACE INTO chip_upload_status (chip_code, project_code, upload_status, last_modified)
+        REPLACE INTO upload_status (chip_code, project_code, upload_status, last_modified)
         VALUES (?, ?, ?, CURRENT_TIMESTAMP)
         """,
             (chip_code, project_code, upload_status),
@@ -122,7 +122,7 @@ def query_upload_status(db_file: Path, project_code: str) -> str:
         cur = conn.cursor()
         cur.execute(
             """
-        SELECT upload_status FROM chip_upload_status
+        SELECT upload_status FROM upload_status
         WHERE project_code = ?
         ORDER BY last_modified DESC
         LIMIT 1
