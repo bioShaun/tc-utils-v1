@@ -3,8 +3,8 @@ import sqlite3
 from pathlib import Path
 
 import requests
+import schedule
 import typer
-from fsspec import config
 from loguru import logger
 
 app = typer.Typer()
@@ -191,6 +191,22 @@ def upload_batch(base_dir: Path, config_file: Path) -> None:
                 project_code=project_code,
                 upload_status="fail",
             )
+
+
+@app.command()
+def upload_batch_daily(
+    base_dir: Path, config_file: Path, execute_time: str = "02:00"
+) -> None:
+    def job():
+        try:
+            logger.info("开始执行每日batch上传任务")
+            upload_batch(base_dir, config_file)
+            logger.info("每日batch上传任务完成")
+        except Exception as e:
+            logger.error(f"执行每日任务时发生错误: {e}")
+
+    # 安排每天指定时间执行
+    schedule.every().day.at(execute_time).do(job)
 
 
 if __name__ == "__main__":
