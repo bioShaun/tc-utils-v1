@@ -4,6 +4,7 @@ from pathlib import Path
 
 import requests
 import typer
+from fsspec import config
 from loguru import logger
 
 app = typer.Typer()
@@ -109,7 +110,7 @@ def add_or_update(
         cur = conn.cursor()
         cur.execute(
             """
-        REPLACE INTO upload_status (chip_code, project_code, upload_status, last_modified)
+        REPLACE INTO project_info (chip_code, project_code, upload_status, last_modified)
         VALUES (?, ?, ?, CURRENT_TIMESTAMP)
         """,
             (chip_code, project_code, upload_status),
@@ -122,7 +123,7 @@ def query_upload_status(db_file: Path, project_code: str) -> str:
         cur = conn.cursor()
         cur.execute(
             """
-        SELECT upload_status FROM upload_status
+        SELECT upload_status FROM project_info
         WHERE project_code = ?
         ORDER BY last_modified DESC
         LIMIT 1
@@ -137,6 +138,11 @@ def query_upload_status(db_file: Path, project_code: str) -> str:
 
 @app.command()
 def upload_batch(base_dir: Path, config_file: Path) -> None:
+    log_dir = config_file.parent
+    log_dir.mkdir(parents=True, exist_ok=True)
+    logger.add(
+        "log.txt", rotation="10 MB", retention="7 days", encoding="utf-8", level="INFO"
+    )
     if config_file.exists():
         typer.echo(f"使用已有配置文件: {config_file}")
     else:
@@ -146,6 +152,7 @@ def upload_batch(base_dir: Path, config_file: Path) -> None:
         project_base_dir = report_path.parent.parent.parent.parent
         genome_version = fetch_project_genome(project_base_dir)
         project_code = report_path.parent.parent.parent.parent.name
+        logger.info(f"开始处理: {project_code}")
         if not genome_version:
             logger.warning(f"未找到项目基因组版本: {project_base_dir}")
             continue
