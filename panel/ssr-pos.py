@@ -178,7 +178,7 @@ class BlastProcessor:
                 names=[
                     "name",
                     "chrom",
-                    f"{prefix}_length",
+                    f"{prefix}_match_length",
                     f"{prefix}_mismatch",
                     f"{prefix}_gap",
                     f"{prefix}_start",
@@ -519,6 +519,8 @@ def main(
 
     # Read SSR table
     df = pd.read_table(ssr_table, header=None, names=["name", "left", "right"])
+    df["left_length"] = df["left"].str.len()
+    df["right_length"] = df["right"].str.len()
 
     # Generate fa files for left and right SSR sequences
     left_fa, right_fa = ssr_table_to_fa(df, out_dir)
@@ -530,6 +532,7 @@ def main(
     # Process blast results
     processor = BlastProcessor()
     result = processor.process_blast_results(left_blast_out, right_blast_out)
+    result = df.merge(result, on="name")
 
     # Save result to file
     ssr_out = ssr_table.with_suffix(".pos.tsv")
