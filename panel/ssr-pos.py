@@ -147,6 +147,26 @@ def align_ssr_seq(
     return blast_out
 
 
+def best_match_pos(ssr_df: pd.DataFrame) -> pd.DataFrame:
+    df = ssr_df.copy()
+    df["total_mismatch"] = df["left_mismatch"] + df["right_mismatch"]
+    df["total_gap"] = df["left_gap"] + df["right_gap"]
+    df["total_match_length"] = df["left_match_length"] + df["right_match_length"]
+    best_match_length = (
+        df.groupby(["name"])["total_match_length"].max().reset_index().merge(df)
+    )
+    best_gap = (
+        best_match_length.groupby(["name"])["total_gap"]
+        .min()
+        .reset_index()
+        .merge(best_match_length)
+    )
+    best_mismatch = (
+        best_gap.groupby(["name"])["total_mismatch"].min().reset_index().merge(best_gap)
+    )
+    return best_mismatch
+
+
 @dataclass
 class BlastConfig:
     """BLAST配置参数"""
@@ -541,6 +561,9 @@ def main(
     # Save result to file
     ssr_out = ssr_table.with_suffix(".pos.tsv")
     result.to_csv(ssr_out, index=False, sep="\t")
+
+    best_result = best_match_pos(result)
+    best_result.to_csv(ssr_out.with_suffix(".best.pos.tsv"), index=False, sep="\t")
 
 
 if __name__ == "__main__":
