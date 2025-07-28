@@ -50,7 +50,7 @@ class MissFmt(str, Enum):
 def vcf2gt(
     vcf_file: Path, target_id: Path, out_file: Path, threads: int, force: bool = False
 ) -> Path:
-    gt_file = vcf_file.with_suffix(".gt.txt.gz")
+    gt_file = Path(f"{out_file}.gt.txt.gz")
     if gt_file.exists() and not force:
         return gt_file
     gt_file.parent.mkdir(parents=True, exist_ok=True)
