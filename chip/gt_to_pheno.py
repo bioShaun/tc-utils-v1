@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pandas as pd
+import typer
 
 
 def filter_by_allele(pheno_alleles, gt_alleles):
