@@ -60,7 +60,7 @@ def vcf2gt(
     cmd1 = f'bcftools annotate --set-id "%CHROM\\_%POS" {vcf_file} -Oz -o {add_id_vcf} --threads {threads}'
     delegator.run(cmd1)
     logger.info("extract target vcf")
-    cmd2 = f"bcftools view -i ID=@${target_id} {add_id_vcf} -Oz -o {target_vcf} --threads {threads}"
+    cmd2 = f"bcftools view -i ID=@{target_id} {add_id_vcf} -Oz -o {target_vcf} --threads {threads}"
     logger.info(f"run: {cmd2}")
     delegator.run(cmd2)
     logger.info("extract target genotype")
