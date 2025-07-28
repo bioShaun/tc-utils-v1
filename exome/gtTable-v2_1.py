@@ -147,7 +147,6 @@ def main(
     miss_fmt: str = "NN",
     threads: int = 4,
     gt_sep: str = "",
-    out_type: OutType = OutType.xlsx,
 ):
     pandarallel.initialize(progress_bar=True, nb_workers=threads)
     gt_file = vcf2gt(vcf, target_id, out_file, threads)
@@ -185,11 +184,6 @@ def main(
         seq_df.to_csv(
             f"{out_file}.seq.txt.gz", sep="\t", header=header, mode=mode, index=False
         )
-    if out_type == OutType.xlsx:
-        gt_df = pd.read_csv(f"{out_file}.gt.txt.gz", sep="\t")
-        seq_df = pd.read_csv(f"{out_file}.seq.txt.gz", sep="\t")
-        gt_df.to_excel(f"{out_file}.genotype.01.xlsx", index=False)
-        seq_df.to_excel(f"{out_file}.genotype.seq.xlsx", index=False)
 
 
 if __name__ == "__main__":
