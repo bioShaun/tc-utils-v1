@@ -58,10 +58,10 @@ def vcf2gt(
     target_vcf = f"{out_file}.vcf.gz"
     logger.info("add id to vcf")
     cmd1 = f'bcftools annotate --set-id "%CHROM\\_%POS" {vcf_file} -Oz -o {add_id_vcf} --threads {threads}'
-    delegator.rum(cmd1)
+    delegator.run(cmd1)
     logger.info("extract target vcf")
     cmd2 = f"bcftools view -i ID=@${target_id} {add_id_vcf} -Oz -o {target_vcf} --threads {threads}"
-    delegator.rum(cmd2)
+    delegator.run(cmd2)
     logger.info("extract target genotype")
     cmd3 = f'bcftools query -f "%CHROM\\t%POS\\t%REF\\t%ALT[\\t%GT]\\n" {target_vcf} | sed -re "s;\\|;/;g" | gzip > {gt_file}'
     logger.info(f"run: {cmd3}")
