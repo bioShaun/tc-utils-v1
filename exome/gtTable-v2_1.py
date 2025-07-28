@@ -55,7 +55,7 @@ def vcf2gt(
         return gt_file
     gt_file.parent.mkdir(parents=True, exist_ok=True)
     add_id_vcf = vcf_file.parent / f"add-id.{vcf_file.name}"
-    target_vcf = out_file.with_suffix(".vcf.gz")
+    target_vcf = f"{out_file}.vcf.gz"
     logger.info("add id to vcf")
     cmd1 = f'bcftools annotate --set-id "%CHROM\\_%POS" {vcf_file} -Oz -o {add_id_vcf} --threads {threads}'
     delegator.rum(cmd1)
