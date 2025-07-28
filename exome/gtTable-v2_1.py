@@ -47,14 +47,25 @@ class MissFmt(str, Enum):
         return self.value
 
 
-def vcf2gt(vcf_file: Path, force: bool = False) -> Path:
+def vcf2gt(
+    vcf_file: Path, target_id: Path, out_file: Path, threads: int, force: bool = False
+) -> Path:
     gt_file = vcf_file.with_suffix(".gt.txt.gz")
     if gt_file.exists() and not force:
         return gt_file
     gt_file.parent.mkdir(parents=True, exist_ok=True)
-    cmd = f'bcftools query -f "%CHROM\\t%POS\\t%REF\\t%ALT[\\t%GT]\\n" {vcf_file} | sed -re "s;\\|;/;g" | gzip > {gt_file}'
-    logger.info(f"run: {cmd}")
-    delegator.run(cmd)
+    add_id_vcf = vcf_file.parent / f"add-id.{vcf_file.name}"
+    target_vcf = out_file.with_suffix(".vcf.gz")
+    logger.info("add id to vcf")
+    cmd1 = f'bcftools annotate --set-id "%CHROM\\_%POS" {vcf_file} -Oz -o {add_id_vcf} --threads {threads}'
+    delegator.rum(cmd1)
+    logger.info("extract target vcf")
+    cmd2 = f"bcftools view -i ID=@${target_id} {add_id_vcf} -Oz -o {target_vcf} --threads {threads}"
+    delegator.rum(cmd2)
+    logger.info("extract target genotype")
+    cmd3 = f'bcftools query -f "%CHROM\\t%POS\\t%REF\\t%ALT[\\t%GT]\\n" {target_vcf} | sed -re "s;\\|;/;g" | gzip > {gt_file}'
+    logger.info(f"run: {cmd3}")
+    delegator.run(cmd3)
     return gt_file
 
 
@@ -131,7 +142,7 @@ def get_sample_names(vcf_file: Path) -> list:
 
 def main(
     vcf: Path,
-    id_list: Path,
+    target_id: Path,
     out_file: Path,
     miss_fmt: str = "NN",
     threads: int = 4,
@@ -139,7 +150,7 @@ def main(
     out_type: OutType = OutType.xlsx,
 ):
     pandarallel.initialize(progress_bar=True, nb_workers=threads)
-    gt_file = vcf2gt(vcf)
+    gt_file = vcf2gt(vcf, target_id, out_file, threads)
     sample_list = get_sample_names(vcf)
     columns = LOCATION_COLS + sample_list
     gt_dfs = pd.read_csv(

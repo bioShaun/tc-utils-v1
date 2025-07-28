@@ -42,25 +42,14 @@ class TableColumn(StrEnum):
     RATIO = "Ratio"
 
 
-def vcf2gt(
-    vcf_file: Path, target_id: Path, out_file: Path, threads: int, force: bool = False
-) -> Path:
+def vcf2gt(vcf_file: Path, force: bool = False) -> Path:
     gt_file = vcf_file.with_suffix(".gt.txt.gz")
     if gt_file.exists() and not force:
         return gt_file
     gt_file.parent.mkdir(parents=True, exist_ok=True)
-    add_id_vcf = vcf_file.parent / f"add-id.{vcf_file.name}"
-    target_vcf = out_file.with_suffix(".vcf.gz")
-    logger.info("add id to vcf")
-    cmd1 = f'bcftools annotate --set-id "%CHROM\\_%POS" {vcf_file} -Oz -o {add_id_vcf} --threads {threads}'
-    delegator.rum(cmd1)
-    logger.info("extract target vcf")
-    cmd2 = f"bcftools view -i ID=@${target_id} {add_id_vcf} -Oz -o {target_vcf} --threads {threads}"
-    delegator.rum(cmd2)
-    logger.info("extract target genotype")
-    cmd3 = f'bcftools query -f "%CHROM\\t%POS\\t%REF\\t%ALT[\\t%GT]\\n" {target_vcf} | sed -re "s;\\|;/;g" | gzip > {gt_file}'
-    logger.info(f"run: {cmd3}")
-    delegator.run(cmd3)
+    cmd = f'bcftools query -f "%CHROM\\t%POS\\t%REF\\t%ALT[\\t%GT]\\n" {vcf_file} | sed -re "s;\\|;/;g" | gzip > {gt_file}'
+    logger.info(f"run: {cmd}")
+    delegator.run(cmd)
     return gt_file
 
 
