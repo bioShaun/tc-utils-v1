@@ -49,8 +49,11 @@ def main(gt_file: Path, pheno_file: Path, out_file: Path):
     pheno_df = consistant_df[consistant_df.columns[:4]][
         ["CHROM", "POS", "trait", "gene"]
     ].copy()
+    # 用字典先保存每个 sample 的新列数据
+    sample_pheno_data = {}
+
     for sample in sample_list:
-        pheno_df[sample] = consistant_df.apply(
+        sample_pheno_data[sample] = consistant_df.apply(
             lambda row: get_gt_pheno(
                 (row["ref_allele1"], row["ref_allele2"]),
                 (row["phenotype1"], row["phenotype2"]),
@@ -58,6 +61,12 @@ def main(gt_file: Path, pheno_file: Path, out_file: Path):
             ),
             axis=1,
         )
+
+    # 一次性拼接成新的 DataFrame
+    pheno_sample_df = pd.DataFrame(sample_pheno_data)
+
+    # 合并到原始 pheno_df，如果 pheno_df 是空的，可以直接用这个新 df
+    pheno_df = pd.concat([pheno_df, pheno_sample_df], axis=1)
     pheno_df.to_excel(out_file, index=False)
 
 
