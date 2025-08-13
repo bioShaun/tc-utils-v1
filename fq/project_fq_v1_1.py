@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import re
 import subprocess
 import sys
 from collections import Counter, defaultdict
@@ -72,7 +73,7 @@ class FastqErrorRecorder:
 def extract_lib_id(lib_path: Path) -> str:
     name = lib_path.name
     lib_id = name.split("-")[-1]
-    if lib_id.isdigit():
+    if lib_id.isdigit() or (len(lib_id) == 1 and lib_id.islower()):
         lib_id = "-".join(name.split("-")[-2:])
     return lib_id
 
