@@ -240,7 +240,7 @@ class FastqProcessor:
         for date_dir in self.base_dir.glob("20*"):
             if not date_dir.is_dir():
                 continue
-            for tcwl_dir in date_dir.glob("tcwl-*"):
+            for tcwl_dir in date_dir.glob("*"):
                 if tcwl_dir.name in fq_lines:
                     target_dirs.append(tcwl_dir)
 
