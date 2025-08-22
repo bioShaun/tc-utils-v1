@@ -17,6 +17,12 @@ import typer
 from loguru import logger
 from tqdm import tqdm
 
+
+class DataMode(StrEnum):
+    cp = "cp"
+    link = "link"
+
+
 __version__ = "1.0"
 
 app = typer.Typer(help="FASTQ文件处理和合并工具")
@@ -30,7 +36,9 @@ READ_TYPE_PATTERNS = {
     "_R1.fastq.gz": "R1",
     "_R2.fastq.gz": "R2",
     "_1.fastq.gz": "R1",
+    "_1.fq.gz": "R1",
     "_2.fastq.gz": "R2",
+    "_2.fq.gz": "R2",
 }
 
 # TODO 合并后的表格也需要检查是否有重复
@@ -144,7 +152,7 @@ class FastqProcessor:
 
     def _libid_not_duplicated(self, fq_line: Path) -> None:
         try:
-            sample_dirs = list(fq_line.glob("Sample*"))
+            sample_dirs = list(fq_line.iterdir())
         except Exception as e:
             raise Exception(f"遍历目录失败: {e}")
 
@@ -176,7 +184,7 @@ class FastqProcessor:
 
         libid_map = []
         try:
-            sample_dirs = list(fastq_path.glob("Sample*"))
+            sample_dirs = list(fastq_path.iterdir())
         except Exception as e:
             logger.error(f"遍历目录失败: {e}")
             raise ValueError(f"遍历目录失败: {e}")
@@ -274,9 +282,13 @@ class ScriptRunner:
     """脚本执行器"""
 
     @staticmethod
-    def merge_or_link_command(fq_list: List[str], output_name: str) -> str:
+    def merge_or_link_command(
+        fq_list: List[str], output_name: str, mode: DataMode
+    ) -> str:
         """生成合并或链接命令"""
         if len(fq_list) == 1:
+            if mode == DataMode.link:
+                return f"ln -s {fq_list[0]} {output_name}"
             return f"cp {fq_list[0]} {output_name}"
         return f"cat {' '.join(fq_list)} > {output_name}"
 
@@ -335,6 +347,7 @@ def write_nextflow_input(
     warning_recorder: FastqErrorRecorder,
     threads: int = 8,
     run_script: bool = True,
+    mode: DataMode = DataMode.cp,
 ) -> Optional[Dict[str, int]]:
     """写入Nextflow输入文件"""
     if fq_df.empty:
@@ -369,7 +382,7 @@ def write_nextflow_input(
         fq_list = sorted(sample_df["path"].tolist())
 
         cmd_file = scripts_dir / f"mergeFastq-{sample_id}-{read_type}.sh"
-        cmd = ScriptRunner.merge_or_link_command(fq_list, str(out_fq))
+        cmd = ScriptRunner.merge_or_link_command(fq_list, str(out_fq), mode)
 
         try:
             with open(cmd_file, "w") as f:
@@ -505,6 +518,7 @@ def run(
     force_rebuild: bool = typer.Option(False, help="强制重建配置文件"),
     rm_empty_data: bool = typer.Option(True, help="删除空数据文件"),
     empty_data_threshold: int = typer.Option(0.01, help="空数据阈值"),
+    mode: DataMode = DataMode.cp,
 ):
     """
     FASTQ文件处理和合并工具
@@ -579,6 +593,7 @@ def run(
                 error_collector,
                 warning_collector,
                 threads=threads,
+                mode=mode,
             )
 
             if results:

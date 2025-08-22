@@ -1,5 +1,5 @@
 import re
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
 
 import pandas as pd
@@ -7,10 +7,12 @@ import pytest
 import typer
 
 
-class IndelType(Enum):
+class IndelType(StrEnum):
     SNP = "SNP"
     DEL = "DEL"
     INS = "INS"
+    UNKNOWN = "UNKNOWN"
+    MNP = "MNP"
 
 
 def get_ref_alt_lengths(alleles: str) -> tuple[int, list[int]]:
@@ -25,6 +27,8 @@ def get_ref_alt_lengths(alleles: str) -> tuple[int, list[int]]:
         A tuple where the first element is the length of the reference allele and the
         second element is a list of lengths of the alternative alleles.
     """
+    if alleles == "-/-":
+        return 0, [0]
     alleles = re.sub("-|del", "", alleles)
     if not alleles or "/" not in alleles:
         raise ValueError("Invalid alleles format")
@@ -41,6 +45,17 @@ def get_ref_alt_lengths(alleles: str) -> tuple[int, list[int]]:
     return ref_len, alt_lens
 
 
+def get_max_diff_len(alleles: str) -> int:
+    ref, alts = alleles.split("/")
+    alt_list = alts.split(",")
+    diff_count_list = []
+    for alt in alt_list:
+        if len(ref) == len(alt) == 1:
+            diff_count_list.append(1)
+        diff_count_list.append(sum(a != b for a, b in zip(ref.upper(), alt.upper())))
+    return max(diff_count_list)
+
+
 def get_indel_type(alleles: str) -> str:
     """
     Given a string of alleles, determine the type of indel.
@@ -55,7 +70,11 @@ def get_indel_type(alleles: str) -> str:
 
     # Determine if all alternative alleles are the same length as the reference
     if all(ref_len == alt_len for alt_len in alt_lens):
-        return IndelType.SNP.value
+        if ref_len == 0:
+            return IndelType.UNKNOWN.value
+        if get_max_diff_len(alleles) == 1:
+            return IndelType.SNP.value
+        return IndelType.MNP.value
 
     # Check if any alternative allele is shorter than the reference
     if any(ref_len > alt_len for alt_len in alt_lens):
@@ -107,11 +126,21 @@ def test_get_indel_length(alleles, expected):
     [
         ("A/T", IndelType.SNP.value),
         ("G/C", IndelType.SNP.value),
-        ("AT/AT", IndelType.SNP.value),
-        ("A/A,T", IndelType.SNP.value),
+        ("A/G,T", IndelType.SNP.value),
     ],
 )
 def test_snp(alleles, expected_type):
+    assert get_indel_type(alleles) == expected_type
+
+
+@pytest.mark.parametrize(
+    "alleles, expected_type",
+    [
+        ("AA/TT", IndelType.MNP.value),
+        ("GC/CG", IndelType.MNP.value),
+    ],
+)
+def test_mnp(alleles, expected_type):
     assert get_indel_type(alleles) == expected_type
 
 
@@ -174,12 +203,16 @@ def main(pos_file: Path):
     df = pd.read_table(pos_file)
     df["indel_type"] = df.apply(get_row_indel_type, axis=1)  # type: ignore
     df["indel_length"] = df.apply(get_row_indel_length, axis=1)  # type: ignore
-    right_df = df.copy()
-    left_file = pos_file.with_suffix(".left.tsv")
-    df.to_csv(left_file, sep="\t", index=False)
+    snp_df = df[df["indel_type"] == IndelType.SNP.value]
+    snp_file = pos_file.with_suffix(".snp.tsv")
+    snp_df.drop("indel_length", axis=1).to_csv(snp_file, sep="\t", index=False)
+    indel_df = df[df["indel_type"] != IndelType.SNP.value]
+    right_df = indel_df.copy()
+    left_file = pos_file.with_suffix(".indel.left.tsv")
+    indel_df.drop("indel_length", axis=1).to_csv(left_file, sep="\t", index=False)
     right_df["pos"] = right_df.apply(indel_right_pos, axis=1)
-    right_file = pos_file.with_suffix(".right.tsv")
-    right_df.to_csv(right_file, sep="\t", index=False)
+    right_file = pos_file.with_suffix(".indel.right.tsv")
+    right_df.drop("indel_length", axis=1).to_csv(right_file, sep="\t", index=False)
 
 
 if __name__ == "__main__":

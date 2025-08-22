@@ -133,8 +133,12 @@ class TestSsrTableToFa:
         assert "缺少必需的列: {'right'}" == str(exc_info.value)
 
 
-def align_ssr_seq(ssr_fa: Path, blast_db: Path, threads: int = 16) -> Path:
+def align_ssr_seq(
+    ssr_fa: Path, blast_db: Path, threads: int = 16, force: bool = False
+) -> Path:
     blast_out = ssr_fa.with_suffix(".blasttab.tsv")
+    if not force and blast_out.exists():
+        return blast_out
     blast_cmd = (
         f"blastn -task blastn-short -dust no -soft_masking false -reward 1 -penalty -3 -gapopen 5 -gapextend 2 "
         f"-query {ssr_fa} -db {blast_db} -outfmt 6 -out {blast_out} -num_threads {threads}"
@@ -143,12 +147,34 @@ def align_ssr_seq(ssr_fa: Path, blast_db: Path, threads: int = 16) -> Path:
     return blast_out
 
 
+def best_match_pos(ssr_df: pd.DataFrame) -> pd.DataFrame:
+    df = ssr_df.copy()
+    df["total_mismatch"] = df["left_mismatch"] + df["right_mismatch"]
+    df["total_gap"] = df["left_gap"] + df["right_gap"]
+    df["total_match_length"] = df["left_match_length"] + df["right_match_length"]
+    best_match_length = (
+        df.groupby(["name"])["total_match_length"].max().reset_index().merge(df)
+    )
+    best_gap = (
+        best_match_length.groupby(["name"])["total_gap"]
+        .min()
+        .reset_index()
+        .merge(best_match_length)
+    )
+    best_mismatch = (
+        best_gap.groupby(["name"])["total_mismatch"].min().reset_index().merge(best_gap)
+    )
+    return best_mismatch
+
+
 @dataclass
 class BlastConfig:
     """BLAST配置参数"""
 
     max_distance: int = 1000
-    blast_columns: List[int] = field(default_factory=lambda: [0, 1, 8, 9])
+    blast_columns: List[int] = field(
+        default_factory=lambda: [0, 1, 3, 4, 5, 6, 7, 8, 9]
+    )
 
 
 class BlastProcessor:
@@ -171,7 +197,17 @@ class BlastProcessor:
             blast_df = pd.read_table(
                 blast_out,
                 header=None,
-                names=["name", "chrom", f"{prefix}_start", f"{prefix}_end"],
+                names=[
+                    "name",
+                    "chrom",
+                    f"{prefix}_match_length",
+                    f"{prefix}_mismatch",
+                    f"{prefix}_gap",
+                    f"{prefix}_query_start",
+                    f"{prefix}_query_end",
+                    f"{prefix}_start",
+                    f"{prefix}_end",
+                ],
                 usecols=self.config.blast_columns,
             )
 
@@ -488,7 +524,13 @@ class TestBlastProcessor:
                 blast_processor.load_blast_df(Mock(), "left")
 
 
-def main(ssr_table: Path, blast_db: Path, out_dir: Path, threads: int = 16) -> None:
+def main(
+    ssr_table: Path,
+    blast_db: Path,
+    out_dir: Path,
+    threads: int = 16,
+    force: bool = False,
+) -> None:
     """Generate SSR positions from SSR table and blast database.
 
     Args:
@@ -501,21 +543,27 @@ def main(ssr_table: Path, blast_db: Path, out_dir: Path, threads: int = 16) -> N
 
     # Read SSR table
     df = pd.read_table(ssr_table, header=None, names=["name", "left", "right"])
+    df["left_length"] = df["left"].str.len()
+    df["right_length"] = df["right"].str.len()
 
     # Generate fa files for left and right SSR sequences
     left_fa, right_fa = ssr_table_to_fa(df, out_dir)
 
     # Perform blast alignment for left and right SSR sequences
-    left_blast_out = align_ssr_seq(left_fa, blast_db, threads)
-    right_blast_out = align_ssr_seq(right_fa, blast_db, threads)
+    left_blast_out = align_ssr_seq(left_fa, blast_db, threads, force=force)
+    right_blast_out = align_ssr_seq(right_fa, blast_db, threads, force=force)
 
     # Process blast results
     processor = BlastProcessor()
     result = processor.process_blast_results(left_blast_out, right_blast_out)
+    result = df.merge(result, on="name")
 
     # Save result to file
     ssr_out = ssr_table.with_suffix(".pos.tsv")
     result.to_csv(ssr_out, index=False, sep="\t")
+
+    best_result = best_match_pos(result)
+    best_result.to_csv(ssr_out.with_suffix(".best.pos.tsv"), index=False, sep="\t")
 
 
 if __name__ == "__main__":
