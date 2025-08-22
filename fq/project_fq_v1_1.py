@@ -499,9 +499,7 @@ def run(
         ..., help="样品信息TSV文件，必须包含libid、sample_id、dir_name列"
     ),
     base_dir: Path = typer.Option(DEFAULT_BASE_DIR, help="包含所有FASTQ数据的基础目录"),
-    output_dir: Optional[Path] = typer.Option(
-        Path("raw_data"), help="FASTQ文件输出目录"
-    ),
+    output_dir: Optional[Path] = typer.Option(Path("."), help="FASTQ文件输出目录"),
     check_file: Path = typer.Option("check_file.tsv", help="检查结果输出文件"),
     threads: int = typer.Option(8, min=1, max=32, help="并行处理线程数"),
     force_rebuild: bool = typer.Option(False, help="强制重建配置文件"),
@@ -602,9 +600,7 @@ def validate(
         ..., help="样品信息TSV文件，必须包含libid、sample_id、dir_name列"
     ),
     base_dir: Path = typer.Option(DEFAULT_BASE_DIR, help="包含所有FASTQ数据的基础目录"),
-    output_dir: Optional[Path] = typer.Option(
-        Path("raw_data"), help="FASTQ文件输出目录"
-    ),
+    output_dir: Optional[Path] = typer.Option(Path("."), help="FASTQ文件输出目录"),
     check_file: Path = typer.Option("check_file.tsv", help="检查结果输出文件"),
     threads: int = typer.Option(8, min=1, max=32, help="并行处理线程数"),
     force_rebuild: bool = typer.Option(False, help="强制重建配置文件"),

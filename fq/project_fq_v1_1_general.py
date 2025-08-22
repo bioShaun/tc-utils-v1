@@ -17,6 +17,12 @@ import typer
 from loguru import logger
 from tqdm import tqdm
 
+
+class DataMode(StrEnum):
+    cp = "cp"
+    link = "link"
+
+
 __version__ = "1.0"
 
 app = typer.Typer(help="FASTQ文件处理和合并工具")
@@ -276,9 +282,13 @@ class ScriptRunner:
     """脚本执行器"""
 
     @staticmethod
-    def merge_or_link_command(fq_list: List[str], output_name: str) -> str:
+    def merge_or_link_command(
+        fq_list: List[str], output_name: str, mode: DataMode
+    ) -> str:
         """生成合并或链接命令"""
         if len(fq_list) == 1:
+            if mode == DataMode.link:
+                return f"ln -s {fq_list[0]} {output_name}"
             return f"cp {fq_list[0]} {output_name}"
         return f"cat {' '.join(fq_list)} > {output_name}"
 
@@ -337,6 +347,7 @@ def write_nextflow_input(
     warning_recorder: FastqErrorRecorder,
     threads: int = 8,
     run_script: bool = True,
+    mode: DataMode = DataMode.cp,
 ) -> Optional[Dict[str, int]]:
     """写入Nextflow输入文件"""
     if fq_df.empty:
@@ -371,7 +382,7 @@ def write_nextflow_input(
         fq_list = sorted(sample_df["path"].tolist())
 
         cmd_file = scripts_dir / f"mergeFastq-{sample_id}-{read_type}.sh"
-        cmd = ScriptRunner.merge_or_link_command(fq_list, str(out_fq))
+        cmd = ScriptRunner.merge_or_link_command(fq_list, str(out_fq), mode)
 
         try:
             with open(cmd_file, "w") as f:
@@ -501,14 +512,13 @@ def run(
         ..., help="样品信息TSV文件，必须包含libid、sample_id、dir_name列"
     ),
     base_dir: Path = typer.Option(DEFAULT_BASE_DIR, help="包含所有FASTQ数据的基础目录"),
-    output_dir: Optional[Path] = typer.Option(
-        Path("raw_data"), help="FASTQ文件输出目录"
-    ),
+    output_dir: Optional[Path] = typer.Option(Path("."), help="FASTQ文件输出目录"),
     check_file: Path = typer.Option("check_file.tsv", help="检查结果输出文件"),
     threads: int = typer.Option(8, min=1, max=32, help="并行处理线程数"),
     force_rebuild: bool = typer.Option(False, help="强制重建配置文件"),
     rm_empty_data: bool = typer.Option(True, help="删除空数据文件"),
     empty_data_threshold: int = typer.Option(0.01, help="空数据阈值"),
+    mode: DataMode = DataMode.cp,
 ):
     """
     FASTQ文件处理和合并工具
@@ -583,6 +593,7 @@ def run(
                 error_collector,
                 warning_collector,
                 threads=threads,
+                mode=mode,
             )
 
             if results:
@@ -604,9 +615,7 @@ def validate(
         ..., help="样品信息TSV文件，必须包含libid、sample_id、dir_name列"
     ),
     base_dir: Path = typer.Option(DEFAULT_BASE_DIR, help="包含所有FASTQ数据的基础目录"),
-    output_dir: Optional[Path] = typer.Option(
-        Path("raw_data"), help="FASTQ文件输出目录"
-    ),
+    output_dir: Optional[Path] = typer.Option(Path("."), help="FASTQ文件输出目录"),
     check_file: Path = typer.Option("check_file.tsv", help="检查结果输出文件"),
     threads: int = typer.Option(8, min=1, max=32, help="并行处理线程数"),
     force_rebuild: bool = typer.Option(False, help="强制重建配置文件"),
