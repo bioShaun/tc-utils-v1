@@ -120,7 +120,7 @@ def qtlseqr_pos_label(
         [ed_df_ci95_pos, gprime_df_ci95_pos, snpindex_df_ci95_pos]
     ).collect()
     return (
-        all_pos_df.group_by(["CHROM", "POS"])
+        all_pos_df.groupby(["CHROM", "POS"])
         .agg(pl.col("Label").sort().unique().sort().alias("Label"))
         .with_columns(pl.col("Label").list.join(", "))
     )
