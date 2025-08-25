@@ -9,8 +9,8 @@ def main(vcf_file: Path, gt_file: Path) -> None:
     vcf_obj = cyvcf2.VCF(vcf_file)
     sample_names = vcf_obj.samples
     with gt_file.open("w") as gt_inf:
-        for variant in vcf_obj:
-            for n, gt in tqdm(enumerate(variant.genotypes)):
+        for variant in tqdm(vcf_obj):
+            for n, gt in enumerate(variant.genotypes):
                 if gt[0] != -1:
                     ref_count = variant.gt_ref_depths[n]
                     alt_count = variant.gt_alt_depths[n]
