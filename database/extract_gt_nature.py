@@ -12,7 +12,7 @@ def main(vcf_file: Path, gt_file: Path) -> None:
         gt_inf.write("chrom\tpos\trefer\talt\tsample_id\tgenotype\n")
         for variant in tqdm(vcf_obj):
             for n, gt in enumerate(variant.genotypes):
-                if gt[0] == 1 and gt[1] == 1:
+                if gt[0] == 0 and gt[1] == 0:
                     continue
                 if gt[0] == -1:
                     ref_allele = alt_allele = "."
