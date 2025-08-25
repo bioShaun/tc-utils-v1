@@ -1,16 +1,15 @@
-import typer
+from functools import partial
+from pathlib import Path
+from typing import List
+
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-import matplotlib.pyplot as plt
-
-from typing import List
-from pathlib import Path
-from functools import partial
+import typer
+from loguru import logger
 from scipy.stats import hypergeom
 from statsmodels.stats.multitest import multipletests
-
-app = typer.Typer()
 
 GO_OUT_COLUMNS = [
     "Description",
@@ -113,40 +112,30 @@ def enrich_core(gene2go_df: pd.DataFrame, gene_list_df: pd.DataFrame):
     return merged_term2gene_df
 
 
-@app.command()
-def go(gene_list: Path, id_map: Path, name_map: Path, out_prefix: str):
-    if not gene_list.is_file():
-        typer.secho(f"Gene List File not exist!", fg=typer.colors.MAGENTA)
-        return False
+def go(gene_df: pd.DataFrame, id_map: Path, name_map: Path, out_prefix: str):
     gene2go_df = pd.read_csv(id_map)
-    gene2go_df['gene'] = gene2go_df["gene"].astype(str)
-    gene_list_df = pd.read_csv(gene_list, header=None, names=["gene"]).drop_duplicates()
-    gene_list_df['gene'] = gene_list_df["gene"].astype(str)
+    gene2go_df["gene"] = gene2go_df["gene"].astype(str)
+    gene_list_df = gene_df.rename(columns={"Gene": "gene"}).drop_duplicates()
+    gene_list_df["gene"] = gene_list_df["gene"].astype(str)
     enrich_df = enrich_core(gene2go_df, gene_list_df)
     name_map_df = pd.read_csv(name_map, sep="\t", index_col=0)
     out_df = format_df(enrich_df, name_map_df)
     out_df["geneID"] = out_df["geneID"].apply(lambda x: "/".join(x))
     out_df.to_csv(f"{out_prefix}.csv", columns=GO_OUT_COLUMNS)
-    plot(out_df, out_prefix)
+    # plot(out_df, out_prefix)
 
 
-@app.command()
 def kegg(
-    gene_list: Path,
+    gene_df: pd.DataFrame,
     id_map: Path,
     name_map: Path,
     out_prefix: str,
     abbr: str,
     ncbi_map: Path = typer.Option(...),
 ):
-    if not gene_list.is_file():
-        typer.secho(f"Gene List File not exist!", fg=typer.colors.MAGENTA)
-        return False
     ncbi_map_df = pd.read_csv(ncbi_map, dtype={"ncbi": "str"})
     gene2kegg_df = pd.read_csv(id_map, dtype={"gene": "str"})
-    ens_gene_list_df = pd.read_csv(
-        gene_list, header=None, names=["gene"]
-    ).drop_duplicates()
+    ens_gene_list_df = gene_df.rename(columns={"Gene": "gene"}).drop_duplicates()
     ncbi_gene_df = ncbi_map_df.merge(
         ens_gene_list_df, left_on="ensembl", right_on="gene"
     )
@@ -162,12 +151,50 @@ def kegg(
     current_format_id = partial(format_kegg_genes, ncbi_map_df)
     out_df["geneID"] = out_df["geneID"].map(current_format_id)
     out_df.to_csv(f"{out_prefix}.csv", columns=KEGG_OUT_COLUMNS)
-    plot(out_df, out_prefix)
+    # plot(out_df, out_prefix)
 
-@app.command()
-def bsa_enrichment(bsa_dir: Path, ann_dir: Path) -> None:
-    
+
+def bsa_enrichment(bsa_dir: Path, ann_dir: Path, abbr: str) -> None:
+    kegg_id_map = ann_dir / "kegg.idmap.csv"
+    kegg_name = ann_dir / "kegg.name.csv"
+    go_name = ann_dir / "go.name.csv"
+    go_id_map = ann_dir / "go.idmap.csv"
+    ncbi_id_map = ann_dir / "ncbi.idmap.csv"
+    for csv_file in bsa_dir.rglob("*.csv"):
+        if "%.csv" in csv_file.name or "CI" in csv_file.name:
+            if csv_file.parent.name == "gene_enrichment":
+                continue
+            df = pd.read_csv(csv_file)
+            gene_df = df[["Gene"]].copy()
+            out_dir = csv_file.parent / "gene_enrichment"
+            out_dir.mkdir(parents=True, exist_ok=True)
+            go_out_prefix = out_dir / f"{csv_file.stem}.go"
+            kegg_out_prefix = out_dir / f"{csv_file.stem}.kegg"
+            logger.info(f"Running GO enrichment for {csv_file}")
+            try:
+                go(
+                    gene_df=gene_df,
+                    id_map=go_id_map,
+                    name_map=go_name,
+                    out_prefix=go_out_prefix,
+                )
+            except Exception as e:
+                logger.error(f"Error running GO enrichment for {csv_file}")
+                logger.error(e)
+            logger.info(f"Running KEGG enrichment for {csv_file}")
+            try:
+                kegg(
+                    gene_df=gene_df,
+                    id_map=kegg_id_map,
+                    name_map=kegg_name,
+                    out_prefix=kegg_out_prefix,
+                    abbr=abbr,
+                    ncbi_map=ncbi_id_map,
+                )
+            except Exception as e:
+                logger.error(f"Error running KEGG enrichment for {csv_file}")
+                logger.error(e)
 
 
 if __name__ == "__main__":
-    app()
+    typer.run(bsa_enrichment)
