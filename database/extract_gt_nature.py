@@ -9,6 +9,7 @@ def main(vcf_file: Path, gt_file: Path) -> None:
     vcf_obj = cyvcf2.VCF(vcf_file)
     sample_names = vcf_obj.samples
     with gt_file.open("w") as gt_inf:
+        gt_inf.write("chrom\tpos\trefer\talt\tsample_id\tgenotype\n")
         for variant in tqdm(vcf_obj):
             for n, gt in enumerate(variant.genotypes):
                 if gt[0] == 1 and gt[1] == 1:
