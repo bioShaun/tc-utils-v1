@@ -15,7 +15,7 @@ def main(vcf_file: Path, gt_file: Path) -> None:
                 if gt[0] == 1 and gt[1] == 1:
                     continue
                 if gt[0] == -1:
-                    ref_allele = ref_allele = "."
+                    ref_allele = alt_allele = "."
                 else:
                     ref_allele, alt_allele = gt[:2]
                 sample_id = sample_names[n]
