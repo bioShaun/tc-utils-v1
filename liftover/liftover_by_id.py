@@ -75,9 +75,9 @@ def make_chain(
     lift_bed.to_csv(
         raw_bed, sep="\t", index=False, header=False, columns=["chrom", "start", "pos"]
     )
-    ref_fa_idx = f"{ref_fa}.fai"
+    query_fa_idx = f"{query_fa}.fai"
     probe_bed = outdir / f"{probe_name}.bed"
-    sort_cmd = f"bedtools sort -i {raw_bed} -g {ref_fa_idx} > {probe_bed}"
+    sort_cmd = f"bedtools sort -i {raw_bed} -g {query_fa_idx} > {probe_bed}"
     logger.info(f"Running bedtools sort: {sort_cmd}")
     delegator.run(sort_cmd)
     # Create a sorted bed file with unique IDs
@@ -96,7 +96,7 @@ def make_chain(
     )
 
     snp_calling_bed = outdir / f"{probe_name}.snpcalling.bed"
-    span_bed_cmd = f"bedtools slop -i {probe_bed} -g {ref_fa_idx} -b 100 | bedtools merge -i - > {snp_calling_bed}"
+    span_bed_cmd = f"bedtools slop -i {probe_bed} -g {query_fa_idx} -b 100 | bedtools merge -i - > {snp_calling_bed}"
     logger.info(f"Running bedtools span bed: {span_bed_cmd}")
     delegator.run(span_bed_cmd)
     # rm raw bed
