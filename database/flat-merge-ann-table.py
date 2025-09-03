@@ -56,6 +56,7 @@ def main(
     flat_gt_df["allele_freq"] = flat_gt_df["alt_depth"] / flat_gt_df["total_depth"]
     flat_gt_df = flat_gt_df[flat_gt_df["allele_freq"] >= min_af]
     flat_gt_df = flat_gt_df[flat_gt_df["genotype"] != "./."]
+    flat_gt_df.drop(["total_depth", "allele_freq"], axis=1, inplace=True)
     ann_df = pd.read_table(
         ann_table,
         header=None,
