@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pandas as pd
 import typer
-from loguru import logging
+from loguru import logger
 
 
 def make_vcf_header(chr_size: Path) -> str:
@@ -15,7 +15,7 @@ def make_vcf_header(chr_size: Path) -> str:
 
 
 def main(gt_file: Path, chr_size: Path, vcf_file: Path):
-    logging.info(f'loading gt file...')
+    logger.info(f"loading gt file...")
     gt_df = pd.read_table(gt_file)
     gt_df["ID"] = gt_df["CHROM"] + "_" + gt_df["POS"].astype(str)
     gt_df["FILTER"] = "."
@@ -37,12 +37,12 @@ def main(gt_file: Path, chr_size: Path, vcf_file: Path):
         ]
     ].copy()
     vcf_df.rename(columns={"CHROM": "#CHROM"}, inplace=True)
-    logging.info('make header...')
+    logger.info("make header...")
     header = make_vcf_header(chr_size)
-    logging.info('make vcf...')
+    logger.info("make vcf...")
     with vcf_file.open("w") as f:
         f.write(header)
-        #f.write(gt_df.to_string(index=False, header=False))
+    vcf_df.to_csv(vcf_file, index=False, sep="\t", mode="a")
 
 
 if __name__ == "__main__":
