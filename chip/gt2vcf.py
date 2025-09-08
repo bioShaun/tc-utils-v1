@@ -8,7 +8,7 @@ def make_vcf_header(chr_size: Path) -> str:
     header = "##fileformat=VCFv4.2\n"
     with chr_size.open() as f:
         for line in f:
-            chr, size = line.strip().split("\t")
+            chr, size = line.strip().split("\t")[:2]
             header += f"##contig=<ID={chr},length={size}>\n"
     return header
 
