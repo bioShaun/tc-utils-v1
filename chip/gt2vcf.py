@@ -11,13 +11,14 @@ def make_vcf_header(chr_size: Path) -> str:
         for line in f:
             chr, size = line.strip().split("\t")[:2]
             header += f"##contig=<ID={chr},length={size}>\n"
-        header += '#FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">\n'
+        header += '##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">\n'
     return header
 
 
 def main(gt_file: Path, chr_size: Path, vcf_file: Path):
     logger.info(f"loading gt file...")
     gt_df = pd.read_table(gt_file)
+    sample_list = gt_df.columns[4:].tolist()
     gt_df["ID"] = gt_df["CHROM"] + "_" + gt_df["POS"].astype(str)
     gt_df["FILTER"] = "."
     gt_df["QUAL"] = "."
@@ -34,7 +35,7 @@ def main(gt_file: Path, chr_size: Path, vcf_file: Path):
             "FILTER",
             "INFO",
             "FORMAT",
-            *gt_df.columns[4:].tolist(),
+            *sample_list,
         ]
     ].copy()
     vcf_df.rename(columns={"CHROM": "#CHROM"}, inplace=True)
