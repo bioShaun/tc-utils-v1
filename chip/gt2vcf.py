@@ -11,7 +11,7 @@ def make_vcf_header(chr_size: Path) -> str:
         for line in f:
             chr, size = line.strip().split("\t")[:2]
             header += f"##contig=<ID={chr},length={size}>\n"
-            header += '#FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">\n'
+        header += '#FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">\n'
     return header
 
 
