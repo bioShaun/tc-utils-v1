@@ -286,8 +286,6 @@ class ScriptRunner:
         fq_list: List[str], output_name: str, mode: DataMode
     ) -> str:    
         """生成合并或链接命令"""
-        print(fq_list)
-        print(mode)
         if len(fq_list) == 1:
             if mode == DataMode.link:
                 return f"ln -s {fq_list[0]} {output_name}"
