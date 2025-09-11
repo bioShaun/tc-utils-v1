@@ -46,7 +46,7 @@ def main(
         id_count_df_list.append(id_count_df)
 
     id_count_df = pd.concat(id_count_df_list)
-    id_count_df = pd.merge(id_count_df, fasta_id_df, on="id", how="left")
+    id_count_df = pd.merge(fasta_id_df, id_count_df, on="id", how="left")
     id_count_df["minimap_match"].fillna(0, inplace=True)
     id_count_df["minimap_match"] = id_count_df["minimap_match"].astype(int)
     id_count_df["best_match_len"].fillna(0, inplace=True)
