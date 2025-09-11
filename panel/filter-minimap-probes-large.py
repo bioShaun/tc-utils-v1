@@ -8,7 +8,7 @@ from tqdm import tqdm
 
 def extract_fasta_id(fasta_file: Path) -> pd.DataFrame:
     fasta_id_list = []
-    for record in Fasta(fasta_file):
+    for record in tqdm(Fasta(fasta_file)):
         fasta_id_list.append({"id": record.name})
     return pd.DataFrame(fasta_id_list)
 
