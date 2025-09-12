@@ -4,6 +4,9 @@ from pathlib import Path
 import pandas as pd
 import typer
 from pyfaidx import Fasta
+from tqdm import tqdm
+
+tqdm.pandas(desc="my bar!")
 
 
 def get_flank_seq(
@@ -25,7 +28,7 @@ def main(
     my_get_flank_seq = partial(
         get_flank_seq, genome_fa=genome_fa, flank_size=flank_size
     )
-    df["flank_seq"] = df.apply(
+    df["flank_seq"] = df.progress_apply(
         lambda x: my_get_flank_seq(
             chrom=x["chrom"], pos=x["pos"], ref=x["ref"], alt=x["alt"]
         ),
