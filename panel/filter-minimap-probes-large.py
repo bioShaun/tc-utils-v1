@@ -26,7 +26,7 @@ def main(
     for n, minimap_file in enumerate(tqdm(minimap_files)):
         minimap_df = pd.read_table(
             minimap_file,
-            usecols=[0, 9, 13],
+            usecols=[0, 9, 12],
             names=["id", "match_len", "NM_string"],
         )
         minimap_df["NM"] = minimap_df["NM_string"].map(lambda x: int(x.split(":")[-1]))
