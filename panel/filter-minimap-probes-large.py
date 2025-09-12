@@ -26,9 +26,10 @@ def main(
     for n, minimap_file in enumerate(tqdm(minimap_files)):
         minimap_df = pd.read_table(
             minimap_file,
-            usecols=[0, 9],
-            names=["id", "match_len"],
+            usecols=[0, 9, 13],
+            names=["id", "match_len", "NM_string"],
         )
+        minimap_df["NM"] = minimap_df["NM_string"].map(lambda x: int(x.split(":")[-1]))
 
         id_count_df = minimap_df["id"].value_counts()
         if not output_all:
@@ -36,21 +37,20 @@ def main(
             minimap_df = minimap_df[minimap_df["id"].isin(id_count_df.index)]
         id_count_df = id_count_df.reset_index()
         id_count_df.columns = ["id", "minimap_match"]
+        id_count_df["minimap_real_match"] = id_count_df["match_len"] - minimap_df["NM"]
 
-        best_match_df = minimap_df.groupby("id")["match_len"].max().reset_index()
-        best_match_df.columns = ["id", "best_match_len"]
+        best_match_index = minimap_df.groupby("id")["minimap_real_match"].idxmax()
+        best_match_df = minimap_df[minimap_df.index.isin(best_match_index)]
         id_count_df = pd.merge(id_count_df, best_match_df, on="id", how="left")
-        id_count_df["best_match_len"] = (
-            id_count_df["best_match_len"].fillna(0).astype(int)
-        )
         id_count_df_list.append(id_count_df)
 
     id_count_df = pd.concat(id_count_df_list)
     id_count_df = pd.merge(fasta_id_df, id_count_df, on="id", how="left")
     id_count_df["minimap_match"].fillna(0, inplace=True)
     id_count_df["minimap_match"] = id_count_df["minimap_match"].astype(int)
-    id_count_df["best_match_len"].fillna(0, inplace=True)
-    id_count_df["best_match_len"] = id_count_df["best_match_len"].astype(int)
+    id_count_df["minimap_real_match"].fillna(0, inplace=True)
+    id_count_df["minimap_real_match"] = id_count_df["minimap_real_match"].astype(int)
+    id_count_df["NM"] = id_count_df["NM"].fillna(0).astype(int)
     id_count_df.to_csv(out_file, sep="\t", index=False)
 
 
