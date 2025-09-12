@@ -30,6 +30,7 @@ def main(
             names=["id", "match_len", "NM_string"],
         )
         minimap_df["NM"] = minimap_df["NM_string"].map(lambda x: int(x.split(":")[-1]))
+        minimap_df["minimap_real_match"] = minimap_df["match_len"] - minimap_df["NM"]
 
         id_count_df = minimap_df["id"].value_counts()
         if not output_all:
@@ -37,7 +38,6 @@ def main(
             minimap_df = minimap_df[minimap_df["id"].isin(id_count_df.index)]
         id_count_df = id_count_df.reset_index()
         id_count_df.columns = ["id", "minimap_match"]
-        id_count_df["minimap_real_match"] = id_count_df["match_len"] - minimap_df["NM"]
 
         best_match_index = minimap_df.groupby("id")["minimap_real_match"].idxmax()
         best_match_df = minimap_df[minimap_df.index.isin(best_match_index)]
