@@ -12,7 +12,7 @@ tqdm.pandas(desc="my bar!")
 def get_flank_seq(
     genome_fa: Fasta, flank_size: int, chrom: str, pos: int, ref: str, alt: str
 ):
-    left = genome_fa[chrom][pos - flank_size : pos - 1]
+    left = genome_fa[chrom][pos - 1 - flank_size : pos - 1]
     right = genome_fa[chrom][pos : pos + flank_size]
     return f"{left}[{ref}/{alt}]{right}"
 
