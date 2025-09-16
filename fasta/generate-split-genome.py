@@ -52,8 +52,6 @@ def split_chrom(
     repeat_min_size: int = 100,
 ) -> pd.DataFrame:
     add_repeat_df = repeat_df.merge(chr_df)
-    add_repeat_df["split_start"] = add_repeat_df["chrom_size"] * 0.3
-    add_repeat_df["split_end"] = add_repeat_df["chrom_size"] * 0.7
     split_site_add_repeat_df = add_repeat_df[
         (add_repeat_df["Start"] >= add_repeat_df["split_start"])
         & (add_repeat_df["End"] <= add_repeat_df["split_end"])
@@ -83,6 +81,10 @@ def main(genome_fai: Path, repeat_out: Path, gff: Path, split_cat_bed: Path) -> 
         usecols=[0, 1],
         sep="\t",
     )
+    fai_df["split_start"] = fai_df.apply(
+        lambda x: max(0.3, 1 - SPLIT_SIZE / x["chrom_size"]) * x["chrom_size"], axis=1
+    )
+    fai_df["split_end"] = fai_df["chrom_size"] - fai_df["split_start"]
     need_to_split_df = fai_df[fai_df["chrom_size"] >= SPLIT_SIZE]
     do_not_need_to_split_df = fai_df[fai_df["chrom_size"] < SPLIT_SIZE].copy()
 
