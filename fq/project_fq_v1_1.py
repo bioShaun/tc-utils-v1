@@ -46,6 +46,11 @@ class FastqErrorType(StrEnum):
     LOW_DATA = "LOW_DATA"  # 添加缺失的LOW_DATA类型
 
 
+class DataMode(StrEnum):
+    cp = "cp"
+    link = "link"
+
+
 @dataclass
 class FastqError:
     """FASTQ文件错误"""
@@ -274,9 +279,13 @@ class ScriptRunner:
     """脚本执行器"""
 
     @staticmethod
-    def merge_or_link_command(fq_list: List[str], output_name: str) -> str:
+    def merge_or_link_command(
+        fq_list: List[str], output_name: str, mode: DataMode
+    ) -> str:
         """生成合并或链接命令"""
         if len(fq_list) == 1:
+            if mode == DataMode.link:
+                return f"ln -s {fq_list[0]} {output_name}"
             return f"cp {fq_list[0]} {output_name}"
         return f"cat {' '.join(fq_list)} > {output_name}"
 
@@ -335,6 +344,7 @@ def write_nextflow_input(
     warning_recorder: FastqErrorRecorder,
     threads: int = 8,
     run_script: bool = True,
+    mode: DataMode = DataMode.link,
 ) -> Optional[Dict[str, int]]:
     """写入Nextflow输入文件"""
     if fq_df.empty:
@@ -364,24 +374,24 @@ def write_nextflow_input(
                 error_message=f"包含缺失路径的样品: {sample_id}-{read_type}",
             )
             continue
+        if run_script:
+            out_fq = output_dir.absolute() / f"{sample_id}.{read_type}.fq.gz"
+            fq_list = sorted(sample_df["path"].tolist())
 
-        out_fq = output_dir.absolute() / f"{sample_id}.{read_type}.fq.gz"
-        fq_list = sorted(sample_df["path"].tolist())
+            cmd_file = scripts_dir / f"mergeFastq-{sample_id}-{read_type}.sh"
+            cmd = ScriptRunner.merge_or_link_command(fq_list, str(out_fq), mode)
 
-        cmd_file = scripts_dir / f"mergeFastq-{sample_id}-{read_type}.sh"
-        cmd = ScriptRunner.merge_or_link_command(fq_list, str(out_fq))
+            try:
+                with open(cmd_file, "w") as f:
+                    f.write(f"#!/bin/bash\n")
+                    f.write(f"set -euo pipefail\n")
+                    f.write(f"{cmd}\n")
+                cmd_file.chmod(0o755)
+                script_count += 1
+            except Exception as e:
+                logger.error(f"写入脚本文件失败 {cmd_file}: {e}")
 
-        try:
-            with open(cmd_file, "w") as f:
-                f.write(f"#!/bin/bash\n")
-                f.write(f"set -euo pipefail\n")
-                f.write(f"{cmd}\n")
-            cmd_file.chmod(0o755)
-            script_count += 1
-        except Exception as e:
-            logger.error(f"写入脚本文件失败 {cmd_file}: {e}")
-
-    logger.info(f"生成了 {script_count} 个脚本文件")
+            logger.info(f"生成了 {script_count} 个脚本文件")
 
     errors = error_recorder.get_errors()
     if errors:
@@ -505,6 +515,7 @@ def run(
     force_rebuild: bool = typer.Option(False, help="强制重建配置文件"),
     rm_empty_data: bool = typer.Option(True, help="删除空数据文件"),
     empty_data_threshold: int = typer.Option(0.01, help="空数据阈值"),
+    mode: DataMode = DataMode.link,
 ):
     """
     FASTQ文件处理和合并工具
@@ -579,6 +590,7 @@ def run(
                 error_collector,
                 warning_collector,
                 threads=threads,
+                mode=mode,
             )
 
             if results:

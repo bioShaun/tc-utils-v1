@@ -13,7 +13,7 @@ from loguru import logger
 app = typer.Typer()
 
 
-PROJECT_API = "http://183.221.124.252:8095/api/project/sequencing"
+PROJECT_API = "http://223.85.181.157:8095/api/project/sequencing"
 
 TIMEOUT = 60
 
@@ -26,7 +26,7 @@ def upload_one(
     ref_genome: str,
     biochip_code: str,
 ):
-    url = "http://183.221.124.252:8190/api/v1/capture"
+    url = "http://223.85.181.157:8190/api/v1/capture"
     headers = {
         "Token": "14CF2E831D6F4B853F37B386D74B1EDA",
     }
