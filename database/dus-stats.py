@@ -54,7 +54,7 @@ def sampleStats(bcfstats: Path, out_file: Path) -> None:
     psc_df["REF_RATIO"] = psc_df["REF"] / psc_df["Total"]
     psc_df["ALT_RATIO"] = psc_df["ALT"] / psc_df["Total"]
     psc_df["HET_RATIO"] = psc_df["HET"] / psc_df["Total"]
-    psc_df.to_csv(
+    psc_df.to_excel(
         out_file, sep="\t", index=False, columns=OUT_COLUMNS, float_format="%.4f"
     )
 
