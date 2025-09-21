@@ -45,6 +45,7 @@ COLUMN_MAP = {
 def plot(df: pd.DataFrame, outdir: Path) -> None:
     df = df.reset_index(drop=True)
     df["Index"] = df.index + 1
+    df.sort_values(by="MISS_RATIO", inplace=True, ascending=False)
 
     # 第一张图：MISS_RATIO
     plt.figure(figsize=(12, 5))
@@ -66,6 +67,7 @@ def plot(df: pd.DataFrame, outdir: Path) -> None:
     plt.close()
 
     # 第二张图：HET_RATIO
+    df.sort_values(by="HET_RATIO", inplace=True, ascending=False)
     het_plot_file_pdf = outdir / "HET_RATIO.pdf"
     het_plot_file_png = outdir / "HET_RATIO.png"
     plt.figure(figsize=(12, 5))
