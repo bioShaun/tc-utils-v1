@@ -43,9 +43,9 @@ COLUMN_MAP = {
 
 
 def plot(df: pd.DataFrame, outdir: Path) -> None:
+    df.sort_values(by="MISS_RATIO", inplace=True, ascending=False)
     df = df.reset_index(drop=True)
     df["Index"] = df.index + 1
-    df.sort_values(by="MISS_RATIO", inplace=True, ascending=False)
 
     # 第一张图：MISS_RATIO
     plt.figure(figsize=(12, 5))
