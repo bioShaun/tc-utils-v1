@@ -11,6 +11,42 @@ import pytest
 import typer
 from loguru import logger
 
+# R	A or G
+# Y	C or T
+# S	G or C
+# W	A or T
+# K	G or T
+# M	A or C
+# B	C or G or T
+# D	A or G or T
+# H	A or C or T
+# V	A or C or G
+
+
+def IUPAC_to_ATGC(seq: str) -> str:
+    """将DNA序列转换为IUPAC码"""
+    iupac_codes = {
+        "A": "A",
+        "C": "C",
+        "G": "G",
+        "T": "T",
+        "R": "AG",
+        "Y": "CT",
+        "S": "CG",
+        "W": "AT",
+        "K": "GT",
+        "M": "AC",
+        "B": "CGT",
+        "D": "AGT",
+        "H": "ACT",
+        "V": "ACG",
+        "N": "ATCG",
+    }
+    if seq in iupac_codes:
+        return "".join([iupac_codes[each][0] for each in seq])
+    else:
+        raise ValueError(f"不支持的IUPAC码: {seq}")
+
 
 def ssr_table_to_fa(
     ssr_table: pd.DataFrame,
@@ -56,7 +92,7 @@ def ssr_table_to_fa(
         try:
             if pd.isna(value):
                 return ""
-            return str(value.strip())
+            return str(value).strip()
         except:
             return ""
 
@@ -64,8 +100,8 @@ def ssr_table_to_fa(
         with ssr_left_fa.open("w") as left_fa, ssr_right_fa.open("w") as right_fa:
             for row in ssr_table.itertuples():
                 # 安全地获取并转换序列
-                left_seq = safe_convert_to_string(row.left)
-                right_seq = safe_convert_to_string(row.right)
+                left_seq = IUPAC_to_ATGC(safe_convert_to_string(row.left))
+                right_seq = IUPAC_to_ATGC(safe_convert_to_string(row.right))
                 name = safe_convert_to_string(row.name)
 
                 # 跳过空序列
