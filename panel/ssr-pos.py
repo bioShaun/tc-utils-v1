@@ -56,7 +56,7 @@ def ssr_table_to_fa(
         try:
             if pd.isna(value):
                 return ""
-            return str(value)
+            return str(value.strip())
         except:
             return ""
 
