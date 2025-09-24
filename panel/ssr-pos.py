@@ -42,9 +42,9 @@ def IUPAC_to_ATGC(seq: str) -> str:
         "V": "ACG",
         "N": "ATCG",
     }
-    if seq in iupac_codes:
+    try:
         return "".join([iupac_codes[each][0] for each in seq])
-    else:
+    except KeyError as e:
         raise ValueError(f"不支持的IUPAC码: {seq}")
 
 
