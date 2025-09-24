@@ -3,6 +3,7 @@ from typing import List, Tuple
 import typer
 from cyvcf2 import VCF
 from pyfaidx import Fasta
+from tqdm import tqdm
 
 app = typer.Typer(help="Generate probe FASTA from VCF and genome.")
 
@@ -27,7 +28,7 @@ def generate_probes_from_vcf(
 ) -> List[Tuple[str, str]]:
     genome = Fasta(genome_fasta)
     probes = []
-    for variant in VCF(vcf_file):
+    for variant in tqdm(VCF(vcf_file), desc="Processing VCF"):
         try:
             header, seq = extract_probe(variant.CHROM, variant.POS, genome, probe_size)
             probes.append((header, seq))
