@@ -63,4 +63,3 @@ def main(sam_file: str, out_file: str = "effective_length.tsv"):
 
 if __name__ == "__main__":
     app()
-    app()
