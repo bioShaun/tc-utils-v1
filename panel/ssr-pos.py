@@ -43,7 +43,7 @@ def IUPAC_to_ATGC(seq: str) -> str:
         "N": "ATCG",
     }
     try:
-        return "".join([iupac_codes[each][0] for each in seq])
+        return "".join([iupac_codes[each.upper()][0] for each in seq])
     except KeyError as e:
         raise ValueError(f"不支持的IUPAC码: {seq}")
 
