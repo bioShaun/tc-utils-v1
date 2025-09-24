@@ -23,11 +23,15 @@ def compute_effective_lengths(read) -> Tuple[Optional[int], Optional[int]]:
     - eff_xm: CIGAR M长度 - XM（None 如果没有 XM）
     - eff_md: CIGAR M长度 - MD mismatch（None 如果没有 MD）
     """
+    # unmapped 或 CIGAR 缺失的情况
+    if read.cigartuples is None:
+        return None, None
+
     cigar_len = sum(length for (op, length) in read.cigartuples if op == 0)
 
-    eff_xm = read.get_tag("XM") if read.has_tag("XM") else None
-    if eff_xm is not None:
-        eff_xm = cigar_len - eff_xm
+    eff_xm = None
+    if read.has_tag("XM"):
+        eff_xm = cigar_len - read.get_tag("XM")
 
     eff_md = None
     if read.has_tag("MD"):
@@ -62,4 +66,5 @@ def main(sam_file: str, out_file: str = "effective_length.tsv"):
 
 
 if __name__ == "__main__":
+    app()
     app()
