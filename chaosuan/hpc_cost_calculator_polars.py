@@ -167,7 +167,9 @@ def main(stats_dir: Path, summary_filename: Path, prefix: Optional[str] = None):
 
     # Save the final statistics to a CSV file
     logger.info(f"正在将最终统计数据写入 {summary_filename}")
-    final_stats_df.write_csv(summary_filename, separator="\t")
+    # final_stats_df.write_csv(summary_filename, separator="\t")
+    out_final_stats_df = final_stats_df.to_pandas()
+    out_final_stats_df.to_excel(summary_filename)
     logger.info("处理完成。")
 
 
