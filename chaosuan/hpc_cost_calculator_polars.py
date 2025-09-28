@@ -137,7 +137,7 @@ def main(stats_dir: Path, summary_filename: Path, prefix: Optional[str] = None):
     if prefix is None:
         stats_files = stats_dir.glob("*.zip")
     else:
-        stats_files = stats_dir.glob(f"{prefix}*.zip")
+        stats_files = stats_dir.glob(f"*{prefix}*zip")
     for file_i in stats_files:
         logger.info(f"正在处理文件 {file_i}")
         df = load_one_month_data(file_i)
