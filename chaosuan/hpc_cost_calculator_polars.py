@@ -1,6 +1,7 @@
 import io
 import zipfile
 from pathlib import Path
+from typing import Optional
 
 import polars as pl
 import typer
@@ -125,7 +126,7 @@ def one_month_stats(df: pl.DataFrame) -> pl.DataFrame:
     return monthly_stats
 
 
-def main(stats_dir: Path, summary_filename: Path):
+def main(stats_dir: Path, summary_filename: Path, prefix: Optional[str] = None):
     """Main function to process all zip files in a directory and generate a summary CSV."""
     if not stats_dir.exists():
         logger.error(f"错误：找不到目录 '{stats_dir}'。")
@@ -133,7 +134,11 @@ def main(stats_dir: Path, summary_filename: Path):
 
     stats_df_list = []
     # Iterate over all .zip files in the specified directory
-    for file_i in stats_dir.glob("*.zip"):
+    if prefix is None:
+        stats_files = stats_dir.glob("*.zip")
+    else:
+        stats_files = stats_dir.glob(f"{prefix}*.zip")
+    for file_i in stats_files:
         logger.info(f"正在处理文件 {file_i}")
         df = load_one_month_data(file_i)
         if not df.is_empty():
