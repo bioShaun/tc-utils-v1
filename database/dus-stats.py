@@ -50,13 +50,13 @@ def plot(df: pd.DataFrame, outdir: Path) -> None:
     # 第一张图：MISS_RATIO
     plt.figure(figsize=(12, 5))
     plt.plot(df["Index"], df["MISS_RATIO"], color="red")
-    plt.xlabel("Sample Index")
+    # plt.xlabel("Sample Index")
     plt.ylabel("MISS_RATIO")
     plt.title("MISS_RATIO across Samples")
-    plt.xticks(range(0, len(df) + 1, 50))
+    # plt.xticks(range(0, len(df) + 1, 50))
 
     # y轴：最高 0.1 或最大值
-    ymax = max(0.1, df["MISS_RATIO"].max())
+    ymax = max(0.25, df["MISS_RATIO"].max())
     plt.ylim(0, ymax)
 
     miss_plot_file_pdf = outdir / "MISS_RATIO.pdf"
@@ -72,10 +72,10 @@ def plot(df: pd.DataFrame, outdir: Path) -> None:
     het_plot_file_png = outdir / "HET_RATIO.png"
     plt.figure(figsize=(12, 5))
     plt.plot(df["Index"], df["HET_RATIO"], color="blue")
-    plt.xlabel("Sample Index")
+    # plt.xlabel("Sample Index")
     plt.ylabel("HET_RATIO")
     plt.title("HET_RATIO across Samples")
-    plt.xticks(range(0, len(df) + 1, 50))
+    # plt.xticks(range(0, len(df) + 1, 50))
 
     # y轴固定到 1
     plt.ylim(0, 1)
