@@ -43,11 +43,11 @@ COLUMN_MAP = {
 
 
 def plot(df: pd.DataFrame, outdir: Path) -> None:
+
+    # 第一张图：MISS_RATIO
     df.sort_values(by="MISS_RATIO", inplace=True, ascending=False)
     df = df.reset_index(drop=True)
     df["Index"] = df.index + 1
-
-    # 第一张图：MISS_RATIO
     plt.figure(figsize=(12, 5))
     plt.plot(df["Index"], df["MISS_RATIO"], color="red")
     # plt.xlabel("Sample Index")
@@ -68,6 +68,8 @@ def plot(df: pd.DataFrame, outdir: Path) -> None:
 
     # 第二张图：HET_RATIO
     df.sort_values(by="HET_RATIO", inplace=True, ascending=False)
+    df = df.reset_index(drop=True)
+    df["Index"] = df.index + 1
     het_plot_file_pdf = outdir / "HET_RATIO.pdf"
     het_plot_file_png = outdir / "HET_RATIO.png"
     plt.figure(figsize=(12, 5))
@@ -102,7 +104,7 @@ def sampleStats(bcfstats: Path, out_file: Path) -> None:
     psc_df["ALT_RATIO"] = psc_df["ALT"] / psc_df["Total"]
     psc_df["HET_RATIO"] = psc_df["HET"] / psc_df["Total"]
     psc_df.to_excel(
-        out_file, sep="\t", index=False, columns=OUT_COLUMNS, float_format="%.4f"
+        out_file, index=False, columns=OUT_COLUMNS, float_format="%.4f"
     )
     plot(psc_df, out_file.parent)
 

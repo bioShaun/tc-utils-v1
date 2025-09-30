@@ -38,14 +38,14 @@ def vcf2gt(vcf_file: Path, force: bool = False) -> Path:
     if gt_file.exists() and not force:
         return gt_file
     gt_file.parent.mkdir(parents=True, exist_ok=True)
-    cmd = f'bcftools query -f "%CHROM\\t%POS\\t%REF\\t%ALT[\\t%GT]\\n" {vcf_file} | sed -re "s;\\|;/;g" | gzip > {gt_file}'
+    cmd = f'~/miniconda3/envs/bcftools/bin/bcftools query -f "%CHROM\\t%POS\\t%REF\\t%ALT[\\t%GT]\\n" {vcf_file} | sed -re "s;\\|;/;g" | gzip > {gt_file}'
     logger.info(f"run: {cmd}")
     delegator.run(cmd)
     return gt_file
 
 
 def get_sample_names(vcf_file: Path) -> list:
-    cmd = f"bcftools query -l {vcf_file}"
+    cmd = f"~/miniconda3/envs/bcftools/bin/bcftools query -l {vcf_file}"
     logger.info(f"run: {cmd}")
     return delegator.run(cmd).out.strip().split("\n")
 
@@ -146,8 +146,10 @@ def main(
         anno_df = pd.read_table(annotation)
         gt_df = anno_df.merge(gt_df, how="left")
         seq_df = anno_df.merge(seq_df, how="left")
-    gt_df.to_excel(f"{out_prefix}.genotype.01.xlsx", index=False, na_rep="--")
-    seq_df.to_excel(f"{out_prefix}.genotype.seq.xlsx", index=False, na_rep="--")
+    #gt_df.to_excel(f"{out_prefix}.genotype.01.xlsx", index=False, na_rep="--")
+    gt_df.to_csv(f"{out_prefix}.genotype.01.tsv", index=False, na_rep="./.", sep='\t')
+    #seq_df.to_excel(f"{out_prefix}.genotype.seq.xlsx", index=False, na_rep="--")
+    seq_df.to_csv(f"{out_prefix}.genotype.seq.tsv", index=False, na_rep="---", sep='\t')
 
 
 if __name__ == "__main__":
