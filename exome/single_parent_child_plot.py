@@ -2,12 +2,19 @@ import csv
 from pathlib import Path
 from typing import List, Tuple
 
+import matplotlib
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import typer
+from cyvcf2 import VCF
 from tqdm import tqdm
+
+# ====================== 中文字体设置 ======================
+# Ubuntu 常用中文字体: WenQuanYi Micro Hei / Noto Sans CJK SC / AR PL UKai CN
+matplotlib.rcParams["font.sans-serif"] = ["AR PL UKai CN"]
+matplotlib.rcParams["axes.unicode_minus"] = False  # 负号正常显示
 
 # 颜色映射
 COLOR_MAP = {
@@ -19,6 +26,33 @@ COLOR_MAP = {
 VALID_CHILD_GT = {"0/0", "1/1", "0/1", "1/0"}  # 子代合法基因型
 
 
+# ====================== VCF 提取 GT ======================
+def read_vcf_gt(vcf_file: Path, samples: List[str]) -> pd.DataFrame:
+    """
+    使用 cyvcf2 读取 VCF 并提取 GT 信息，返回 DataFrame
+    """
+    vcf = VCF(str(vcf_file))
+    sample_indices = [vcf.samples.index(s) for s in samples]
+
+    rows = []
+    for variant in vcf:
+        chrom = variant.CHROM
+        pos = variant.POS
+        gts = []
+        for idx in sample_indices:
+            gt_tuple = variant.genotypes[idx]  # [allele1, allele2, phased, ...]
+            if gt_tuple is None:
+                gt_str = "./."
+            else:
+                gt_str = f"{gt_tuple[0]}/{gt_tuple[1]}"
+            gts.append(gt_str)
+        rows.append([chrom, pos] + gts)
+
+    df = pd.DataFrame(rows, columns=["CHROM", "POS"] + samples)
+    return df
+
+
+# ====================== 绘图辅助 ======================
 def get_plot_size(df: pd.DataFrame) -> Tuple[float, int]:
     height = len(df) + 1
     return 20, height
@@ -37,14 +71,13 @@ def get_plot_xaxis(df: pd.DataFrame) -> Tuple[List[int], List[str]]:
 
 def classify_origin(row: pd.Series, p1: str, child_name: str) -> str:
     """
-    根据亲本与子代的基因型判断来源类别
+    根据亲本与子代基因型判断类别
     """
     p1_gt = row[p1]
     child_gt = row[child_name]
 
     if child_gt in (".", "NN", "./."):
         return "NN"
-
     if child_gt == p1_gt:
         return "CONSISTENT"
     if child_gt in ("0/1", "1/0"):
@@ -54,38 +87,21 @@ def classify_origin(row: pd.Series, p1: str, child_name: str) -> str:
     return "NN"
 
 
+# ====================== 作图 ======================
 def plot_origin(
-    chr_df: pd.DataFrame,
-    gt_df: pd.DataFrame,
-    out_dir: Path,
-    p1: str,
-    child_name: str,
+    chr_df: pd.DataFrame, gt_df: pd.DataFrame, out_dir: Path, p1: str, child_name: str
 ) -> dict:
     """
-    作图并返回分类统计字典
+    作图并返回分类统计
     """
     origin_df = gt_df[["CHROM", "POS", p1, child_name]].copy()
 
     total_sites = len(origin_df)
 
     # 过滤亲本杂合
-    before_parent_filter = len(origin_df)
     origin_df = origin_df[origin_df[p1].isin(["0/0", "1/1"])]
-    after_parent_filter = len(origin_df)
-    removed_parent = before_parent_filter - after_parent_filter
-
     # 过滤子代非法基因型
-    before_child_filter = len(origin_df)
     origin_df = origin_df[origin_df[child_name].isin(VALID_CHILD_GT)]
-    after_child_filter = len(origin_df)
-    removed_child = before_child_filter - after_child_filter
-
-    print(
-        f"[{child_name}] 总位点: {total_sites}, "
-        f"去掉亲本杂合: {removed_parent}, "
-        f"去掉子代非法: {removed_child}, "
-        f"保留: {after_child_filter}"
-    )
 
     # 分类
     origin_df["Origin"] = origin_df.apply(
@@ -111,7 +127,11 @@ def plot_origin(
         counts["INCONSISTENT_HET"] / total_retained * 100 if total_retained else 0
     )
 
-    # ===== 作图部分 =====
+    print(
+        f"[{child_name}] 总位点: {total_sites}, 保留: {total_retained}, 绿色/灰色/红色计数: {counts}"
+    )
+
+    # ===== 作图 =====
     plt.rcParams["font.size"] = 24
     xaxis_ticks, xaxis_labels = get_plot_xaxis(chr_df)
     span = int(xaxis_ticks[-1] * 100000 / 50000000)
@@ -136,8 +156,7 @@ def plot_origin(
         ax.broken_barh(plot_x, (y_pos, 6), facecolors=plot_colors)
 
     ax.set_yticks(
-        [i * 10 + 7 for i in range(plot_height - 1)],
-        labels=np.flip(chr_df.index),
+        [i * 10 + 7 for i in range(plot_height - 1)], labels=np.flip(chr_df.index)
     )
     ax.set_xticks(xaxis_ticks, xaxis_labels)
 
@@ -158,16 +177,19 @@ def plot_origin(
     return {"Child": child_name, **counts}
 
 
-def main(gt_file: Path, chr_size: Path, out_dir: Path, p1: str, child: Path):
+# ====================== 主函数 ======================
+def main(vcf_file: Path, chr_size: Path, out_dir: Path, p1: str, child_file: Path):
     out_dir.mkdir(parents=True, exist_ok=True)
-    child_list = [each.strip() for each in child.open()]
+    child_list = [each.strip() for each in child_file.open()]
     chr_df = pd.read_table(
         chr_size, header=None, names=["chrom", "chrom_length"], index_col=0
     )
-    gt_df = pd.read_table(gt_file)
+
+    # 使用 cyvcf2 提取 GT
+    samples = [p1] + child_list
+    gt_df = read_vcf_gt(vcf_file, samples)
 
     summary_list = []
-
     for child_name in tqdm(child_list):
         stats = plot_origin(chr_df, gt_df, out_dir, p1, child_name)
         summary_list.append(stats)
@@ -193,5 +215,6 @@ def main(gt_file: Path, chr_size: Path, out_dir: Path, p1: str, child: Path):
     print(f"汇总表已保存: {summary_file}")
 
 
+# ====================== 入口 ======================
 if __name__ == "__main__":
     typer.run(main)
