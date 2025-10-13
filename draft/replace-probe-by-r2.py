@@ -84,11 +84,13 @@ def main(
     best_patch_df = filt_df.sort_values(
         ["R2_bin", "distance_to_origin_kb"], ascending=[False, True]
     ).drop_duplicates(subset=["chrom", "origin_pos"])
-    selected_patch_df = filt_df[filt_df["target_id"].isin(best_patch_df["target_id"])]
 
     # 标记并合并
-    best_patch_df["ori_pos_id"] = (
-        best_patch_df["chrom"] + "_" + best_patch_df["origin_pos"].astype(str)
+    selected_patch_df = filt_df[
+        filt_df["target_id"].isin(best_patch_df["target_id"])
+    ].copy()
+    selected_patch_df["ori_pos_id"] = (
+        selected_patch_df["chrom"] + "_" + selected_patch_df["origin_pos"].astype(str)
     )
     if "pos_id" not in ori_df.columns:
         ori_df["pos_id"] = ori_df["chrom"].astype(str) + "_" + ori_df["pos"].astype(str)
