@@ -84,6 +84,7 @@ def main(
     best_patch_df = filt_df.sort_values(
         ["R2_bin", "distance_to_origin_kb"], ascending=[False, True]
     ).drop_duplicates(subset=["chrom", "origin_pos"])
+    selected_patch_df = filt_df[filt_df["target_id"].isin(best_patch_df["target_id"])]
 
     # 标记并合并
     best_patch_df["ori_pos_id"] = (
@@ -96,7 +97,9 @@ def main(
     merged_df = pd.concat(
         [
             keep_ori_df.drop(columns=["pos_id"]),
-            best_patch_df.drop(columns=["R2_bin", "ori_pos_id"], errors="ignore"),
+            selected_patch_df.drop(
+                columns=["R2_bin", "ori_pos_id", "missing", "het", "maf"],
+            ),
         ]
     )
 
