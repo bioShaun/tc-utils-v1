@@ -82,7 +82,7 @@ def main(
 
     # 选出每个 origin 最优记录
     best_patch_df = filt_df.sort_values(
-        ["R2_bin", "distance_to_origin_kb"], ascending=[False, True]
+        ["probe_level", "R2_bin", "distance_to_origin_kb"], ascending=[False, True]
     ).drop_duplicates(subset=["chrom", "origin_pos"])
 
     # 标记并合并
