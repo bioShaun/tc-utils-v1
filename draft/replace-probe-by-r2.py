@@ -94,7 +94,7 @@ def main(
     )
     if "pos_id" not in ori_df.columns:
         ori_df["pos_id"] = ori_df["chrom"].astype(str) + "_" + ori_df["pos"].astype(str)
-    keep_ori_df = ori_df[~ori_df["pos_id"].isin(best_patch_df["ori_pos_id"])]
+    keep_ori_df = ori_df[~ori_df["pos_id"].isin(selected_patch_df["ori_pos_id"])]
 
     merged_df = pd.concat(
         [
