@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
 import argparse
+import pandas as pd
+from cyvcf2 import VCF
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
-import pandas as pd
-from cyvcf2 import VCF
-
 
 def parse_list(file_path):
-    """读取样品列表文件"""
+    """读取样品列表"""
     if not file_path:
         return []
     return [x.strip() for x in open(file_path) if x.strip()]
@@ -23,7 +22,7 @@ def calc_similarity(vcf_path, child, parent):
         idx_child = samples.index(child)
         idx_parent = samples.index(parent)
     except ValueError:
-        return None
+        return (child, parent, 0, 0, 0.0)
 
     n_sites = 0
     n_shared_hom = 0
@@ -31,21 +30,32 @@ def calc_similarity(vcf_path, child, parent):
     for variant in vcf:
         gt_child = variant.genotypes[idx_child][:2]
         gt_parent = variant.genotypes[idx_parent][:2]
-        if -1 in gt_child or -1 in gt_parent:  # 缺失基因型
+        if -1 in gt_child or -1 in gt_parent:
             continue
 
-        # 判断纯合位点
+        # 仅在两者均纯合时计算
         if gt_child[0] == gt_child[1] and gt_parent[0] == gt_parent[1]:
             n_sites += 1
             if gt_child[0] == gt_parent[0]:
                 n_shared_hom += 1
 
     vcf.close()
-
-    if n_sites == 0:
-        return (child, parent, 0, 0, 0)
-    sim = n_shared_hom / n_sites
+    sim = n_shared_hom / n_sites if n_sites > 0 else 0
     return (child, parent, n_sites, n_shared_hom, round(sim, 4))
+
+
+def run_task(task):
+    """全局函数封装，用于多进程执行"""
+    vcf_path, child, parent, mode = task
+    child, parent, n_sites, n_shared, sim = calc_similarity(vcf_path, child, parent)
+    return {
+        "child_id": child,
+        "parent_id": parent,
+        "mode": mode,
+        "n_sites": n_sites,
+        "n_shared_hom": n_shared,
+        "similarity": sim,
+    }
 
 
 def main():
@@ -66,38 +76,24 @@ def main():
     parents_2 = parse_list(args.p2)
     parents_all = parse_list(args.p_all)
 
-    results = []
     tasks = []
-
     if args.p_all:
         for c in children:
             for p in parents_all:
-                tasks.append((c, p, "p_all"))
+                tasks.append((args.vcf, c, p, "p_all"))
     else:
         for c in children:
             for p in parents_1:
-                tasks.append((c, p, "p1"))
+                tasks.append((args.vcf, c, p, "p1"))
             for p in parents_2:
-                tasks.append((c, p, "p2"))
+                tasks.append((args.vcf, c, p, "p2"))
 
     print(f"🧮 Total comparisons: {len(tasks)}")
-    with ProcessPoolExecutor(max_workers=args.threads) as ex:
-        for child, parent, mode in [t for t in tasks]:
-            ex.submit(calc_similarity, args.vcf, child, parent)
 
-        for child, parent, n_sites, n_shared, sim in ex.map(
-            lambda t: calc_similarity(args.vcf, *t[:2]), tasks
-        ):
-            results.append(
-                {
-                    "child_id": child,
-                    "parent_id": parent,
-                    "mode": mode,
-                    "n_sites": n_sites,
-                    "n_shared_hom": n_shared,
-                    "similarity": sim,
-                }
-            )
+    results = []
+    with ProcessPoolExecutor(max_workers=args.threads) as ex:
+        for res in ex.map(run_task, tasks):
+            results.append(res)
 
     df = pd.DataFrame(results)
     df.to_csv(args.out, sep="\t", index=False)
