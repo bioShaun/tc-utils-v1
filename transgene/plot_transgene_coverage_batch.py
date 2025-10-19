@@ -17,7 +17,7 @@ import pandas as pd
 
 def plot_coverage_colormap(depth_file, chrom, start, end, sample, outdir="."):
     """绘制单样本覆盖密度图"""
-    df = pd.read_csv(depth_file, sep="\t", comment="#", header=0, compression="infer")
+    df = pd.read_csv(depth_file, sep="\t", header=0, compression="infer")
 
     # 自动识别深度列
     depth_col = "Raw Depth"
