@@ -17,19 +17,19 @@ class InputType(str, Enum):
     TABLE = "table"
 
 
-def vcf2gt(vcf_file: Path, force: bool = False) -> Path:
+def vcf2gt(bcftools_bin: Path, vcf_file: Path, force: bool = False) -> Path:
     gt_file = vcf_file.with_suffix(".gt.txt.gz")
     if gt_file.exists() and not force:
         return gt_file
     gt_file.parent.mkdir(parents=True, exist_ok=True)
-    cmd = f'bcftools query -f "%CHROM\\t%POS\\t%REF\\t%ALT[\\t%GT]\\n" {vcf_file} | sed -re "s;\\|;/;g" | gzip > {gt_file}'
+    cmd = f'{bcftools_bin} query -f "%CHROM\\t%POS\\t%REF\\t%ALT[\\t%GT]\\n" {vcf_file} | sed -re "s;\\|;/;g" | gzip > {gt_file}'
     logger.info(f"run: {cmd}")
     delegator.run(cmd)
     return gt_file
 
 
-def get_sample_names(vcf_file: Path) -> list:
-    cmd = f"bcftools query -l {vcf_file}"
+def get_sample_names(bcftools_bin: Path, vcf_file: Path) -> list:
+    cmd = f'{bcftools_bin} query -l {vcf_file}'
     logger.info(f"run: {cmd}")
     return delegator.run(cmd).out.strip().split("\n")
 
@@ -111,10 +111,11 @@ def main(
     input_type: InputType = InputType.VCF,
     sample_file: Optional[Path] = typer.Option(None),
     compare_list: Optional[Path] = typer.Option(None),
+    bcftools_bin: Path = typer.Option("bcftools")
 ):
     if input_type == InputType.VCF:
-        gt_file = vcf2gt(input_file, force=force)
-        sample_list = get_sample_names(input_file)
+        gt_file = vcf2gt(bcftools_bin, input_file, force=force)
+        sample_list = get_sample_names(bcftools_bin, input_file)
     else:
         gt_file = input_file
         if sample_file is None:
