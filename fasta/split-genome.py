@@ -2,10 +2,8 @@ import re
 from pathlib import Path
 
 import pandas as pd
-import pyranges as pr
-import scipy as sp
 import typer
-from numpy import split
+from tqdm import tqdm
 
 SPLIT_SIZE = 500_000_000
 
@@ -72,7 +70,7 @@ def calculate_gaps(genes_df):
         group = group.reset_index(drop=True)
 
         # 计算相邻基因间隔
-        for i in range(len(group) - 1):
+        for i in tqdm(range(len(group) - 1), desc=f"计算染色体{seqid}的基因间隔"):
             gene1 = group.iloc[i]
             gene2 = group.iloc[i + 1]
 
