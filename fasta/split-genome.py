@@ -138,11 +138,12 @@ def split_chrom(
 
     best_split_site_df = split_site_add_gap_df.loc[best_split_site_idx].copy()
     # check if there is any chromosome gap size < min_gene_gap
-    gap_size_not_passed_df = best_split_site_idx[
-        best_split_site_idx["gap_size"] < min_gene_gap
+    gap_size_not_passed_df = best_split_site_df[
+        best_split_site_df["gap_size"] < min_gene_gap
     ]
     if gap_size_not_passed_df.empty:
         print("All chromosomes have split sites.")
+        print("gene gap size 最小为:", best_split_site_df["gap_size"].min())
         return generate_split_chr_bed(best_split_site_df)
     raise ValueError(
         f"There are {len(not_in_best_split_site)} chromosomes: {not_in_best_split_site['Chromosome'].to_list()} not in best_split_site_df."
