@@ -22,21 +22,15 @@ GFF_COLUMNS = [
 
 def parse_gff_with_pandas(gff_file, feature_type=None):
     """使用pandas解析GFF文件"""
-    # GFF文件列名
-    columns = [
-        "seqid",
-        "source",
-        "feature",
-        "start",
-        "end",
-        "score",
-        "strand",
-        "phase",
-        "attributes",
-    ]
-
     # 读取GFF文件，跳过注释行
-    df = pd.read_csv(gff_file, sep="\t", comment="#", names=columns, na_values=".")
+    df = pd.read_csv(
+        gff_file,
+        sep="\t",
+        comment="#",
+        names=GFF_COLUMNS,
+        na_values=".",
+        skip_blank_lines=True,
+    )
 
     # 如果指定了feature类型，则过滤
     if feature_type:
@@ -162,8 +156,51 @@ def split_chrom(
     )
 
 
-def generate_split_gff(split_chr_bed: pd.DataFrame, gff: Path) -> None:
-    gff_df = pd.read_table(gff, sep="\t", header=None)
+def generate_split_gff(split_chr_bed: pd.DataFrame, gff: Path, out_gff: Path) -> None:
+    gff_df = pd.read_table(
+        gff,
+        sep="\t",
+        header=None,
+        names=GFF_COLUMNS,
+        skip_blank_lines=True,
+        comment="#",
+    )
+    rename_split_chr_bed = split_chr_bed.copy()
+    rename_split_chr_bed.columns = ["seqid", "split_start", "split_end", "new_seqid"]
+    add_split_chr_df = gff_df.merge(
+        rename_split_chr_bed,
+    )
+    filter1 = add_split_chr_df["start"] >= add_split_chr_df["split_start"]
+    filter2 = add_split_chr_df["start"] <= add_split_chr_df["split_end"]
+    filter_add_split_chr_df = add_split_chr_df[filter1 & filter2].copy()
+    filter_add_split_chr_df["new_start"] = (
+        filter_add_split_chr_df["start"] - filter_add_split_chr_df["split_start"]
+    )
+    filter_add_split_chr_df["new_end"] = (
+        filter_add_split_chr_df["end"] - filter_add_split_chr_df["split_start"]
+    )
+    filter_add_split_chr_df.sort_values(
+        ["new_seqid", "new_start", "new_end"], inplace=True
+    )
+    filter_add_split_chr_df.to_csv(
+        out_gff,
+        sep="\t",
+        index=False,
+        header=False,
+        columns=[
+            "new_seqid",
+            "source",
+            "feature",
+            "new_start",
+            "new_end",
+            "score",
+            "strand",
+            "phase",
+            "attributes",
+        ],
+    )
+    out_gff = gff.with_suffix(".split.gff3")
+    generate_split_gff(split_chr_bed, gff, out_gff)
 
 
 def main(
