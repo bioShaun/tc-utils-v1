@@ -211,7 +211,7 @@ def generate_split_genome(fasta_path: Path, bed_df: pd.DataFrame, out_fasta_path
     fasta = Fasta(fasta_path)
 
     with out_fasta_path.open("w") as out:
-        for i, row in bed_df.iterrows():
+        for row_index, row in bed_df.iterrows():
             seqid = str(row["Chromosome"])
             start = int(row["start"])
             end = int(row["end"])
@@ -226,7 +226,9 @@ def generate_split_genome(fasta_path: Path, bed_df: pd.DataFrame, out_fasta_path
             for i in tqdm(range(0, len(seq), 60), desc=f"正在导出{name}的序列"):
                 out.write(seq[i : i + 60] + "\n")
 
-            logger.info(f"[{i+1}/{len(bed_df)}] Wrote {out_fasta_path} ({len(seq)} bp)")
+            logger.info(
+                f"[{row_index+1}/{len(bed_df)}] Wrote {out_fasta_path} ({len(seq)} bp)"
+            )
 
     logger.success(
         f"✅ Genome splitting completed! {len(bed_df)} fragments written to {out_fasta_path}"
