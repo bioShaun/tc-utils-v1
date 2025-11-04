@@ -7,6 +7,18 @@ from tqdm import tqdm
 
 SPLIT_SIZE = 500_000_000
 
+GFF_COLUMNS = [
+    "seqid",
+    "source",
+    "feature",
+    "start",
+    "end",
+    "score",
+    "strand",
+    "phase",
+    "attributes",
+]
+
 
 def parse_gff_with_pandas(gff_file, feature_type=None):
     """使用pandas解析GFF文件"""
@@ -148,6 +160,10 @@ def split_chrom(
     raise ValueError(
         f"There are {len(not_in_best_split_site)} chromosomes: {not_in_best_split_site['Chromosome'].to_list()} not in best_split_site_df."
     )
+
+
+def generate_split_gff(split_chr_bed: pd.DataFrame, gff: Path) -> None:
+    gff_df = pd.read_table(gff, sep="\t", header=None)
 
 
 def main(

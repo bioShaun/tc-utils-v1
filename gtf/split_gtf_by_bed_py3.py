@@ -1,8 +1,6 @@
-from math import e
 from pathlib import Path
 
 import typer
-from matplotlib.cbook import contiguous_regions
 
 
 def main(bed: Path, gtf: Path):
