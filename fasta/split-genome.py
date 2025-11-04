@@ -1,8 +1,10 @@
+import textwrap
 from pathlib import Path
 
 import pandas as pd
 import typer
 from loguru import logger
+from pyfaidx import Fasta
 from tqdm import tqdm
 
 SPLIT_SIZE = 500_000_000
@@ -152,7 +154,7 @@ def split_chrom(
         print("gene gap size 最小为:", best_split_site_df["gap_size"].min())
         return generate_split_chr_bed(best_split_site_df)
     raise ValueError(
-        f"There are {len(not_in_best_split_site)} chromosomes: {not_in_best_split_site['Chromosome'].to_list()} not in best_split_site_df."
+        f"There are {len(gap_size_not_passed_df)} chromosomes: {gap_size_not_passed_df['Chromosome'].to_list()} not in best_split_site_df."
     )
 
 
@@ -201,8 +203,41 @@ def generate_split_gff(split_chr_bed: pd.DataFrame, gff: Path, out_gff: Path) ->
     )
 
 
+def generate_split_genome(fasta_path: Path, bed_df: pd.DataFrame, out_fasta_path: Path):
+    """
+    根据 DataFrame 拆分基因组序列
+    必需列: seqid, start, end, name
+    """
+    fasta = Fasta(fasta_path)
+
+    with out_fasta_path.open("w") as out:
+        for i, row in bed_df.iterrows():
+            seqid = str(row["Chromosome"])
+            start = int(row["start"])
+            end = int(row["end"])
+            name = str(row["id"])
+
+            if seqid not in fasta:
+                raise ValueError(f"{seqid} not found in genome — skipped ({name})")
+
+            seq = str(fasta[seqid][start:end])
+            seq_wrapped = textwrap.fill(seq, width=60)
+
+            out.write(f">{name}\n{seq_wrapped}\n")
+
+            logger.info(f"[{i+1}/{len(bed_df)}] Wrote {out_fasta_path} ({len(seq)} bp)")
+
+    logger.success(
+        f"✅ Genome splitting completed! {len(bed_df)} fragments written to {out_fasta_path}"
+    )
+
+
 def main(
-    genome_fai: Path, gff: Path, split_cat_bed: Path, min_gene_gap: int = 10_000
+    genome_fa: Path,
+    genome_fai: Path,
+    gff: Path,
+    split_cat_bed: Path,
+    min_gene_gap: int = 10_000,
 ) -> None:
     fai_df = pd.read_table(
         genome_fai,
@@ -235,6 +270,10 @@ def main(
     out_gff = gff.with_suffix(".split.gff")
     logger.info(f"生成分割后的GFF文件: {out_gff}")
     generate_split_gff(split_chr_bed, gff, out_gff)
+
+    out_fasta = genome_fa.with_suffix(".split.fa")
+    logger.info(f"生成分割后的基因组文件: {out_fasta}")
+    generate_split_genome(genome_fa, split_chr_bed_all, out_fasta)
 
 
 if __name__ == "__main__":
