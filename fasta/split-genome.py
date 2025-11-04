@@ -1,8 +1,8 @@
-import re
 from pathlib import Path
 
 import pandas as pd
 import typer
+from loguru import logger
 from tqdm import tqdm
 
 SPLIT_SIZE = 500_000_000
@@ -199,8 +199,6 @@ def generate_split_gff(split_chr_bed: pd.DataFrame, gff: Path, out_gff: Path) ->
             "attributes",
         ],
     )
-    out_gff = gff.with_suffix(".split.gff3")
-    generate_split_gff(split_chr_bed, gff, out_gff)
 
 
 def main(
@@ -234,6 +232,9 @@ def main(
         header=False,
         columns=split_chr_bed.columns,
     )
+    out_gff = gff.with_suffix(".split.gff")
+    logger.info(f"生成分割后的GFF文件: {out_gff}")
+    generate_split_gff(split_chr_bed, gff, out_gff)
 
 
 if __name__ == "__main__":
