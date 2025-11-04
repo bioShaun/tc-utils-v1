@@ -221,9 +221,10 @@ def generate_split_genome(fasta_path: Path, bed_df: pd.DataFrame, out_fasta_path
                 raise ValueError(f"{seqid} not found in genome — skipped ({name})")
 
             seq = str(fasta[seqid][start:end])
-            seq_wrapped = textwrap.fill(seq, width=60)
 
-            out.write(f">{name}\n{seq_wrapped}\n")
+            out.write(f">{name}\n")
+            for i in tqdm(range(0, len(seq), 60), desc=f"正在导出{name}的序列"):
+                out.write(seq[i : i + 60] + "\n")
 
             logger.info(f"[{i+1}/{len(bed_df)}] Wrote {out_fasta_path} ({len(seq)} bp)")
 
