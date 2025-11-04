@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-import textwrap
-from typing import Iterable, Tuple
 from pathlib import Path
+from typing import Iterable, Tuple
 
 import pandas as pd
 import typer
@@ -60,7 +59,9 @@ def parse_gff_with_pandas(
         if selected_feature is None:
             selected_feature = feature_counts.index[0]
         genes_df = df[df["feature"] == selected_feature].copy()
-        logger.info("自动选择feature类型: {} (共 {} 个)", selected_feature, len(genes_df))
+        logger.info(
+            "自动选择feature类型: {} (共 {} 个)", selected_feature, len(genes_df)
+        )
         logger.debug(
             "feature类型Top10: {}",
             ", ".join(feature_counts.index[:10].tolist()),
@@ -212,7 +213,12 @@ def generate_split_gff(split_chr_bed: pd.DataFrame, gff: Path, out_gff: Path) ->
         comment="#",
     )
     rename_split_chr_bed = split_chr_bed.rename(
-        columns={"Chromosome": "seqid", "start": "split_start", "end": "split_end", "id": "new_seqid"}
+        columns={
+            "Chromosome": "seqid",
+            "start": "split_start",
+            "end": "split_end",
+            "id": "new_seqid",
+        }
     )
     add_split_chr_df = gff_df.merge(rename_split_chr_bed, on="seqid", how="inner")
     filter1 = add_split_chr_df["start"] >= add_split_chr_df["split_start"]
@@ -276,10 +282,12 @@ def generate_split_genome(
 
             seq = str(fasta[seqid][start:end])
             out.write(f">{name}\n")
-            for chunk in textwrap.wrap(seq, width=line_length):
-                out.write(chunk + "\n")
+            for i in range(0, len(seq), 60):
+                out.write(seq[i : i + 60] + "\n")
 
-            logger.info("[{}/{}] Wrote {} ({} bp)", idx, total, out_fasta_path, len(seq))
+            logger.info(
+                "[{}/{}] Wrote {} ({} bp)", idx, total, out_fasta_path, len(seq)
+            )
 
     logger.success(
         "✅ Genome splitting completed! {} fragments written to {}",
@@ -302,7 +310,9 @@ def load_fai(genome_fai: Path) -> pd.DataFrame:
     return df
 
 
-def compute_split_windows(fai_df: pd.DataFrame, split_size: int) -> Tuple[pd.DataFrame, pd.DataFrame]:
+def compute_split_windows(
+    fai_df: pd.DataFrame, split_size: int
+) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """Compute split start/end windows and separate chromosomes by size."""
     df = fai_df.copy()
     df["split_start"] = df["chrom_size"].apply(
@@ -343,9 +353,7 @@ def main(
     best_split_sites = select_split_candidates(need_to_split_df, gap_df, min_gene_gap)
     split_chr_bed = generate_split_chr_bed(best_split_sites)
     untouched_chr_bed = finalize_unsplit_chromosomes(do_not_need_to_split_df)
-    split_chr_bed_all = pd.concat(
-        [split_chr_bed, untouched_chr_bed], ignore_index=True
-    )
+    split_chr_bed_all = pd.concat([split_chr_bed, untouched_chr_bed], ignore_index=True)
 
     split_chr_bed_all.to_csv(
         split_cat_bed,
