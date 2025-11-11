@@ -41,7 +41,15 @@ def test_run_generates_variant_and_reference_outputs(tmp_path):
     vcf_path = write_vcf(tmp_path)
     out_dir = tmp_path / "out"
 
-    vcf2probe.run(vcf_path, fasta_path, out_dir, half_length=2, is_vcf=True, sequence_mode="both")
+    vcf2probe.run(
+        vcf_path,
+        fasta_path,
+        out_dir,
+        half_length=2,
+        is_vcf=True,
+        sequence_mode="both",
+        show_progress=False,
+    )
 
     table_path = out_dir / vcf2probe.TABLE_NAME
     df = pd.read_csv(table_path)
@@ -62,7 +70,15 @@ def test_reference_mode_skips_variant_fasta(tmp_path):
     vcf_path = write_vcf(tmp_path)
     out_dir = tmp_path / "out_ref"
 
-    vcf2probe.run(vcf_path, fasta_path, out_dir, half_length=2, is_vcf=True, sequence_mode="reference")
+    vcf2probe.run(
+        vcf_path,
+        fasta_path,
+        out_dir,
+        half_length=2,
+        is_vcf=True,
+        sequence_mode="reference",
+        show_progress=False,
+    )
 
     variant_path = out_dir / vcf2probe.VARIANT_FASTA_NAME
     reference_path = out_dir / vcf2probe.REFERENCE_FASTA_NAME
@@ -77,7 +93,15 @@ def test_variant_mode_skips_reference_fasta(tmp_path):
     vcf_path = write_vcf(tmp_path)
     out_dir = tmp_path / "out_variant"
 
-    vcf2probe.run(vcf_path, fasta_path, out_dir, half_length=2, is_vcf=True, sequence_mode="variant")
+    vcf2probe.run(
+        vcf_path,
+        fasta_path,
+        out_dir,
+        half_length=2,
+        is_vcf=True,
+        sequence_mode="variant",
+        show_progress=False,
+    )
 
     reference_path = out_dir / vcf2probe.REFERENCE_FASTA_NAME
     variant_path = out_dir / vcf2probe.VARIANT_FASTA_NAME

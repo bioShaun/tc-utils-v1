@@ -8,6 +8,7 @@ from typing import Iterator, Optional, TextIO, Tuple
 import pandas as pd
 import typer
 from pyfaidx import Fasta
+from tqdm import tqdm
 
 CHUNK_SIZE = 1_000_000
 TABLE_NAME = "seq.table.csv"
@@ -65,6 +66,15 @@ def normalize_sequence_mode(sequence_mode: str) -> str:
             f"sequence_mode 只支持: {', '.join(VALID_SEQUENCE_MODES)}; 当前为 {sequence_mode}"
         )
     return normalized
+
+
+def maybe_with_progress(iterable: Iterator[pd.DataFrame], enable: bool):
+    """
+    Wrap iterator with tqdm when progress reporting is enabled.
+    """
+    if enable:
+        return tqdm(iterable, desc="Processing chunks", unit="chunk")
+    return iterable
 
 
 def iter_variant_chunks(vcf: Path, is_vcf: bool) -> Iterator[pd.DataFrame]:
@@ -147,6 +157,7 @@ def run(
     half_length: int = 200,
     is_vcf: bool = True,
     sequence_mode: str = "both",
+    show_progress: bool = True,
 ) -> None:
     """
     Stream variants and build FASTA/table outputs that contain variant and/or
@@ -171,7 +182,8 @@ def run(
                 if outputs.reference_fasta
                 else None
             )
-            for chunk in iter_variant_chunks(vcf, is_vcf):
+            chunk_iter = maybe_with_progress(iter_variant_chunks(vcf, is_vcf), show_progress)
+            for chunk in chunk_iter:
                 snp_df = filter_snps(chunk)
                 if snp_df.empty:
                     continue
@@ -204,11 +216,16 @@ def main(
         "-m",
         help="选择输出 variant、reference 或 both 序列",
     ),
+    show_progress: bool = typer.Option(
+        True,
+        "--show-progress/--no-progress",
+        help="是否使用 tqdm 显示进度条",
+    ),
 ) -> None:
     """
     CLI entry point compatible with typer.
     """
-    run(vcf, ref, out_dir, half_length, is_vcf, sequence_mode)
+    run(vcf, ref, out_dir, half_length, is_vcf, sequence_mode, show_progress)
 
 
 if __name__ == "__main__":
