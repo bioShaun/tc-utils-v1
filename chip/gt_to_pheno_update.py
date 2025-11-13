@@ -75,7 +75,7 @@ def main(gt_file: Path, pheno_file: Path, out_file: Path):
             axis=1,
         )
     out_df = format_output(pheno_df)
-    out_df.to_excel(out_file, index=False)
+    out_df.to_excel(out_file)
 
 
 if __name__ == "__main__":
