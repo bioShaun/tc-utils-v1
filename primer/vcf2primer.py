@@ -71,4 +71,4 @@ def main(vcf_file: Path, ref: Path, out_file: Path, flank_size: int = 200) -> No
 
 
 if __name__ == "__main__":
-    typer.run(main)    typer.run(main)
+    typer.run(main)
