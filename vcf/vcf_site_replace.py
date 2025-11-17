@@ -6,6 +6,8 @@
 输入:
     - 一个包含形如 chrom_pos 的ID列表文件（以空白分隔取首列）。
     - 需要搜索的VCF/BCF文件。
+    - （可选）一个需要排除的位点ID列表，支持 ID 或 chrom_pos 形式。
+    - 输出替换位点信息的TSV，并额外输出包含替换位点的VCF。
 
 逻辑:
     1) 读取VCF，计算每个位点的MAF，并按染色体存入有序列表。
@@ -19,9 +21,9 @@ import csv
 from bisect import bisect_left
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Sequence
+from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
-from cyvcf2 import VCF
+from cyvcf2 import VCF, Writer
 import typer
 from loguru import logger
 from tqdm import tqdm
@@ -69,6 +71,19 @@ def parse_target_ids(id_file: Path) -> List[TargetSite]:
     if not targets:
         raise ValueError("ID列表为空，无法继续")
     return targets
+
+
+def parse_exclude_ids(id_file: Path) -> Set[str]:
+    """读取需要排除的ID列表，返回字符串集合。"""
+    exclude: Set[str] = set()
+    with id_file.open() as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            site_id = line.split()[0]
+            exclude.add(site_id)
+    return exclude
 
 
 def compute_genotype_metrics_simple(record) -> Dict[str, Optional[float]]:
@@ -128,14 +143,18 @@ def calculate_maf(record) -> float:
     return 0.0
 
 
-def build_variant_index(vcf_path: Path) -> Dict[str, ChromVariants]:
+def build_variant_index(vcf_path: Path, exclude_ids: Optional[Set[str]] = None) -> Dict[str, ChromVariants]:
     vcf = VCF(str(vcf_path))
     variants_by_chrom: Dict[str, List[VariantSummary]] = {}
+    exclude_ids = exclude_ids or set()
 
     for record in tqdm(vcf, desc="读取VCF并计算MAF"):
         maf = calculate_maf(record)
         vid = record.ID or f"{record.CHROM}_{record.POS}"
         alt = ",".join(record.ALT) if record.ALT else ""
+        chrom_pos_id = f"{record.CHROM}_{record.POS}"
+        if vid in exclude_ids or chrom_pos_id in exclude_ids:
+            continue
         variants_by_chrom.setdefault(record.CHROM, []).append(
             VariantSummary(
                 chrom=record.CHROM,
@@ -156,6 +175,29 @@ def build_variant_index(vcf_path: Path) -> Dict[str, ChromVariants]:
     if not index:
         raise ValueError("未能从VCF读取到任何位点")
     return index
+
+
+def write_replacement_vcf(
+    vcf_path: Path, output: Path, keep_keys: Set[Tuple[str, int, str, str]]
+) -> int:
+    """根据选中的替换位点，输出对应的VCF记录。"""
+    vcf = VCF(str(vcf_path))
+    output.parent.mkdir(parents=True, exist_ok=True)
+    writer = Writer(str(output), vcf)
+    count = 0
+    for record in tqdm(vcf, desc="写出替换位点VCF"):
+        key = (
+            record.CHROM,
+            record.POS,
+            record.REF,
+            ",".join(record.ALT) if record.ALT else "",
+        )
+        if key in keep_keys:
+            writer.write_record(record)
+            count += 1
+    writer.close()
+    vcf.close()
+    return count
 
 
 def nearest_neighbors(
@@ -203,6 +245,15 @@ def main(
     output: Path = typer.Option(
         Path("vcf_site_replace.tsv"), "--output", "-o", help="输出TSV路径"
     ),
+    replacement_vcf: Path = typer.Option(
+        Path("vcf_site_replace.replacements.vcf.gz"),
+        "--replacement-vcf",
+        "-r",
+        help="输出替换位点的 VCF 路径",
+    ),
+    exclude: Optional[Path] = typer.Option(
+        None, "--exclude", "-x", help="可选的排除列表文件（首列为ID或 chrom_pos）"
+    ),
     neighbors: int = typer.Option(
         10,
         "--neighbors",
@@ -222,9 +273,15 @@ def main(
         logger.warning("--top 大于 --neighbors，实际只会返回可用的候选数量")
 
     targets = parse_target_ids(id_list)
-    index = build_variant_index(vcf)
+    exclude_ids: Set[str] = set()
+    if exclude:
+        exclude_ids = parse_exclude_ids(exclude)
+        logger.info(f"排除列表读取 {len(exclude_ids)} 个ID")
+
+    index = build_variant_index(vcf, exclude_ids=exclude_ids)
 
     output.parent.mkdir(parents=True, exist_ok=True)
+    replacement_keys: Set[Tuple[str, int, str, str]] = set()
     with output.open("w", newline="") as f:
         writer = csv.writer(f, delimiter="\t")
         writer.writerow(
@@ -263,6 +320,7 @@ def main(
                 continue
 
             for rank, variant in enumerate(replacements, start=1):
+                replacement_keys.add((variant.chrom, variant.pos, variant.ref, variant.alt))
                 writer.writerow(
                     [
                         target.raw_id,
@@ -278,6 +336,13 @@ def main(
                         variant.alt,
                     ]
                 )
+
+    # 写出包含替换位点的VCF
+    if replacement_keys:
+        written = write_replacement_vcf(vcf, replacement_vcf, replacement_keys)
+        logger.info(f"替换位点VCF写入 {written} 条记录 -> {replacement_vcf}")
+    else:
+        logger.warning("没有可写出的替换位点VCF记录")
 
     logger.info(f"完成，结果已写入 {output}")
 
