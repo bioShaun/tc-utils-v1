@@ -8,4 +8,5 @@ loguru
 pandera
 attrs
 pysam
+cyvcf2
 pytest-cov
