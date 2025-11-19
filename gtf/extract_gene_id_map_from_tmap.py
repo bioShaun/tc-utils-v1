@@ -31,7 +31,7 @@ def parse_tmap(tmap_file, valid_classes={'=', 'c', 'k', 'm', 'j'}):
     tmap文件格式(tab分隔):
     ref_gene_id  class_code  qry_gene_id  ...
     """
-    gene_mappings = []
+    gene_mappings = {}
     
     with open(tmap_file, 'r') as f:
         header = f.readline().strip().split('\t')
@@ -69,12 +69,17 @@ def parse_tmap(tmap_file, valid_classes={'=', 'c', 'k', 'm', 'j'}):
                 continue
             
             priority = get_class_priority(class_code)
-            gene_mappings.append((qry_gene, ref_gene, class_code, priority))
+            pair_key = (qry_gene, ref_gene)
+            
+            # 如果配对已存在，保留优先级更高的
+            if pair_key not in gene_mappings or priority < gene_mappings[pair_key][1]:
+                gene_mappings[pair_key] = (class_code, priority)
     
-    # 按优先级排序所有映射
-    gene_mappings.sort(key=lambda x: (x[0], x[3]))
+    # 转换为列表并按优先级排序
+    result = [(qry, ref, cc, pri) for (qry, ref), (cc, pri) in gene_mappings.items()]
+    result.sort(key=lambda x: (x[0], x[3]))
     
-    return gene_mappings
+    return result
 
 
 def write_mapping(mappings, output_file):
