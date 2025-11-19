@@ -4,13 +4,12 @@
 从gffcompare的.tmap文件中提取基因ID映射
 
 规则:
-1. class code 为 =, c, k, m, j 认为是同一基因
+1. class code 为 =, c, k, m, j 认为是同一基因，保留所有配对
 2. 可靠度排序: = > c ≈ k > m > j
 """
 
 import argparse
 import sys
-from collections import defaultdict
 
 
 def get_class_priority(class_code):
@@ -32,7 +31,7 @@ def parse_tmap(tmap_file, valid_classes={'=', 'c', 'k', 'm', 'j'}):
     tmap文件格式(tab分隔):
     ref_gene_id  class_code  qry_gene_id  ...
     """
-    gene_mappings = defaultdict(list)
+    gene_mappings = []
     
     with open(tmap_file, 'r') as f:
         header = f.readline().strip().split('\t')
@@ -70,25 +69,19 @@ def parse_tmap(tmap_file, valid_classes={'=', 'c', 'k', 'm', 'j'}):
                 continue
             
             priority = get_class_priority(class_code)
-            gene_mappings[qry_gene].append((ref_gene, class_code, priority))
+            gene_mappings.append((qry_gene, ref_gene, class_code, priority))
     
-    # 对每个query gene，选择优先级最高的映射
-    best_mappings = {}
-    for qry_gene, mappings in gene_mappings.items():
-        # 按优先级排序
-        mappings.sort(key=lambda x: x[2])
-        best_ref_gene, best_class, _ = mappings[0]
-        best_mappings[qry_gene] = (best_ref_gene, best_class)
+    # 按优先级排序所有映射
+    gene_mappings.sort(key=lambda x: (x[0], x[3]))
     
-    return best_mappings
+    return gene_mappings
 
 
 def write_mapping(mappings, output_file):
     """写入映射结果"""
     with open(output_file, 'w') as f:
         f.write('qry_gene_id\tref_gene_id\tclass_code\n')
-        for qry_gene in sorted(mappings.keys()):
-            ref_gene, class_code = mappings[qry_gene]
+        for qry_gene, ref_gene, class_code, _ in mappings:
             f.write(f'{qry_gene}\t{ref_gene}\t{class_code}\n')
 
 
