@@ -27,6 +27,7 @@ class AnnEntry:
     allele: str
     effect: str
     impact: str
+    gene_id: str
     raw: str
 
 
@@ -50,10 +51,12 @@ def parse_ann(entry: str) -> Optional[AnnEntry]:
     if len(parts) < 3:
         return None
     allele, effect, impact = parts[0], parts[1], parts[2]
+    gene_id = parts[4] if len(parts) > 4 else "."
     return AnnEntry(
         allele=allele or ".",
         effect=effect or ".",
         impact=impact or ".",
+        gene_id=gene_id or ".",
         raw=entry,
     )
 
@@ -86,6 +89,7 @@ def extract_best_annotations(
                 "pos",
                 "effect",
                 "impact",
+                "gene_id",
             ]
         )
 
@@ -103,6 +107,7 @@ def extract_best_annotations(
                     record.POS,
                     best.effect,
                     best.impact,
+                    best.gene_id,
                 ]
             )
 
