@@ -15,6 +15,7 @@ from typing import Iterable, List, Optional, Sequence
 from cyvcf2 import VCF
 import typer
 from loguru import logger
+from tqdm import tqdm
 
 
 IMPACT_PRIORITY = ["HIGH", "MODERATE", "LOW", "MODIFIER"]
@@ -88,7 +89,7 @@ def extract_best_annotations(
             ]
         )
 
-        for record in vcf:
+        for record in tqdm(vcf, desc="Extracting ANN", unit="record"):
             total += 1
             ann_values = normalize_ann_values(record.INFO.get(ann_tag))
             parsed = [ann for ann in (parse_ann(val) for val in ann_values) if ann]
