@@ -9,4 +9,10 @@ pandera
 attrs
 pysam
 cyvcf2
+polars
+pyfaidx
+pytest
+ruff
+pyright
 pytest-cov
+pre-commit
