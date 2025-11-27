@@ -68,6 +68,7 @@ def main(
     cov: List[int] = [1, 5, 10, 20, 30, 50, 100],
     split_bed: Path = typer.Option(None),
     cov_cutoff: float = typer.Option(None),
+    use_site: bool = False
 ) -> None:
     bed_df, df_matrix = load_bed_files(cds_cov_dir, cov_cutoff=cov_cutoff)
     stats_df = get_stats_df(df_matrix)

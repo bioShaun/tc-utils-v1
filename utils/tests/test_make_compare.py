@@ -1,4 +1,3 @@
-
 from typer.testing import CliRunner
 
 from utils.make_compare import app, generate_pairs, read_sample_list
