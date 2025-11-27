@@ -240,7 +240,11 @@ class FastqProcessor:
         target_dirs = []
 
         # 查找所有匹配的目录
+
         for date_dir in self.base_dir.glob("20*"):
+        #for date_dir in self.base_dir.glob("*"):
+            #if date_dir.name == "202510":
+             #   continue
             if not date_dir.is_dir():
                 continue
             for tcwl_dir in date_dir.glob("*"):
