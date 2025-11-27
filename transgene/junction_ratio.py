@@ -10,7 +10,7 @@ import pysam
 
 
 def split_junction_reads(
-    bam_path, chrom, start, end, flank=10, mapq_cutoff=10, out_prefix="junction_split"
+    bam_path, chrom, start, end, flank=2, mapq_cutoff=10, out_prefix="junction_split"
 ):
     """
     提取目标区域 reads 并分成两个 SAM 文件:
@@ -40,6 +40,7 @@ def split_junction_reads(
 
             ref_start = read.reference_start
             ref_end = read.reference_end
+            print(read.reference_start, read.reference_end)
 
             if ref_start < start and ref_end > end:
                 junc_sam.write(read)
@@ -78,7 +79,7 @@ def main():
     parser.add_argument("--chrom", required=True, help="染色体名称")
     parser.add_argument("--start", required=True, type=int, help="插入起始位置")
     parser.add_argument("--end", required=True, type=int, help="插入结束位置")
-    parser.add_argument("--flank", type=int, default=10, help="上下游扩展范围(bp)")
+    parser.add_argument("--flank", type=int, default=2, help="上下游扩展范围(bp)")
     parser.add_argument("--mapq", type=int, default=10, help="最小比对质量过滤")
     parser.add_argument("--out", default="junction_split", help="输出文件前缀")
     args = parser.parse_args()
