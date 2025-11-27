@@ -30,21 +30,54 @@ def merge_chr(df: pd.DataFrame, split_bed: Path) -> pd.DataFrame:
 
 
 def load_bed_files(
-    bed_dir: Path, cov_cutoff: Optional[float] = None
+    bed_dir: Path, cov_cutoff: Optional[float] = None, use_site: bool = False
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     df_list = []
-    bed_list = sorted(list(bed_dir.glob("*/region.tsv.gz")))
-    bed_df = pd.read_table(bed_list[0], usecols=[0, 1, 2])
-    bed_df.columns = ["chrom", "start", "end"]
-    for bed_i in bed_list:
-        logger.info(f"Load {bed_i} ...")
-        sample_name = bed_i.parent.name
-        df_i = pd.read_table(bed_i, usecols=[3])
-        df_i.columns = [sample_name]
-        if cov_cutoff is not None:
-            if df_i[sample_name].quantile() < cov_cutoff:
-                continue
-        df_list.append(df_i)
+
+    if use_site:
+        # Load depth.tsv.gz files
+        depth_list = sorted(list(bed_dir.glob("*/depth.tsv.gz")))
+        bed_df = pd.read_table(
+            depth_list[0],
+            usecols=["#Chr", "Pos"],
+            sep="\t"
+        )
+        # Convert position to BED format: start = Pos - 1, end = Pos
+        bed_df = pd.DataFrame({
+            "chrom": bed_df["#Chr"],
+            "start": bed_df["Pos"] - 1,
+            "end": bed_df["Pos"]
+        })
+
+        for depth_i in depth_list:
+            logger.info(f"Load {depth_i} ...")
+            sample_name = depth_i.parent.name
+            # Use "Cover depth" column (last column)
+            df_i = pd.read_table(
+                depth_i,
+                usecols=["Cover depth"],
+                sep="\t"
+            )
+            df_i.columns = [sample_name]
+            if cov_cutoff is not None:
+                if df_i[sample_name].quantile() < cov_cutoff:
+                    continue
+            df_list.append(df_i)
+    else:
+        # Original behavior: load region.tsv.gz files
+        bed_list = sorted(list(bed_dir.glob("*/region.tsv.gz")))
+        bed_df = pd.read_table(bed_list[0], usecols=[0, 1, 2])
+        bed_df.columns = ["chrom", "start", "end"]
+        for bed_i in bed_list:
+            logger.info(f"Load {bed_i} ...")
+            sample_name = bed_i.parent.name
+            df_i = pd.read_table(bed_i, usecols=[3])
+            df_i.columns = [sample_name]
+            if cov_cutoff is not None:
+                if df_i[sample_name].quantile() < cov_cutoff:
+                    continue
+            df_list.append(df_i)
+
     df = reduce(
         lambda x, y: pd.merge(x, y, left_index=True, right_index=True),
         df_list,
@@ -68,8 +101,9 @@ def main(
     cov: List[int] = [1, 5, 10, 20, 30, 50, 100],
     split_bed: Path = typer.Option(None),
     cov_cutoff: float = typer.Option(None),
+    use_site: bool = typer.Option(False, help="Use depth.tsv.gz for analysis instead of region.tsv.gz"),
 ) -> None:
-    bed_df, df_matrix = load_bed_files(cds_cov_dir, cov_cutoff=cov_cutoff)
+    bed_df, df_matrix = load_bed_files(cds_cov_dir, cov_cutoff=cov_cutoff, use_site=use_site)
     stats_df = get_stats_df(df_matrix)
     cov_df_list = []
     for cov_i in cov:
