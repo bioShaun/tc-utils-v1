@@ -29,7 +29,9 @@ def test_build_sequence_strings_returns_expected_sequences(tmp_path):
     reference = Fasta(str(fasta_path))
     row = pd.Series({"chrom": "chr1", "pos": 5, "ref": "G", "alt": "T"})
 
-    variant_seq, reference_seq = vcf2probe.build_sequence_strings(row, reference, half_length=2)
+    variant_seq, reference_seq = vcf2probe.build_sequence_strings(
+        row, reference, half_length=2
+    )
 
     assert variant_seq == "CC[G/T]GT"
     assert reference_seq == "CCGGT"
@@ -58,8 +60,18 @@ def test_run_generates_variant_and_reference_outputs(tmp_path):
     assert first_row["sequence"] == "CC[G/T]GT"
     assert first_row["reference_sequence"] == "CCGGT"
 
-    variant_fasta = (out_dir / vcf2probe.VARIANT_FASTA_NAME).read_text(encoding="utf-8").strip().splitlines()
-    reference_fasta = (out_dir / vcf2probe.REFERENCE_FASTA_NAME).read_text(encoding="utf-8").strip().splitlines()
+    variant_fasta = (
+        (out_dir / vcf2probe.VARIANT_FASTA_NAME)
+        .read_text(encoding="utf-8")
+        .strip()
+        .splitlines()
+    )
+    reference_fasta = (
+        (out_dir / vcf2probe.REFERENCE_FASTA_NAME)
+        .read_text(encoding="utf-8")
+        .strip()
+        .splitlines()
+    )
 
     assert variant_fasta[1] == "CC[G/T]GT"
     assert reference_fasta[1] == "CCGGT"

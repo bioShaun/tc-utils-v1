@@ -42,7 +42,7 @@ def allele_stats(row: pd.Series) -> Tuple[str, float, float, float]:
 def transform_one(df: pd.DataFrame) -> pd.DataFrame:
     vcf_columns = ["CHROM", "POS", "REF", "ALT"]
     sample_count = len(df.columns) - len(vcf_columns)
-    sample_columns = [f"genotype" for i in range(sample_count)]
+    sample_columns = ["genotype" for i in range(sample_count)]
     df.columns = [*vcf_columns, *sample_columns]
     df["indel_length"] = df.parallel_apply(get_index_len, axis=1)  # type: ignore
     df["ALT"] = df.parallel_apply(lambda x: transformAlt(x.REF, x.ALT), axis=1)  # type: ignore
@@ -193,5 +193,3 @@ def vcfStats(
 
 if __name__ == "__main__":
     typer.run(vcfStats)
-
-

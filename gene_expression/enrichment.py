@@ -116,12 +116,12 @@ def enrich_core(gene2go_df: pd.DataFrame, gene_list_df: pd.DataFrame):
 @app.command()
 def go(gene_list: Path, id_map: Path, name_map: Path, out_prefix: str):
     if not gene_list.is_file():
-        typer.secho(f"Gene List File not exist!", fg=typer.colors.MAGENTA)
+        typer.secho("Gene List File not exist!", fg=typer.colors.MAGENTA)
         return False
     gene2go_df = pd.read_csv(id_map)
-    gene2go_df['gene'] = gene2go_df["gene"].astype(str)
+    gene2go_df["gene"] = gene2go_df["gene"].astype(str)
     gene_list_df = pd.read_csv(gene_list, header=None, names=["gene"]).drop_duplicates()
-    gene_list_df['gene'] = gene_list_df["gene"].astype(str)
+    gene_list_df["gene"] = gene_list_df["gene"].astype(str)
     enrich_df = enrich_core(gene2go_df, gene_list_df)
     name_map_df = pd.read_csv(name_map, sep="\t", index_col=0)
     out_df = format_df(enrich_df, name_map_df)
@@ -140,7 +140,7 @@ def kegg(
     ncbi_map: Path = typer.Option(...),
 ):
     if not gene_list.is_file():
-        typer.secho(f"Gene List File not exist!", fg=typer.colors.MAGENTA)
+        typer.secho("Gene List File not exist!", fg=typer.colors.MAGENTA)
         return False
     ncbi_map_df = pd.read_csv(ncbi_map, dtype={"ncbi": "str"})
     gene2kegg_df = pd.read_csv(id_map, dtype={"gene": "str"})

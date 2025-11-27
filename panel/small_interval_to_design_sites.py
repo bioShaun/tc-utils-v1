@@ -121,7 +121,6 @@ def main(
         with open(small_interval_bed, "r", encoding="utf-8") as f, open(
             fake_sites, "w", encoding="utf-8"
         ) as out:
-
             # 写入头部
             out.write(HEADER)
 

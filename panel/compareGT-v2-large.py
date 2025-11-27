@@ -29,7 +29,7 @@ def vcf2gt(bcftools_bin: Path, vcf_file: Path, force: bool = False) -> Path:
 
 
 def get_sample_names(bcftools_bin: Path, vcf_file: Path) -> list:
-    cmd = f'{bcftools_bin} query -l {vcf_file}'
+    cmd = f"{bcftools_bin} query -l {vcf_file}"
     logger.info(f"run: {cmd}")
     return delegator.run(cmd).out.strip().split("\n")
 
@@ -111,7 +111,7 @@ def main(
     input_type: InputType = InputType.VCF,
     sample_file: Optional[Path] = typer.Option(None),
     compare_list: Optional[Path] = typer.Option(None),
-    bcftools_bin: Path = typer.Option("bcftools")
+    bcftools_bin: Path = typer.Option("bcftools"),
 ):
     if input_type == InputType.VCF:
         gt_file = vcf2gt(bcftools_bin, input_file, force=force)

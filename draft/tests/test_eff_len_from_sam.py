@@ -19,6 +19,7 @@ read4\t0\tchr1\t31\t255\t10M\t*\t0\t0\tGGGGGGGGGG\tIIIIIIIIII
 read5\t4\t*\t0\t0\t*\t*\t0\t0\tNNNNNNNNNN\tIIIIIIIIII
 """
 
+
 @pytest.fixture
 def tmp_sam():
     with tempfile.NamedTemporaryFile(mode="w+", suffix=".sam") as f:
@@ -26,10 +27,12 @@ def tmp_sam():
         f.flush()
         yield f.name
 
+
 def test_parse_md_mismatches():
     assert parse_md_mismatches("43G7C58") == 2
     assert parse_md_mismatches("10") == 0
     assert parse_md_mismatches("5A3T2G") == 3
+
 
 def test_compute_effective_lengths(tmp_sam):
     samfile = pysam.AlignmentFile(tmp_sam, "r")
@@ -46,15 +49,10 @@ def test_compute_effective_lengths(tmp_sam):
     # read5: unmapped -> (None, None)
     assert compute_effective_lengths(reads[4]) == (None, None)
 
+
 def test_process_sam(tmp_sam):
     with tempfile.NamedTemporaryFile(mode="w+", suffix=".tsv") as f:
         process_sam(tmp_sam, f.name)
-        f.seek(0)
-        lines = f.read().splitlines()
-
-    assert lines[0] == "readID\teff_len_XM\teff_len_MD"
-    assert lines[1].startswith("read1")
-    assert "NA" in lines[-1]  # unmapped read 输出 NA
         f.seek(0)
         lines = f.read().splitlines()
 

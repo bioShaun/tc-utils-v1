@@ -3,7 +3,6 @@ from operator import attrgetter
 from pathlib import Path
 from typing import List, Optional
 
-import numpy as np
 import pandas as pd
 import typer
 from loguru import logger

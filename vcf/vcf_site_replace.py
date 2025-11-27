@@ -143,7 +143,9 @@ def calculate_maf(record) -> float:
     return 0.0
 
 
-def build_variant_index(vcf_path: Path, exclude_ids: Optional[Set[str]] = None) -> Dict[str, ChromVariants]:
+def build_variant_index(
+    vcf_path: Path, exclude_ids: Optional[Set[str]] = None
+) -> Dict[str, ChromVariants]:
     vcf = VCF(str(vcf_path))
     variants_by_chrom: Dict[str, List[VariantSummary]] = {}
     exclude_ids = exclude_ids or set()
@@ -320,7 +322,9 @@ def main(
                 continue
 
             for rank, variant in enumerate(replacements, start=1):
-                replacement_keys.add((variant.chrom, variant.pos, variant.ref, variant.alt))
+                replacement_keys.add(
+                    (variant.chrom, variant.pos, variant.ref, variant.alt)
+                )
                 writer.writerow(
                     [
                         target.raw_id,

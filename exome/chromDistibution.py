@@ -20,9 +20,7 @@ def get_plot_xaxis(df: pd.DataFrame) -> Tuple[List[int], List[str]]:
     chrom_max_length = df["end"].max()
     mega_base = np.floor(np.log10(chrom_max_length))
     max_chr_show_length = np.ceil(chrom_max_length / 10**mega_base)
-    x_axis_ticks = [
-        int(i * 10**mega_base) for i in range(int(max_chr_show_length) + 1)
-    ]
+    x_axis_ticks = [int(i * 10**mega_base) for i in range(int(max_chr_show_length) + 1)]
     x_axis_labels = [
         f"{int(i * 10**mega_base / 1e6)}M" for i in range(int(max_chr_show_length) + 1)
     ]

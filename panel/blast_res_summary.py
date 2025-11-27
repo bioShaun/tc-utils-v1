@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
-from typing import Iterator, List, Optional
+from typing import List, Optional
 
 import pandas as pd
 import typer

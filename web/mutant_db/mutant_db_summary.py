@@ -7,7 +7,7 @@ import pandera as pa
 import typer
 from attrs import define, field
 from loguru import logger
-from pandera.typing import DataFrame, Series
+from pandera.typing import Series
 
 VA_CHANGE_ORDER = [
     "C:G>T:A",
@@ -250,7 +250,6 @@ def va_change_type(refer_alt):
 
 @define
 class DbGeneralStatsProcessor:
-
     df: pd.DataFrame
     cds_df: pd.DataFrame
     gene_df: pd.DataFrame

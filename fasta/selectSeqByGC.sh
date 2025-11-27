@@ -10,7 +10,7 @@ awk '$3 > 120 && $3 <= 200' ${fasta}.gc.txt |cut -f1 > part2.seq.txt
 
 seqkit fx2tab ${fasta}| grep -f part2.seq.txt | seqkit tab2fx | seqkit sliding -s 1 -W 120 - | seqkit fx2tab -g -l - > part2.seq.raw.gc
 
-python "${scriptDir}/selectGC50.py" part2.seq.raw.gc part2.seq.gc   
+python "${scriptDir}/selectGC50.py" part2.seq.raw.gc part2.seq.gc
 
 awk '$3 > 200' ${fasta}.gc.txt |cut -f1 > part3.seq.txt
 

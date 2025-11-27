@@ -113,8 +113,14 @@ def prepare_output_files(out_dir: Path, sequence_mode: str) -> SequenceOutputs:
     Ensure the output directory exists and previous run artifacts are removed.
     """
     out_dir.mkdir(parents=True, exist_ok=True)
-    variant_path = out_dir / VARIANT_FASTA_NAME if sequence_mode in {"variant", "both"} else None
-    reference_path = out_dir / REFERENCE_FASTA_NAME if sequence_mode in {"reference", "both"} else None
+    variant_path = (
+        out_dir / VARIANT_FASTA_NAME if sequence_mode in {"variant", "both"} else None
+    )
+    reference_path = (
+        out_dir / REFERENCE_FASTA_NAME
+        if sequence_mode in {"reference", "both"}
+        else None
+    )
     outputs = SequenceOutputs(
         table=out_dir / TABLE_NAME,
         variant_fasta=variant_path,
@@ -176,13 +182,13 @@ def run(
                 else None
             )
             reference_handle = (
-                stack.enter_context(
-                    outputs.reference_fasta.open("a", encoding="utf-8")
-                )
+                stack.enter_context(outputs.reference_fasta.open("a", encoding="utf-8"))
                 if outputs.reference_fasta
                 else None
             )
-            chunk_iter = maybe_with_progress(iter_variant_chunks(vcf, is_vcf), show_progress)
+            chunk_iter = maybe_with_progress(
+                iter_variant_chunks(vcf, is_vcf), show_progress
+            )
             for chunk in chunk_iter:
                 snp_df = filter_snps(chunk)
                 if snp_df.empty:

@@ -2,7 +2,9 @@ import typer
 from pathlib import Path
 
 
-def generate_fq_file_map(data_dir: Path, ) -> None:
+def generate_fq_file_map(
+    data_dir: Path,
+) -> None:
     pass
 
 

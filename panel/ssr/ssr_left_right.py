@@ -30,7 +30,6 @@ def main(
     out_dir: Path = typer.Option(default=OUTDIR, help="Output dir"),
     off_set_bp: int = typer.Option(default=10, help="Offset bp"),
 ) -> None:
-
     def get_best_and_most(test_df):
         filter_df = test_df[test_df[6] <= 5].copy()
         a = (filter_df.groupby([1, 8]).size() >= 2).reset_index()

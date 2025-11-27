@@ -1,16 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import subprocess
-import sys
-from collections import Counter, defaultdict
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from collections import Counter
 from dataclasses import dataclass, field
 from enum import StrEnum  # 确保正确导入StrEnum
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
-import numpy as np
 import pandas as pd
 import typer
 from loguru import logger

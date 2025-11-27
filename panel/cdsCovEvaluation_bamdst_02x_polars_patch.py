@@ -1,8 +1,6 @@
 import logging
-import sys
-from functools import reduce
 from pathlib import Path
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional
 
 import polars as pl
 import typer

@@ -1,6 +1,5 @@
 import tempfile
 
-import pytest
 
 from draft.vcf_to_probe import generate_probes_from_vcf, write_fasta
 

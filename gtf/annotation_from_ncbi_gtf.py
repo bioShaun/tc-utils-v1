@@ -1,6 +1,6 @@
 import re
 from pathlib import Path
-from typing import Dict, List
+from typing import List
 
 import typer
 from attrs import define, field

@@ -1,8 +1,6 @@
-from functools import partial
 from pathlib import Path
 from typing import List, Tuple
 
-import delegator
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import numpy as np

@@ -55,7 +55,7 @@ def main(
         copy_directory(bsa_dir, back_up_dir)
 
     anno_df = pd.read_table(annotation_file)
-    for data_i in tqdm(bsa_dir.glob(f"*/data/*.gz")):
+    for data_i in tqdm(bsa_dir.glob("*/data/*.gz")):
         df = pd.read_csv(data_i)
         add_anno_df = df.merge(anno_df, how="left", on=["Gene"])
         add_anno_df.to_csv(data_i, index=False)

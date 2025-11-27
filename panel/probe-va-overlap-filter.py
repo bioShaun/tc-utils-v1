@@ -19,7 +19,6 @@ class MutantDBSchema(pa.DataFrameModel):
 
 @dataclass
 class AnnDataProcessor:
-
     ann_table: Path
     validated_df: pd.DataFrame = field(init=False)
 
@@ -100,7 +99,6 @@ def main(
     indel_cutoff: int = 0,
     id_list: Path = typer.Option(None),
 ) -> None:
-
     ann_data_processor = AnnDataProcessor(ann_table)
     ann_data_processor.load_data(MutantDBSchema)
     probe_bed = ann_data_processor.to_probe_bed()

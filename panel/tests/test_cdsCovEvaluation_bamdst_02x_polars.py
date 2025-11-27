@@ -1,6 +1,5 @@
 import gzip
 import logging
-from pathlib import Path
 
 import polars as pl
 import pytest
@@ -364,7 +363,6 @@ class TestMain:
 
 # ========== 常量 ==========
 class TestConstants:
-
     def test_default_depth_threshold(self):
         assert DEFAULT_DEPTH_THRESHOLD == 0.2
 

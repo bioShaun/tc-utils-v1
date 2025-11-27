@@ -30,10 +30,10 @@ def main(
             eachline_list = eachline.strip().split()
             chrom_map_dict[eachline_list[0]] = eachline_list[1]
 
-    if not genome is None:
+    if genome is not None:
         for record in SeqIO.parse(genome, format="fasta"):
             if record.id in chrom_map_dict:
-                record.id = chrom_map_dict[record.id]            
+                record.id = chrom_map_dict[record.id]
                 genome_list.append(record)
 
         out_genome_name = f"rename.{genome.name}"
@@ -41,7 +41,7 @@ def main(
 
         SeqIO.write(genome_list, out_genome_path, "fasta")
 
-    if not gff is None:
+    if gff is not None:
         gff_df = pd.read_table(gff, header=None, names=gff_columns, comment="#")
         chrom_map_df = pd.read_table(
             chrom_map, header=None, names=["seqname", "new_seqname"]

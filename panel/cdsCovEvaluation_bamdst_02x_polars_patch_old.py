@@ -1,8 +1,7 @@
 import logging
-import sys
 from functools import reduce
 from pathlib import Path
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional
 
 import polars as pl
 import typer
@@ -186,7 +185,10 @@ def load_bed_files(
             key = ["chrom", "start", "end"]
             # 做 outer join；把右表重复键列的后缀统一设成 "_dup"
             out = left.join(
-                right, on=key, how="outer", suffix="_dup"  # 只要不是 "_right" 就行
+                right,
+                on=key,
+                how="outer",
+                suffix="_dup",  # 只要不是 "_right" 就行
             )
             # 把刚刚生成的 "_dup" 键列全部丢掉，保留左表那一份即可
             return out.drop([f"{c}_dup" for c in key])

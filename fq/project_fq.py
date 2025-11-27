@@ -2,8 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import subprocess
-import sys
-from collections import Counter, defaultdict
+from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -283,8 +282,8 @@ def write_nextflow_input(
 
         try:
             with open(cmd_file, "w") as f:
-                f.write(f"#!/bin/bash\n")
-                f.write(f"set -euo pipefail\n")  # 严格错误处理
+                f.write("#!/bin/bash\n")
+                f.write("set -euo pipefail\n")  # 严格错误处理
                 f.write(f"{cmd}\n")
             cmd_file.chmod(0o755)  # 使脚本可执行
             script_count += 1
