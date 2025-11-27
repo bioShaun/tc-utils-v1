@@ -23,7 +23,7 @@ clean_enrich_table <- function(enrich_file) {
   enrich_df$term <- enrich_df$Description
   enrich_df$numInCat <- as.numeric(str_extract(enrich_df$GeneRatio, "\\d+"))
   ylab_title <- '-log10(p.adjust)'
-  
+
   enrich_plot_data_list <- list(table=enrich_df, title=ylab_title)
   return(enrich_plot_data_list)
 }
@@ -80,4 +80,3 @@ p <- ggplot(plot_df, aes(log_pval, wrap_term, size=numInCat, color=log_pval)) +
 p
 
 save_ggplot(p, out_prefix, width = plot_witdh, height = plot_height)
-

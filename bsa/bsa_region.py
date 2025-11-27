@@ -6,9 +6,8 @@ BSA (Bulked Segregant Analysis) 阈值片段识别脚本
 
 import argparse
 import sys
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
-import numpy as np
 import pandas as pd
 
 

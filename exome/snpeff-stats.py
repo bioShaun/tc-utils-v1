@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import List, Tuple
+from typing import Tuple
 import typer
 import pandas as pd
 from io import StringIO

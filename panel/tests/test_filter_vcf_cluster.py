@@ -1,7 +1,6 @@
 import gzip
 from pathlib import Path
 
-import pytest
 
 from panel.filter_vcf_cluster import filter_stream
 

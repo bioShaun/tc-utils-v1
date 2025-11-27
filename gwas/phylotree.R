@@ -41,6 +41,3 @@ circular_x_max = original_x_xmax + original_x_xmax * 2 / (circular_height - 2)
 circular_tree <- ggtree(tree, branch.length="none", layout='circular', ladderize = FALSE) + geom_tiplab(size=text_size) + geom_rootedge()+ xlim(0, circular_x_max)
 ggsave(circular_tree, filename = paste(argv$output, 'circular.png', sep = '.'), dpi = 300, width = circular_height, height = circular_height)
 ggsave(circular_tree, filename = paste(argv$output, 'circular.pdf', sep = '.'), width = circular_height, height = circular_height)
-
-
-

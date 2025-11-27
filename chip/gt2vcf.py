@@ -16,7 +16,7 @@ def make_vcf_header(chr_size: Path) -> str:
 
 
 def main(gt_file: Path, chr_size: Path, vcf_file: Path):
-    logger.info(f"loading gt file...")
+    logger.info("loading gt file...")
     gt_df = pd.read_table(gt_file)
     sample_list = gt_df.columns[4:].tolist()
     gt_df["ID"] = gt_df["CHROM"] + "_" + gt_df["POS"].astype(str)

@@ -146,10 +146,10 @@ def main(
         anno_df = pd.read_table(annotation)
         gt_df = anno_df.merge(gt_df, how="left")
         seq_df = anno_df.merge(seq_df, how="left")
-    #gt_df.to_excel(f"{out_prefix}.genotype.01.xlsx", index=False, na_rep="--")
-    gt_df.to_csv(f"{out_prefix}.genotype.01.tsv", index=False, na_rep="./.", sep='\t')
-    #seq_df.to_excel(f"{out_prefix}.genotype.seq.xlsx", index=False, na_rep="--")
-    seq_df.to_csv(f"{out_prefix}.genotype.seq.tsv", index=False, na_rep="---", sep='\t')
+    # gt_df.to_excel(f"{out_prefix}.genotype.01.xlsx", index=False, na_rep="--")
+    gt_df.to_csv(f"{out_prefix}.genotype.01.tsv", index=False, na_rep="./.", sep="\t")
+    # seq_df.to_excel(f"{out_prefix}.genotype.seq.xlsx", index=False, na_rep="--")
+    seq_df.to_csv(f"{out_prefix}.genotype.seq.tsv", index=False, na_rep="---", sep="\t")
 
 
 if __name__ == "__main__":

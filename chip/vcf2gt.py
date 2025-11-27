@@ -166,7 +166,7 @@ def main(
     )
 
     norm_allele_file = norm_alleles(vcf, ref_fa)
-    logger.info(f"left align alleles")
+    logger.info("left align alleles")
     norm_gt_df = pd.read_table(
         norm_allele_file,
         header=None,

@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import re
 import subprocess
-import sys
-from collections import Counter, defaultdict
+from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from enum import StrEnum  # 确保正确导入StrEnum
@@ -284,7 +282,7 @@ class ScriptRunner:
     @staticmethod
     def merge_or_link_command(
         fq_list: List[str], output_name: str, mode: DataMode
-    ) -> str:    
+    ) -> str:
         """生成合并或链接命令"""
         if len(fq_list) == 1:
             if mode == DataMode.link:
@@ -386,8 +384,8 @@ def write_nextflow_input(
 
         try:
             with open(cmd_file, "w") as f:
-                f.write(f"#!/bin/bash\n")
-                f.write(f"set -euo pipefail\n")
+                f.write("#!/bin/bash\n")
+                f.write("set -euo pipefail\n")
                 f.write(f"{cmd}\n")
             cmd_file.chmod(0o755)
             script_count += 1
@@ -415,7 +413,7 @@ def write_nextflow_input(
         return ScriptRunner.run_scripts_in_parallel(scripts_dir, max_workers=threads)
     else:
         if len(errors) == 0 and len(warnings) == 0:
-            logger.success(f"检查完成：没有发现问题！")
+            logger.success("检查完成：没有发现问题！")
 
     return None
 

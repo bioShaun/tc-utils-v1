@@ -1,12 +1,10 @@
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import typer
-from loguru import logger
 from tqdm import tqdm
 
 COLOR_MAP = {"AA": "#E41A1C", "BB": "#000080", "AB": "#696969"}

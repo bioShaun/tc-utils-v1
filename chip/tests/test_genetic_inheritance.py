@@ -2,9 +2,7 @@ import os
 import tempfile
 from pathlib import Path
 
-import pandas as pd
 import pytest
-from rich import print
 
 from chip.genetic_inheritance import VCFGeneticAnalyzer
 

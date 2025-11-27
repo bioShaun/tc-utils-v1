@@ -3,7 +3,6 @@ import argparse
 import pandas as pd
 from cyvcf2 import VCF
 from concurrent.futures import ProcessPoolExecutor
-from pathlib import Path
 
 
 def parse_list(file_path):

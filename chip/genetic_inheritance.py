@@ -1,9 +1,7 @@
 import gzip
-import re
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple
+from typing import List, Optional, Tuple
 
-import numpy as np
 import pandas as pd
 import typer
 from cyvcf2 import VCF
@@ -183,7 +181,7 @@ class VCFGeneticAnalyzer:
                             missing_samples.append(f"{row[role]} ({role})")
 
                 if missing_samples:
-                    print(f"⚠️  以下样品在VCF文件中未找到:")
+                    print("⚠️  以下样品在VCF文件中未找到:")
                     for sample in missing_samples[:10]:
                         print(f"    {sample}")
                     if len(missing_samples) > 10:
@@ -446,7 +444,7 @@ class VCFGeneticAnalyzer:
         problem_families = self.results[self.results["inconsistent_variants"] > 0]
 
         if len(problem_families) > 0:
-            print(f"\n📝 生成详细变异位点报告...")
+            print("\n📝 生成详细变异位点报告...")
 
             for _, family in problem_families.iterrows():
                 if "inconsistent_details" in family and family["inconsistent_details"]:
@@ -496,7 +494,7 @@ class VCFGeneticAnalyzer:
             print(f"总体错误率: {overall_error_rate:.3%}")
             print(f"总不一致变异位点: {total_inconsistent}")
 
-            print(f"\n问题家系Top10:")
+            print("\n问题家系Top10:")
             print("-" * 60)
 
             worst_families = self.results.nsmallest(10, "consistency_rate")
@@ -563,7 +561,7 @@ def main(
         max_variants = None
 
     # 加载数据
-    print(f"\n📁 加载数据文件...")
+    print("\n📁 加载数据文件...")
     vcf_data = analyzer.load_vcf_data(
         vcf_file, max_alleles=max_alleles, max_variants=max_variants
     )
@@ -574,7 +572,7 @@ def main(
         return
 
     # 运行分析
-    print(f"\n🧬 开始遗传一致性分析...")
+    print("\n🧬 开始遗传一致性分析...")
     results = analyzer.analyze_family_consistency()
 
     if not results.empty:
@@ -584,7 +582,7 @@ def main(
         # 保存结果
         analyzer.save_results(output_file)
 
-        print(f"\n✅ 分析完成！")
+        print("\n✅ 分析完成！")
     else:
         print("❌ 分析失败")
 

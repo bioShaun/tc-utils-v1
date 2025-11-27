@@ -1,7 +1,6 @@
 from pathlib import Path
 
 import pandas as pd
-import psycopg2
 import typer
 from sqlalchemy import create_engine
 

@@ -2,7 +2,6 @@ import re
 from pathlib import Path
 
 import delegator
-import numpy as np
 import pandas as pd
 import typer
 from loguru import logger

@@ -2,7 +2,6 @@ from functools import reduce
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-import numpy as np
 import pandas as pd
 import typer
 from loguru import logger
@@ -81,7 +80,7 @@ def main(
         cover_ratio_df = cover_df / cov_i_df_matrix.shape[1]
         cover_ratio_df.name = f"coverage_{cov_i}x"
         cov_df_list.append(cover_ratio_df)
-    if not split_bed is None:
+    if split_bed is not None:
         bed_df = merge_chr(bed_df, split_bed)
     cover_ratio_df = pd.concat([bed_df, stats_df, *cov_df_list], axis=1)
     cover_ratio_df.to_csv(out_file, index=False, float_format="%.3f", sep="\t")

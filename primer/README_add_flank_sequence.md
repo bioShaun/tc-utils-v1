@@ -70,4 +70,4 @@ python add_flank_sequence.py input.tsv genome.fa output.tsv
 
 # Using CSV input
 python add_flank_sequence.py input.csv genome.fa output.csv
-``` 
+```

@@ -32,7 +32,6 @@ def split_junction_reads(
     with pysam.AlignmentFile(
         out_junc, "w", header=bam.header
     ) as junc_sam, pysam.AlignmentFile(out_non, "w", header=bam.header) as non_sam:
-
         for read in bam.fetch(chrom, region_start, region_end):
             if read.is_unmapped or read.mapping_quality < mapq_cutoff:
                 continue
