@@ -326,6 +326,8 @@ class FastqProcessor:
                 logger.error(f"处理 {each_path} 时出错: {e}")
                 continue
 
+        self.check_duplicated_data()
+
         if not libid_map_list:
             logger.error("未获取到任何有效配置")
             return pd.DataFrame()
