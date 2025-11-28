@@ -89,6 +89,7 @@ class FastqProcessor:
     ):  # 使用Optional类型提示
         self.base_dir = Path(base_dir)
         self.error_recorder = error_recorder
+        self.line_tracker = []
 
     def parse_fastq_filename(self, sample_path: Path) -> List[Dict]:
         """解析FASTQ文件名，支持多种命名格式"""
@@ -198,11 +199,28 @@ class FastqProcessor:
 
         return pd.DataFrame(libid_map)
 
+    def track_line_lib_directory(self, fastq_path: Path) -> None:
+        try:
+            sample_dirs = list(fastq_path.glob("Sample*"))
+        except Exception as e:
+            logger.error(f"遍历目录失败: {e}")
+            raise ValueError(f"遍历目录失败: {e}")
+
+        for each_path in tqdm(sample_dirs, desc=f"跟踪 {fastq_path.name}"):
+            self.line_tracker.append(
+                {
+                    "dir_name": fastq_path.name,
+                    "lib_dir": each_path.name,
+                    "dir_path": str(each_path.absolute()),
+                }
+            )
+
     def read_or_build_config(
         self, fq_line_dir: Path, force_rebuild: bool = False
     ) -> pd.DataFrame:
         """读取或构建配置文件"""
         config_file = fq_line_dir / "libid_fastq_config.tsv"
+        self.track_line_lib_directory(fq_line_dir)
 
         if not force_rebuild and config_file.exists():
             try:
@@ -238,13 +256,14 @@ class FastqProcessor:
         """加载所有相关的配置"""
         libid_map_list = []
         target_dirs = []
+        line_track_list = []
 
         # 查找所有匹配的目录
 
         for date_dir in self.base_dir.glob("20*"):
-        #for date_dir in self.base_dir.glob("*"):
-            #if date_dir.name == "202510":
-             #   continue
+            # for date_dir in self.base_dir.glob("*"):
+            # if date_dir.name == "202510":
+            #   continue
             if not date_dir.is_dir():
                 continue
             for tcwl_dir in date_dir.glob("*"):
@@ -267,6 +286,15 @@ class FastqProcessor:
             except Exception as e:
                 logger.error(f"处理 {each_path} 时出错: {e}")
                 continue
+
+        line_track_df = pd.DataFrame(self.line_tracker)
+        for (dir_name, lib_dir), df_i in line_track_df.groupby(["dir_name", "lib_dir"]):
+            if len(df_i) > 1:
+                self.error_recorder.record_error(
+                    name=f"{dir_name} - {lib_dir}",
+                    error_type=FastqErrorType.DUPLICATED.value,
+                    error_message=f"重复的数据:  {dir_name}  {lib_dir} 在路径 {df_i['dir_path'].tolist()}",
+                )
 
         if not libid_map_list:
             logger.error("未获取到任何有效配置")
