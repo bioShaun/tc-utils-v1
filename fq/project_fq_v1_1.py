@@ -231,20 +231,22 @@ class FastqProcessor:
             )
             for lib_dir_i, df_j in dup_line_df.groupby(["lib_dir"]):
                 if len(df_j) > 1:
+                    dir_names = ",".join(df_j["dir_name"].unique().tolist())
+                    dup_path_names = " | ".join(df_j["dir_path"].tolist())
                     self.error_recorder.record_error(
                         name=lib_dir_i,
                         error_type=FastqErrorType.DUPLICATED.value,
-                        error_message=f"重复的库目录: {lib_dir_i} 在路径 {df_j['dir_path'].tolist()}",
+                        error_message=f"文库目录 {dup_path_names} 包含重复的数据 {dir_names}",
                     )
 
             for (dir_name, lib_dir), df_i in dup_line_track_df.groupby(
                 ["dir_name", "lib_dir"]
             ):
-                self.error_recorder.record_error(
-                    name=f"{dir_name} - {lib_dir}",
-                    error_type=FastqErrorType.DUPLICATED.value,
-                    error_message=f"重复的数据:  {dir_name}  {lib_dir} 在路径 {df_i['dir_path'].tolist()}",
-                )
+                # self.error_recorder.record_error(
+                #     name=f"{dir_name} - {lib_dir}",
+                #     error_type=FastqErrorType.DUPLICATED.value,
+                #     error_message=f"重复的数据:  {dir_name}  {lib_dir} 在路径 {df_i['dir_path'].tolist()}",
+                # )
                 dup_lines.append(
                     {
                         "dir_name": dir_name,
