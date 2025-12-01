@@ -1,36 +1,41 @@
 import pandas as pd
 import typer
 from pathlib import Path
-from typing import Annotated, List, Dict, Optional
+from typing import Annotated, Dict, Optional
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from tqdm import tqdm  # 需要安装: pip install tqdm
+from tqdm import tqdm
 
 
 def read_depth_median(depth_file: Path) -> Optional[float]:
     """
-    读取depth文件并返回中位数。
-    增加异常捕获，避免单个文件损坏导致程序中断。
+    读取depth文件，去除深度为0的点后返回中位数。
     """
     if not depth_file.exists():
         return None
 
     try:
-        # 显式指定 dtype 节省内存，bamdst depth 通常是整数，但在计算中位数时 pandas 会处理
-        # 假设 header 存在且 Raw Depth 是第3列 (index 2)
+        # 1. 读取数据
+        # usecols=[2]: 只读取第3列 (Raw Depth)
+        # dtype={2: "int32"}: 强制转换为int32以节省内存
         df = pd.read_csv(
-            depth_file,
-            sep="\t",
-            compression="gzip",
-            usecols=[2],
-            dtype={2: "int32"},  # 深度通常为整数，用 int32 足够且省内存
+            depth_file, sep="\t", compression="gzip", usecols=[2], dtype={2: "int32"}
         )
-        # 检查是否读取到了数据
+
         if df.empty:
             return 0.0
 
-        # 注意：如果文件有header，usecols=[2]会读取第三列。
-        # 如果列名不是 "Raw Depth"，df.iloc[:, 0] 更通用
-        return float(df.iloc[:, 0].median())
+        # 获取深度列数据 (Series)
+        depth_series = df.iloc[:, 0]
+
+        # 2. 关键修改：过滤掉深度 <= 0 的点
+        # 仅保留被测序覆盖到的区域
+        valid_depths = depth_series[depth_series > 0]
+
+        # 3. 检查过滤后是否为空 (即原文件全是0的情况)
+        if valid_depths.empty:
+            return 0.0
+
+        return float(valid_depths.median())
 
     except Exception as e:
         print(f"\nError reading {depth_file}: {e}")
@@ -40,9 +45,7 @@ def read_depth_median(depth_file: Path) -> Optional[float]:
 def process_single_sample(
     transgene_dir: Path, background_bamdst_dir: Path
 ) -> Optional[Dict]:
-    """
-    处理单个样本的逻辑，方便放入并行池。
-    """
+    """处理单个样本的逻辑"""
     if not transgene_dir.is_dir():
         return None
 
@@ -50,9 +53,8 @@ def process_single_sample(
     trans_depth_file = transgene_dir / "depth.tsv.gz"
     bg_depth_file = background_bamdst_dir / sample_id / "depth.tsv.gz"
 
-    # 检查背景文件是否存在，若不存在则跳过或返回特定标记
+    # 检查背景文件
     if not bg_depth_file.exists():
-        # 这里可以选择记录日志，或者返回 None
         return {
             "sample_id": sample_id,
             "transgene_depth": read_depth_median(trans_depth_file),
@@ -61,9 +63,11 @@ def process_single_sample(
             "note": "Background missing",
         }
 
+    # 读取两个文件的中位数
     transgene_depth = read_depth_median(trans_depth_file)
     background_depth = read_depth_median(bg_depth_file)
 
+    # 检查读取是否成功
     if transgene_depth is None or background_depth is None:
         return {
             "sample_id": sample_id,
@@ -73,7 +77,12 @@ def process_single_sample(
             "note": "Read error",
         }
 
-    ratio = transgene_depth / background_depth if background_depth > 0 else 0.0
+    # 计算比率
+    ratio = (
+        transgene_depth / background_depth
+        if background_depth and background_depth > 0
+        else 0.0
+    )
 
     return {
         "sample_id": sample_id,
@@ -92,24 +101,25 @@ def main(
     output_file: Annotated[Path, typer.Argument(help="输出文件路径")],
     threads: Annotated[int, typer.Option(help="并行处理的线程数")] = 4,
 ) -> None:
-    """比较转基因和背景BAM文件的深度（并行版）。"""
+    """
+    比较转基因和背景BAM文件的深度。
+    会自动去除 coverage 为 0 的位点计算中位数。
+    """
 
-    # 获取所有待处理目录
     sample_dirs = [d for d in trans_gene_bamdst_dir.iterdir() if d.is_dir()]
-
     results = []
 
-    print(f"Start processing {len(sample_dirs)} samples with {threads} threads...")
+    print(
+        f"Start processing {len(sample_dirs)} samples with {threads} threads (filtering 0-depth sites)..."
+    )
 
-    # 使用多进程处理 (ProcessPoolExecutor 适合 CPU 密集型或 Pandas 操作)
+    # 并行处理
     with ProcessPoolExecutor(max_workers=threads) as executor:
-        # 提交任务
         futures = {
             executor.submit(process_single_sample, d, background_bamdst_dir): d.name
             for d in sample_dirs
         }
 
-        # 使用 tqdm 显示进度条
         for future in tqdm(
             as_completed(futures), total=len(sample_dirs), unit="sample"
         ):
@@ -118,11 +128,14 @@ def main(
                 results.append(res)
 
     # 保存结果
+    if not results:
+        print("No results generated.")
+        return
+
     df_result = pd.DataFrame(results)
 
-    # 调整列顺序，把 note 放在最后
+    # 整理列顺序
     cols = ["sample_id", "transgene_depth", "background_depth", "ratio", "note"]
-    # 确保列存在（防止全空情况）
     final_cols = [c for c in cols if c in df_result.columns]
 
     df_result = df_result[final_cols]
