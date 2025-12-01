@@ -226,10 +226,13 @@ class FastqProcessor:
 
         if not dup_line_track_df.empty:
 
-            print(dup_line_track_df)
             for lib_dir_i, df_j in dup_line_track_df.groupby(["dir_name"]):
-                if len(df_j) > 1:                   
-                    dir_names = ",".join(df_j["lib_dir"].unique().tolist())
+                if len(df_j) > 1:
+                    dup_lib_dirs = df_j["lib_dir"].unique().tolist()
+                    dir_names = ",".join(df_j["lib_dir"].unique().tolist()[:3])
+                    if len(dup_lib_dirs) > 3:
+                        dir_names = f"{dir_names} ...，共{len(dup_lib_dirs)}个，详情列表见: duplicated_data.tsv"
+
                     dup_path_names = " | ".join(df_j["dir_path"].unique().tolist())
                     self.error_recorder.record_error(
                         name=lib_dir_i,
@@ -458,7 +461,9 @@ def write_nextflow_input(
     errors = error_recorder.get_errors()
     if errors:
         for each_error in errors:
-            logger.opt(colors=True).error(f"{each_error.error_type} - {each_error.error_message}")
+            logger.opt(colors=True).error(
+                f"{each_error.error_type} - {each_error.error_message}"
+            )
     warnings = warning_recorder.get_errors()
     if warnings:
         for each_warning in warnings:
