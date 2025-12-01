@@ -12,6 +12,7 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 import typer
+from typing_extensions import Annotated
 from loguru import logger
 from tqdm import tqdm
 
@@ -681,8 +682,8 @@ def validate(
     threads: int = typer.Option(8, min=1, max=32, help="并行处理线程数"),
     force_rebuild: bool = typer.Option(False, help="强制重建配置文件"),
     empty_data_threshold: int = typer.Option(0.01, help="空数据阈值"),
-    exclude: Path = typer.Option(None, help="需要排除的line路径，每行包含一个LINE路径"),
-    include: Path = typer.Option(None, help="需要包含的line路径，每行包含一个LINE路径"),
+    exclude: Path = typer.Option(None, "-e", "--exclude", help="需要排除的line路径，每行包含一个LINE路径"),
+    include: Path = typer.Option(None, "-i", "--include", help="需要包含的line路径，每行包含一个LINE路径"),
 ):
     """
     FASTQ文件处理和合并工具
