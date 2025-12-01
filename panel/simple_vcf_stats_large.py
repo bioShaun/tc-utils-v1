@@ -13,7 +13,7 @@ import time
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import typer
@@ -402,7 +402,7 @@ def main(
         )
 
         # 显示结果
-        typer.echo(f"处理完成!")
+        typer.echo("处理完成!")
         typer.echo(f"总变异位点数: {variant_count}")
         typer.echo(f"处理时间: {elapsed_time:.2f}秒")
         typer.echo(f"处理速度: {variant_count/elapsed_time:.2f}变异位点/秒")

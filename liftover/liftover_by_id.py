@@ -15,11 +15,11 @@ def make_id_vcf(id_file: Path, ref_fa: Path, force: bool) -> Path:
         logger.info(f"VCF file {id_vcf_file} already exists. Skipping creation.")
         return id_vcf_file
     with open(id_file, "r") as id_inf, open(id_vcf_file, "w") as vcf_inf:
-        vcf_inf.write(f"##fileformat=VCFv4.2\n")
+        vcf_inf.write("##fileformat=VCFv4.2\n")
         vcf_inf.write("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n")
         for line in tqdm(id_inf, desc="Processing IDs"):
             each_id = line.strip()
-            chrom = "-".join(each_id.split("_")[:-1])
+            chrom = "_".join(each_id.split("_")[:-1])
             pos = int(each_id.split("_")[-1])
             ref_seq = fetch_ref_nucleotide(ref_fasta, chrom, pos)
             vcf_inf.write(f"{chrom}\t{pos}\t{each_id}\t{ref_seq}\t.\t.\t.\t.\n")

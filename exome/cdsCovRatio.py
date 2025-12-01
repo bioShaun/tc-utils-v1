@@ -2,12 +2,8 @@ import typer
 from pathlib import Path
 import pandas as pd
 from functools import reduce
-from typing import List, Optional, Tuple
+from typing import List, Optional
 from loguru import logger
-import matplotlib as mpl
-import matplotlib.pyplot as plt
-from matplotlib.colors import ListedColormap
-import numpy as np
 
 BED_COLUMNS = ["chrom", "start", "end", "transcript_id"]
 
@@ -32,7 +28,9 @@ def merge_chr(df: pd.DataFrame, split_bed: Path) -> pd.DataFrame:
     return merged_df
 
 
-def load_bed_files(bed_dir: Path, bed_cols: List[str], split_bed: Optional[Path] = None) -> pd.DataFrame:
+def load_bed_files(
+    bed_dir: Path, bed_cols: List[str], split_bed: Optional[Path] = None
+) -> pd.DataFrame:
     df_list = []
     for bed_i in bed_dir.glob("*.bed"):
         logger.info(f"Load {bed_i} ...")
@@ -60,16 +58,16 @@ def main(
         loci_columns = BED_COLUMNS[:]
     else:
         loci_columns = BED_COLUMNS[:-1]
-    df_matrix = load_bed_files(cds_cov_dir, loci_columns)    
-    print('set index')
+    df_matrix = load_bed_files(cds_cov_dir, loci_columns)
+    print("set index")
     df_matrix = df_matrix.set_index(loci_columns)
-    print('bool matrix')
+    print("bool matrix")
     df_matrix = df_matrix >= min_reads
-    print('coverd samples')
+    print("coverd samples")
     cover_df = df_matrix.sum(1)
-    print('cover ratio')
+    print("cover ratio")
     cover_ratio_df = cover_df / df_matrix.shape[1]
-    cover_ratio_df.name = 'coverage'
+    cover_ratio_df.name = "coverage"
     cover_ratio_df.to_csv(out_file)
 
 

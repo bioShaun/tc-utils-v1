@@ -38,7 +38,7 @@ xlab_text <- str_c('PCA1 ', '(', round(pca.explained[1] * 100,2), '%)')
 ylab_text <- str_c('PCA2 ', '(', round(pca.explained[2] * 100,2), '%)')
 
 
-p <- ggplot(plot_df, aes(x=PC1, y=PC2, color=group)) + geom_point() + theme_classic() + 
+p <- ggplot(plot_df, aes(x=PC1, y=PC2, color=group)) + geom_point() + theme_classic() +
   theme(axis.title = element_text(size=rel(1.2)), axis.text = element_text(size = rel(1))) +
   scale_color_manual(values = group.colors) +
   guides(color=guide_legend(title="")) + xlab(xlab_text) + ylab(ylab_text)

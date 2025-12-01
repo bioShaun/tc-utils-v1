@@ -41,14 +41,14 @@ p <- ggplot(raw.data) +
   geom_rect(aes(
     xmin = POS_MB, xmax = END_MB, ymin = 0,
     ymax = 1, fill = origin
-  )) +  
+  )) +
   geom_rect(data = chr_df, aes(
     xmin = 0, xmax = chrom_length_mb, ymin = 0,
     ymax = 1
-  ), fill = "white", color='black', alpha=0) +    
+  ), fill = "white", color='black', alpha=0) +
   scale_fill_manual(values = plot_color) +
   facet_wrap(chrom~., nrow = 1) +
-  theme(strip.text.y = element_text(size=rel(.8), 
+  theme(strip.text.y = element_text(size=rel(.8),
                                     face="bold",
                                     angle = 0,
                                     vjust=100
@@ -72,5 +72,5 @@ p_width = 5 * chrom_num  / 7
 ggsave(paste(out_prefix, 'png', sep='.'),
         plot = p, width = p_width, height = 12,
         dpi = 300, type = "cairo")
-ggsave(paste(out_prefix, 'pdf', sep='.'), 
+ggsave(paste(out_prefix, 'pdf', sep='.'),
        plot = p, width = p_width, height = 12, limitsize=F)

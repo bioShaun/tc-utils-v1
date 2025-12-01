@@ -13,12 +13,10 @@ import random
 import sys
 import time
 import warnings
-from collections import defaultdict
-from itertools import combinations, product
-from typing import Dict, List, Optional, Set, Tuple
+from itertools import combinations
+from typing import List, Tuple
 
 import numpy as np
-import pandas as pd
 
 # VCF处理库
 try:
@@ -324,7 +322,7 @@ class SNPMinimizer:
             print("未找到有效解决方案")
             return
 
-        print(f"\n=== 结果分析 ===")
+        print("\n=== 结果分析 ===")
         print(f"选择的SNP数量: {len(selected_snps)}")
         print(f"选择的SNP位点: {selected_names}")
         print(f"选择的SNP索引: {selected_snps}")
@@ -336,7 +334,7 @@ class SNPMinimizer:
             print("✗ 验证失败：所选SNP位点无法区分所有个体")
 
         # 展示每个个体的基因型
-        print(f"\n各个体在所选SNP位点的基因型:")
+        print("\n各个体在所选SNP位点的基因型:")
         selected_data = self.snp_data[:, selected_snps]
 
         for i, individual_id in enumerate(self.individual_ids):
@@ -465,7 +463,7 @@ class VCFParser:
         # 转换为numpy数组 (行为个体，列为SNP)
         snp_data = np.array(snp_data_list).T
 
-        print(f"cyvcf2解析完成:")
+        print("cyvcf2解析完成:")
         print(f"  - 有效SNP: {snp_data.shape[1]} 个")
         print(f"  - 跳过SNP: {skipped_count} 个")
         print(f"  - 个体数量: {snp_data.shape[0]} 个")
@@ -607,7 +605,7 @@ class VCFParser:
         # 转换为numpy数组 (行为个体，列为SNP)
         snp_data = np.array(snp_data_list).T
 
-        print(f"pysam解析完成:")
+        print("pysam解析完成:")
         print(f"  - 有效SNP: {snp_data.shape[1]} 个")
         print(f"  - 跳过SNP: {skipped_count} 个")
         print(f"  - 个体数量: {snp_data.shape[0]} 个")
@@ -888,7 +886,7 @@ if __name__ == "__main__":
 
 1. 命令行使用:
    python script.py your_file.vcf [max_snps] [min_maf]
-   
+
    示例:
    python script.py data.vcf 1000 0.05
    python script.py data.vcf.gz  # 支持压缩文件
@@ -896,7 +894,7 @@ if __name__ == "__main__":
 2. 编程接口使用:
    # 方法1: 直接调用
    selected_snps, selected_names = main_with_vcf('your_file.vcf')
-   
+
    # 方法2: 分步骤
    snp_data, individual_ids, snp_ids = load_vcf_data('your_file.vcf')
    minimizer = SNPMinimizer(snp_data, individual_ids, snp_ids)

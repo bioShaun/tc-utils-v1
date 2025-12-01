@@ -113,7 +113,7 @@ def main(vcf_file, out_prefix):
     print(f"Done! 输出文件:\n  {out_prefix}.snp_stats.csv\n  {out_prefix}.ibs_dist.csv")
 
 
-if __name__ == "__main__": 
+if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="VCF SNP diversity analysis")

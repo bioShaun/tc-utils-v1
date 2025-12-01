@@ -1,11 +1,8 @@
-import re
 from pathlib import Path
 
 import pandas as pd
 import pyranges as pr
-import scipy as sp
 import typer
-from numpy import split
 
 SPLIT_SIZE = 500_000_000
 

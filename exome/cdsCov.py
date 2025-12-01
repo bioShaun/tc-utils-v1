@@ -265,7 +265,7 @@ def main(
     bed_df, df_matrix = load_bed_files(cds_cov_dir, cov_sample_size)
     # df_matrix = cds_df.set_index(["chrom", "start", "end", "transcript"])
     # df_matrix = cds_df.set_index(["chrom", "start", "end"])
-    if not split_bed is None:
+    if split_bed is not None:
         bed_df = merge_chr(bed_df, split_bed)
     df_matrix_bool = df_matrix >= min_reads
     cover_df = df_matrix_bool.sum(1)

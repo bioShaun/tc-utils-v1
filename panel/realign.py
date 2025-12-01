@@ -5,7 +5,6 @@ from pathlib import Path
 from typing import List, Optional, Tuple
 
 import delegator
-import numpy as np
 import pandas as pd
 import typer
 from loguru import logger
@@ -134,7 +133,6 @@ def paf2idmap(
     save_file: bool = True,
     keep_duplicates: bool = False,
 ) -> pd.DataFrame:
-
     best_match_length = paf_df.groupby("id")["match_length"].max().reset_index()
     paf_df = paf_df.merge(best_match_length)
     best_nm = paf_df.groupby("id")["n_mismatch"].min().reset_index()
@@ -322,7 +320,7 @@ def realign(
     """
     genome_fai = genome.parent / f"{genome.name}.fai"
     if target_type == TargetType.vcf:
-        logger.info(f"Generating bed file from vcf...")
+        logger.info("Generating bed file from vcf...")
         target_bed = generate_bed_from_vcf(target_file)
     else:
         target_bed = target_file
@@ -394,13 +392,13 @@ def realign2(
     Returns:
         None
     """
-    logger.info(f"generate fa and offset ...")
+    logger.info("generate fa and offset ...")
     offset_df, flank_fa = fasta_from_probe_table(probe_table=probe_table)
-    logger.info(f"map to genome ...")
+    logger.info("map to genome ...")
     flank_paf = generate_flank_paf(
         flank_fa=flank_fa, genome_sr_idx=genome_sr_idx, threads=threads, force=force
     )
-    logger.info(f"Generating id map...")
+    logger.info("Generating id map...")
     paf_df = pd.read_table(
         flank_paf,
         header=None,

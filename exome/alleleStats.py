@@ -3,7 +3,6 @@ import typer
 import numpy as np
 import pandas as pd
 
-from loguru import logger
 from pathlib import Path
 from pandarallel import pandarallel
 

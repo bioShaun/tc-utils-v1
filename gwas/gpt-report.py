@@ -1,7 +1,5 @@
 from pathlib import Path
 
-import matplotlib.pyplot as plt
-import numpy as np
 import typer
 from attrs import define, field
 from fpdf import FPDF
@@ -55,7 +53,6 @@ class PDF(FPDF):
 
 @define
 class GwasReportItems:
-
     gwas_results_path: Path = field(factory=Path)
     bestK: int = field(factory=int)
     sections: list = field(init=False)

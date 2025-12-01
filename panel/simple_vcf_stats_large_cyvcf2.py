@@ -87,7 +87,7 @@ def process_variant(variant_data: VariantData) -> Optional[VcfStats]:
     Optional[VcfStats]: 如果是有效的SNP，返回统计信息，否则返回None
     """
     # 跳过非双等位基因位点
-    if not variant_data.is_snp or len(variant_data.alt) != 1:
+    if len(variant_data.alt) != 1:
         return None
 
     # 获取基因型数据
@@ -354,7 +354,7 @@ def main(
         )
 
         # 显示结果
-        typer.echo(f"处理完成!")
+        typer.echo("处理完成!")
         typer.echo(f"总变异位点数: {variant_count}")
         typer.echo(f"处理时间: {elapsed_time:.2f}秒")
         typer.echo(f"处理速度: {variant_count/elapsed_time:.2f}变异位点/秒")

@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import re
 import subprocess
-import sys
-from collections import Counter, defaultdict
+from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from enum import StrEnum  # 确保正确导入StrEnum
@@ -21,6 +19,11 @@ __version__ = "1.0"
 
 app = typer.Typer(help="FASTQ文件处理和合并工具")
 
+
+class IncludeExcludePathOverlapError(Exception):
+    """包含和排除路径重叠错误"""
+
+
 # 配置常量
 DEFAULT_BASE_DIR = Path("/public/home/zxchen/data_trans")
 FASTQ_EXTENSIONS = ("*.fastq.gz", "*.fq.gz")
@@ -32,8 +35,6 @@ READ_TYPE_PATTERNS = {
     "_1.fastq.gz": "R1",
     "_2.fastq.gz": "R2",
 }
-
-# TODO 合并后的表格也需要检查是否有重复
 
 
 class FastqErrorType(StrEnum):
@@ -66,7 +67,7 @@ class FastqErrorRecorder:
 
     _errors: List[FastqError] = field(default_factory=list)
 
-    def record_error(self, name: str, error_type: str, error_message: str):
+    def record_error(self, name: str, error_type: FastqErrorType, error_message: str):
         """记录错误"""
         self._errors.append(FastqError(name, error_type, error_message))
 
@@ -83,14 +84,63 @@ def extract_lib_id(lib_path: Path) -> str:
     return lib_id
 
 
+def path_file_to_path_set(file_path: Optional[Path]) -> set[Path]:
+    """将文件中的路径读取为Path列表"""
+    if file_path is None:
+        return set()
+
+    if not file_path.exists():
+        raise FileNotFoundError(f"-i/-e 文件列表文件不存在: {file_path}")
+
+    path_set = set()
+    with open(file_path, "r", encoding="utf-8") as f:
+        lines = f.readlines()
+    for line in lines:
+        line = line.strip()
+        if line:
+            line_path = Path(line).resolve()
+            if not line_path.exists():
+                raise FileNotFoundError(f"-i/-e 列表中的路径不存在: {line_path}")
+        path_set.add(line_path)
+    return path_set
+
+
+def path_is_included(line_path: Path, path_set) -> bool:
+    line_path_resolved = line_path.resolve()
+    if line_path_resolved in path_set:
+        return True
+    line_path_is_child = [
+        line_path_resolved.is_relative_to(path_i) for path_i in path_set
+    ]
+    if any(line_path_is_child):
+        return True
+    return False
+
+
 class FastqProcessor:
     """FASTQ文件处理器"""
 
     def __init__(
-        self, base_dir: Path, error_recorder: FastqErrorRecorder
+        self,
+        base_dir: Path,
+        error_recorder: FastqErrorRecorder,
+        exclude_paths: Optional[Path] = None,
+        include_paths: Optional[Path] = None,
     ):  # 使用Optional类型提示
         self.base_dir = Path(base_dir)
         self.error_recorder = error_recorder
+        self.line_tracker = []
+        self.duplicated_data_df = pd.DataFrame()
+        self.include_path_set = path_file_to_path_set(include_paths)
+        self.exclude_path_set = path_file_to_path_set(exclude_paths)
+        self._check_include_exclude()
+
+    def _check_include_exclude(self) -> None:
+        overlap = self.include_path_set & self.exclude_path_set
+        if overlap:
+            raise IncludeExcludePathOverlapError(
+                f"包含和排除路径重叠: {', '.join(str(path_i) for path_i in overlap)}"
+            )
 
     def parse_fastq_filename(self, sample_path: Path) -> List[Dict]:
         """解析FASTQ文件名，支持多种命名格式"""
@@ -98,7 +148,6 @@ class FastqProcessor:
             logger.warning(f"样品路径不存在: {sample_path}")
             return []
 
-        filename = sample_path.name
         fastqs = []
 
         # 搜索所有可能的FASTQ文件扩展名
@@ -184,7 +233,7 @@ class FastqProcessor:
             sample_dirs = list(fastq_path.glob("Sample*"))
         except Exception as e:
             logger.error(f"遍历目录失败: {e}")
-            raise ValueError(f"遍历目录失败: {e}")
+            raise ValueError(f"遍历目录失败: {e}") from e
 
         if not sample_dirs:
             logger.warning(f"在 {fastq_path} 中未找到Sample*目录")
@@ -196,15 +245,62 @@ class FastqProcessor:
                 libid_map.extend(info)
             except Exception as e:
                 logger.error(f"处理 {path} 时出错: {e}")
-                raise ValueError(f"处理 {path} 时出错: {e}")
+                raise ValueError(f"处理 {path} 时出错: {e}") from e
 
         return pd.DataFrame(libid_map)
+
+    def track_line_lib_directory(self, fastq_path: Path) -> None:
+        try:
+            sample_dirs = list(fastq_path.glob("Sample*"))
+        except Exception as e:
+            logger.error(f"遍历目录失败: {e}")
+            raise ValueError(f"遍历目录失败: {e}") from e
+
+        for each_path in tqdm(sample_dirs, desc=f"跟踪 {fastq_path.name}"):
+            self.line_tracker.append(
+                {
+                    "line": fastq_path.name,
+                    "lib_dir": each_path.name,
+                    "line_path": str(fastq_path.absolute()),
+                }
+            )
+
+    def check_duplicated_data(self) -> None:
+        """将重复数据转换为DataFrame"""
+        line_track_df = pd.DataFrame(self.line_tracker)
+        dup_line_track_df = line_track_df[
+            line_track_df.duplicated(subset=["line", "lib_dir"], keep=False)
+        ]
+
+        if not dup_line_track_df.empty:
+
+            for lib_dir_i, df_j in dup_line_track_df.groupby(["line"]):
+                if len(df_j) > 1:
+                    dup_lib_dirs = df_j["lib_dir"].unique().tolist()
+                    dir_names = ",".join(df_j["lib_dir"].unique().tolist()[:3])
+                    if len(dup_lib_dirs) > 3:
+                        dir_names = f"{dir_names} ...，共{len(dup_lib_dirs)}个，详情列表见: duplicated_data.tsv"
+
+                    dup_path_names = " | ".join(df_j["line_path"].unique().tolist())
+                    self.error_recorder.record_error(
+                        name=lib_dir_i,
+                        error_type=FastqErrorType.DUPLICATED.value,
+                        error_message=f"<cyan>文库目录</cyan> {dup_path_names} <cyan>包含重复的数据:</cyan> <w>{dir_names}</w>",
+                    )
+
+            self.duplicated_data_df = (
+                dup_line_track_df.groupby(["line", "lib_dir"])["line_path"]
+                .unique()
+                .map(" | ".join)
+                .reset_index()
+            )
 
     def read_or_build_config(
         self, fq_line_dir: Path, force_rebuild: bool = False
     ) -> pd.DataFrame:
         """读取或构建配置文件"""
         config_file = fq_line_dir / "libid_fastq_config.tsv"
+        self.track_line_lib_directory(fq_line_dir)
 
         if not force_rebuild and config_file.exists():
             try:
@@ -242,12 +338,25 @@ class FastqProcessor:
         target_dirs = []
 
         # 查找所有匹配的目录
+
         for date_dir in self.base_dir.glob("20*"):
+            # for date_dir in self.base_dir.glob("*"):
+            # if date_dir.name == "202510":
+            #   continue
             if not date_dir.is_dir():
                 continue
             for tcwl_dir in date_dir.glob("*"):
-                if tcwl_dir.name in fq_lines:
-                    target_dirs.append(tcwl_dir)
+                if tcwl_dir.name in fq_lines and not path_is_included(
+                    tcwl_dir, self.exclude_path_set
+                ):
+                    target_dirs.append(tcwl_dir.resolve())
+
+        for include_path in self.include_path_set:
+            for include_path_child in include_path.glob("*"):
+                if not include_path_child.is_dir():
+                    continue
+                if include_path_child.resolve() not in target_dirs:
+                    target_dirs.append(include_path_child.resolve())
 
         if not target_dirs:
             logger.error("未找到匹配的目录")
@@ -265,6 +374,8 @@ class FastqProcessor:
             except Exception as e:
                 logger.error(f"处理 {each_path} 时出错: {e}")
                 continue
+
+        self.check_duplicated_data()
 
         if not libid_map_list:
             logger.error("未获取到任何有效配置")
@@ -325,7 +436,7 @@ class ScriptRunner:
             for future in tqdm(
                 as_completed(futures), total=len(futures), desc="执行脚本"
             ):
-                success, message = future.result()
+                success, _ = future.result()
                 if success:
                     results["success"] += 1
                 else:
@@ -360,7 +471,7 @@ def write_nextflow_input(
         for row in miss_df.itertuples():
             error_recorder.record_error(
                 name=str(row.libid),
-                error_type="INCOMPLETE",  # 直接使用字符串
+                error_type=FastqErrorType.INCOMPLETE,
                 error_message=f"{row.libid}: {row.libid}-{row.sample_id}-{row.dir_name} 没有找到数据",
             )
 
@@ -382,9 +493,9 @@ def write_nextflow_input(
             cmd = ScriptRunner.merge_or_link_command(fq_list, str(out_fq), mode)
 
             try:
-                with open(cmd_file, "w") as f:
-                    f.write(f"#!/bin/bash\n")
-                    f.write(f"set -euo pipefail\n")
+                with open(cmd_file, "w", encoding="utf-8") as f:
+                    f.write("#!/bin/bash\n")
+                    f.write("set -euo pipefail\n")
                     f.write(f"{cmd}\n")
                 cmd_file.chmod(0o755)
                 script_count += 1
@@ -396,7 +507,9 @@ def write_nextflow_input(
     errors = error_recorder.get_errors()
     if errors:
         for each_error in errors:
-            logger.error(f"{each_error.error_type} - {each_error.error_message}")
+            logger.opt(colors=True).error(
+                f"{each_error.error_type} - {each_error.error_message}"
+            )
     warnings = warning_recorder.get_errors()
     if warnings:
         for each_warning in warnings:
@@ -412,7 +525,7 @@ def write_nextflow_input(
         return ScriptRunner.run_scripts_in_parallel(scripts_dir, max_workers=threads)
     else:
         if len(errors) == 0 and len(warnings) == 0:
-            logger.success(f"检查完成：没有发现问题！")
+            logger.success("检查完成：没有发现问题！")
 
     return None
 
@@ -475,7 +588,7 @@ def check_sample_map(
         for row in duplicated_lines.itertuples():
             warning_recorder.record_error(
                 name=str(row.libid),
-                error_type="DUPLICATED",  # 直接使用字符串
+                error_type=FastqErrorType.DUPLICATED,
                 error_message=f"样本映射关系有重复项: {row.libid} | {row.sample_id} | {row.dir_name}",
             )
     low_data_df = df[df["data_size"] < low_data_threshold]
@@ -484,7 +597,7 @@ def check_sample_map(
         for row in low_data_df.itertuples():
             error_recorder.record_error(
                 name=str(row.libid),
-                error_type="INCOMPLETE",  # 直接使用字符串
+                error_type=FastqErrorType.INCOMPLETE,  # 直接使用字符串
                 error_message=f"样本数据量小于{low_data_threshold}G: {row.libid} | {row.sample_id} | {row.dir_name}",
             )
 
@@ -498,7 +611,7 @@ def check_lib_map(
         for row in r1_r2_ne_df.itertuples():
             error_reccoder.record_error(
                 name=str(row.libid),
-                error_type="INCOMPLETE",  # 直接使用字符串
+                error_type=FastqErrorType.INCOMPLETE,  # 直接使用字符串
                 error_message=f"文库映射关系有误: {fq_line_dir} - {row.libid} - R1 R2 not equal",
             )
 
@@ -513,8 +626,13 @@ def run(
     check_file: Path = typer.Option("check_file.tsv", help="检查结果输出文件"),
     threads: int = typer.Option(8, min=1, max=32, help="并行处理线程数"),
     force_rebuild: bool = typer.Option(False, help="强制重建配置文件"),
-    rm_empty_data: bool = typer.Option(True, help="删除空数据文件"),
-    empty_data_threshold: int = typer.Option(0.01, help="空数据阈值"),
+    empty_data_threshold: float = typer.Option(0.01, help="空数据阈值"),
+    exclude: Path = typer.Option(
+        None, "-e", "--exclude", help="需要排除的line路径，每行包含一个LINE路径"
+    ),
+    include: Path = typer.Option(
+        None, "-i", "--include", help="需要包含的line路径，每行包含一个LINE路径"
+    ),
     mode: DataMode = DataMode.link,
 ):
     """
@@ -550,7 +668,12 @@ def run(
         # 初始化错误收集器
         error_collector = FastqErrorRecorder()
         warning_collector = FastqErrorRecorder()
-        processor = FastqProcessor(base_dir, error_recorder=error_collector)
+        processor = FastqProcessor(
+            base_dir,
+            error_recorder=error_collector,
+            exclude_paths=exclude,
+            include_paths=include,
+        )
 
         check_sample_map(
             error_collector, warning_collector, sample_df, empty_data_threshold
@@ -559,7 +682,10 @@ def run(
 
         # 加载配置
         logger.info("加载FASTQ文件配置")
-        libid_map = processor.load_config(sample_libs, force_rebuild=force_rebuild)
+        libid_map = processor.load_config(
+            sample_libs,
+            force_rebuild=force_rebuild,
+        )
 
         if libid_map.empty:
             logger.error("未找到任何FASTQ文件配置")
@@ -593,6 +719,14 @@ def run(
                 mode=mode,
             )
 
+            if not processor.duplicated_data_df.empty:
+                dup_file = output_dir / "duplicated_data.tsv"
+                try:
+                    processor.duplicated_data_df.to_csv(dup_file, sep="\t", index=False)
+                    logger.success(f"重复数据详情已保存: {dup_file}")
+                except Exception as e:
+                    logger.error(f"保存重复数据文件失败: {e}")
+
             if results:
                 logger.info(f"脚本执行结果: {results}")
 
@@ -616,8 +750,13 @@ def validate(
     check_file: Path = typer.Option("check_file.tsv", help="检查结果输出文件"),
     threads: int = typer.Option(8, min=1, max=32, help="并行处理线程数"),
     force_rebuild: bool = typer.Option(False, help="强制重建配置文件"),
-    rm_empty_data: bool = typer.Option(True, help="删除空数据文件"),
     empty_data_threshold: int = typer.Option(0.01, help="空数据阈值"),
+    exclude: Path = typer.Option(
+        None, "-e", "--exclude", help="需要排除的line路径，每行包含一个LINE路径"
+    ),
+    include: Path = typer.Option(
+        None, "-i", "--include", help="需要包含的line路径，每行包含一个LINE路径"
+    ),
 ):
     """
     FASTQ文件处理和合并工具
@@ -652,7 +791,12 @@ def validate(
         # 初始化错误收集器
         error_collector = FastqErrorRecorder()
         warning_collector = FastqErrorRecorder()
-        processor = FastqProcessor(base_dir, error_recorder=error_collector)
+        processor = FastqProcessor(
+            base_dir,
+            error_recorder=error_collector,
+            exclude_paths=exclude,
+            include_paths=include,
+        )
 
         check_sample_map(
             error_collector, warning_collector, sample_df, empty_data_threshold
@@ -695,6 +839,13 @@ def validate(
                 threads=threads,
                 run_script=False,
             )
+            if not processor.duplicated_data_df.empty:
+                dup_file = output_dir / "duplicated_data.tsv"
+                try:
+                    processor.duplicated_data_df.to_csv(dup_file, sep="\t", index=False)
+                    logger.success(f"重复数据详情已保存: {dup_file}")
+                except Exception as e:
+                    logger.error(f"保存重复数据文件失败: {e}")
 
     except KeyboardInterrupt:
         logger.info("用户中断操作")

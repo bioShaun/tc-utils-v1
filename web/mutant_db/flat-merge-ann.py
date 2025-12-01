@@ -19,7 +19,7 @@ def flat_gt_table(gt_table: Path) -> Path:
                     raise ValueError("sample list wrong type")
     return flat_gt_file
 
- 
+
 def split_accession(accession: str) -> Tuple[str, str, int, int]:
     sample_id, allele_info = accession.split("=")
     genotype, allele_depth = allele_info.split(";")
@@ -27,7 +27,7 @@ def split_accession(accession: str) -> Tuple[str, str, int, int]:
         genotype = "./."
         reference_depth, alternate_depth = 0, 0
     else:
-        allele_depth = allele_depth.replace('.', "0")
+        allele_depth = allele_depth.replace(".", "0")
         reference_depth, alternate_depth = allele_depth.split(",")
     return sample_id, genotype, int(reference_depth), int(alternate_depth)
 
@@ -39,7 +39,7 @@ def main(gt_table: Path, ann_table: Path, out_table: Path):
         header=None,
         names=["chrom", "pos", "refer", "alt", "accession"],
     )
-    flat_gt_df['chrom'] = flat_gt_df['chrom'].astype('str')    
+    flat_gt_df["chrom"] = flat_gt_df["chrom"].astype("str")
     flat_gt_df = flat_gt_df[~flat_gt_df["alt"].str.contains(",")]
     flat_gt_df["variant"] = flat_gt_df["chrom"].str.cat(
         flat_gt_df["pos"].astype("str"), sep="_"
@@ -67,7 +67,7 @@ def main(gt_table: Path, ann_table: Path, out_table: Path):
         usecols=list(range(10)),
     )
     print(ann_df)
-    ann_df['chrom'] = ann_df['chrom'].astype('str')
+    ann_df["chrom"] = ann_df["chrom"].astype("str")
     ann_df.drop_duplicates(subset=["chrom", "pos", "refer", "alt"], inplace=True)
     add_ann_df = ann_df.merge(flat_gt_df).drop("accession", axis=1)
     add_ann_df.to_csv(out_table, sep="\t", index=False)
@@ -75,4 +75,3 @@ def main(gt_table: Path, ann_table: Path, out_table: Path):
 
 if __name__ == "__main__":
     typer.run(main)
-

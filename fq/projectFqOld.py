@@ -110,9 +110,9 @@ def main(
         fq_script1 = write_cmd(fq1, name, 1, out_dir, mode)
         fq_script2 = write_cmd(fq2, name, 2, out_dir, mode)
         if run:
-            if not (fq_script1 is None):
+            if fq_script1 is not None:
                 launch_cmd(fq_script1, new_queue)
-            if not (fq_script2 is None):
+            if fq_script2 is not None:
                 launch_cmd(fq_script2, new_queue)
 
 

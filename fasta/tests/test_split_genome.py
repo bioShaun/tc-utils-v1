@@ -92,7 +92,9 @@ def test_select_split_candidates_raises_for_small_gap(split_genome_module):
     assert "小于最小阈值" in str(excinfo.value)
 
 
-def test_generate_split_genome_outputs_expected_sequences(split_genome_module, tmp_path):
+def test_generate_split_genome_outputs_expected_sequences(
+    split_genome_module, tmp_path
+):
     fasta_content = ">chr1\nAAAACCCC\n>chr2\nGGGGG\n"
     fasta_path = tmp_path / "genome.fa"
     fasta_path.write_text(fasta_content)

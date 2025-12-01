@@ -326,7 +326,7 @@ def main():
         plot_quality_curves(quality_data, args.plot_dir)
 
     # 输出简要结果
-    print(f"\n检测完成!")
+    print("\n检测完成!")
     print(f"发现 {len(all_anomalies)} 个异常位置")
     if all_anomalies:
         severe_count = sum(1 for a in all_anomalies if a["below_q30"])

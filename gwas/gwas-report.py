@@ -1,9 +1,6 @@
 from pathlib import Path
 from typing import Optional, Tuple
 
-from reportlab.graphics.charts.barcharts import VerticalBarChart  # 图表类
-from reportlab.graphics.charts.legends import Legend  # 图例类
-from reportlab.graphics.shapes import Drawing  # 绘图工具
 from reportlab.lib import colors  # 颜色模块
 from reportlab.lib.pagesizes import A4  # 页面的标志尺寸(8.5*inch, 11*inch)
 from reportlab.lib.styles import getSampleStyleSheet  # 文本样式
@@ -18,7 +15,6 @@ from reportlab.platypus import (
     Spacer,
     Table,
 )
-from reportlab.platypus.frames import Frame
 
 # 注册字体(提前准备好字体文件, 如果同一个文件需要多种字体可以注册多个)
 DATA_PATH = Path(__file__).parent / "data"

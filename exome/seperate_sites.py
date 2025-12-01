@@ -2,7 +2,6 @@ from pathlib import Path
 
 import pandas as pd
 import typer
-from loguru import logger
 
 
 def get_indel_type(row: pd.Series) -> str:

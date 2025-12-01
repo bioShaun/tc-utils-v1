@@ -2,7 +2,6 @@ from functools import reduce
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-import numpy as np
 import pandas as pd
 import typer
 from loguru import logger
@@ -71,8 +70,8 @@ def main(
     bed_df, df_matrix = load_bed_files(cds_cov_dir, sample_list=sample_list)
     cover_df = df_matrix.sum(1)
     cover_ratio_df = cover_df / df_matrix.shape[1]
-    cover_ratio_df.name = f"coverage_0.2x"
-    if not split_bed is None:
+    cover_ratio_df.name = "coverage_0.2x"
+    if split_bed is not None:
         bed_df = merge_chr(bed_df, split_bed)
     cover_ratio_df = pd.concat([bed_df, cover_ratio_df], axis=1)
 

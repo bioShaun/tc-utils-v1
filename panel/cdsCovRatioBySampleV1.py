@@ -1,20 +1,16 @@
 import re
 from functools import reduce
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Optional
 
-import matplotlib as mpl
-import matplotlib.pyplot as plt
-import numpy as np
 import pandas as pd
 import typer
 from loguru import logger
-from matplotlib.colors import ListedColormap
 from typing_extensions import Annotated
 
 BED_COLUMNS = ["chrom", "start", "end", "transcript_id"]
 
-READS_COV = [1,3, 5, 10, 30, 50, 100]
+READS_COV = [1, 3, 5, 10, 30, 50, 100]
 
 
 def merge_chr(df: pd.DataFrame, split_bed: Path) -> pd.DataFrame:

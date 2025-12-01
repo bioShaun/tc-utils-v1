@@ -1,5 +1,4 @@
 import pandas as pd
-import psycopg2
 import typer
 
 from pathlib import Path

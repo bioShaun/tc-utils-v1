@@ -4,7 +4,6 @@ import typer
 import pandas as pd
 
 from pathlib import Path
-from typing_extensions import Annotated
 
 
 def main(

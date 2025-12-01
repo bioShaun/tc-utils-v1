@@ -4,7 +4,6 @@ from operator import itemgetter
 from pathlib import Path
 
 import delegator
-import numpy as np
 import pandas as pd
 import typer
 from Bio import SeqIO
@@ -153,7 +152,9 @@ def addSeq(
         chrom_df = df[df["chrom"] == chrom].copy()
         if chrom_df.empty:
             continue
-        get_seq_by_chrom = partial(get_seq, record=record, gc_bias=gc_bias, probe_length=probe_length)
+        get_seq_by_chrom = partial(
+            get_seq, record=record, gc_bias=gc_bias, probe_length=probe_length
+        )
         chrom_df["sequence"] = list(chrom_df.parallel_apply(get_seq_by_chrom, axis=1))  # type: ignore
         chrom_df["sequence_type"] = list(chrom_df.parallel_apply(get_seq_label, axis=1))  # type: ignore
         add_seq_df_list.append(chrom_df)

@@ -10,9 +10,8 @@ import io
 import os
 import tempfile
 from pathlib import Path
-from unittest.mock import ANY, MagicMock, mock_open, patch
+from unittest.mock import ANY, MagicMock, patch
 
-import numpy as np
 import pytest
 
 # 导入被测试的模块

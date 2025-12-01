@@ -21,7 +21,7 @@ def get_mismatch_count(seq: str, pattern: str) -> int:
 
 
 def main(
-    seqkit_locate_table: Path = typer.Argument(..., help="seqkit locate table")
+    seqkit_locate_table: Path = typer.Argument(..., help="seqkit locate table"),
 ) -> None:
     df = pd.read_table(seqkit_locate_table)
     df["mismatch"] = df.apply(
