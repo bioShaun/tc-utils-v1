@@ -241,7 +241,7 @@ class FastqProcessor:
                     )
 
             self.duplicated_data_df = (
-                dup_line_track_df.groupby(["dir_name", "lib_dir"])
+                dup_line_track_df.groupby(["dir_name", "lib_dir"])["dir_path"]
                 .unique()
                 .map(lambda x: " | ".join(x))
                 .reset_index()
