@@ -627,6 +627,12 @@ def run(
     threads: int = typer.Option(8, min=1, max=32, help="并行处理线程数"),
     force_rebuild: bool = typer.Option(False, help="强制重建配置文件"),
     empty_data_threshold: float = typer.Option(0.01, help="空数据阈值"),
+    exclude: Path = typer.Option(
+        None, "-e", "--exclude", help="需要排除的line路径，每行包含一个LINE路径"
+    ),
+    include: Path = typer.Option(
+        None, "-i", "--include", help="需要包含的line路径，每行包含一个LINE路径"
+    ),
     mode: DataMode = DataMode.link,
 ):
     """
@@ -662,7 +668,12 @@ def run(
         # 初始化错误收集器
         error_collector = FastqErrorRecorder()
         warning_collector = FastqErrorRecorder()
-        processor = FastqProcessor(base_dir, error_recorder=error_collector)
+        processor = FastqProcessor(
+            base_dir,
+            error_recorder=error_collector,
+            exclude_paths=exclude,
+            include_paths=include,
+        )
 
         check_sample_map(
             error_collector, warning_collector, sample_df, empty_data_threshold
@@ -671,7 +682,10 @@ def run(
 
         # 加载配置
         logger.info("加载FASTQ文件配置")
-        libid_map = processor.load_config(sample_libs, force_rebuild=force_rebuild)
+        libid_map = processor.load_config(
+            sample_libs,
+            force_rebuild=force_rebuild,
+        )
 
         if libid_map.empty:
             logger.error("未找到任何FASTQ文件配置")
