@@ -210,9 +210,9 @@ class FastqProcessor:
         for each_path in tqdm(sample_dirs, desc=f"跟踪 {fastq_path.name}"):
             self.line_tracker.append(
                 {
-                    "dir_name": fastq_path.name,
+                    "line": fastq_path.name,
                     "lib_dir": each_path.name,
-                    "dir_path": str(fastq_path.absolute()),
+                    "line_path": str(fastq_path.absolute()),
                 }
             )
 
@@ -220,13 +220,12 @@ class FastqProcessor:
         """将重复数据转换为DataFrame"""
         line_track_df = pd.DataFrame(self.line_tracker)
         dup_line_track_df = line_track_df[
-            line_track_df.duplicated(subset=["dir_name", "lib_dir"], keep=False)
+            line_track_df.duplicated(subset=["line", "lib_dir"], keep=False)
         ]
-        dup_lines = []
 
         if not dup_line_track_df.empty:
 
-            for lib_dir_i, df_j in dup_line_track_df.groupby(["dir_name"]):
+            for lib_dir_i, df_j in dup_line_track_df.groupby(["line"]):
                 if len(df_j) > 1:
                     dup_lib_dirs = df_j["lib_dir"].unique().tolist()
                     dir_names = ",".join(df_j["lib_dir"].unique().tolist()[:3])
@@ -241,7 +240,7 @@ class FastqProcessor:
                     )
 
             self.duplicated_data_df = (
-                dup_line_track_df.groupby(["dir_name", "lib_dir"])["dir_path"]
+                dup_line_track_df.groupby(["line", "lib_dir"])["line_path"]
                 .unique()
                 .map(lambda x: " | ".join(x))
                 .reset_index()
