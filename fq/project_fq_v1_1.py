@@ -212,7 +212,7 @@ class FastqProcessor:
                 {
                     "dir_name": fastq_path.name,
                     "lib_dir": each_path.name,
-                    "dir_path": str(each_path.absolute()),
+                    "dir_path": str(fastq_path.absolute()),
                 }
             )
 
@@ -226,17 +226,15 @@ class FastqProcessor:
 
         if not dup_line_track_df.empty:
 
-            dup_line_df = dup_line_track_df.drop_duplicates(
-                subset=["dir_path", "lib_dir"], keep=False
-            )
-            for lib_dir_i, df_j in dup_line_df.groupby(["lib_dir"]):
-                if len(df_j) > 1:
-                    dir_names = ",".join(df_j["dir_name"].unique().tolist())
-                    dup_path_names = " | ".join(df_j["dir_path"].tolist())
+            print(dup_line_track_df)
+            for lib_dir_i, df_j in dup_line_track_df.groupby(["dir_name"]):
+                if len(df_j) > 1:                   
+                    dir_names = ",".join(df_j["lib_dir"].unique().tolist())
+                    dup_path_names = " | ".join(df_j["dir_path"].unique().tolist())
                     self.error_recorder.record_error(
                         name=lib_dir_i,
                         error_type=FastqErrorType.DUPLICATED.value,
-                        error_message=f"文库目录 {dup_path_names} 包含重复的数据 {dir_names}",
+                        error_message=f"<cyan>文库目录</cyan> {dup_path_names} <cyan>包含重复的数据:</cyan> <w>{dir_names}</w>",
                     )
 
             for (dir_name, lib_dir), df_i in dup_line_track_df.groupby(
@@ -460,7 +458,7 @@ def write_nextflow_input(
     errors = error_recorder.get_errors()
     if errors:
         for each_error in errors:
-            logger.error(f"{each_error.error_type} - {each_error.error_message}")
+            logger.opt(colors=True).error(f"{each_error.error_type} - {each_error.error_message}")
     warnings = warning_recorder.get_errors()
     if warnings:
         for each_warning in warnings:
