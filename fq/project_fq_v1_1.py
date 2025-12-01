@@ -232,7 +232,7 @@ class FastqProcessor:
                     if len(dup_lib_dirs) > 3:
                         dir_names = f"{dir_names} ...，共{len(dup_lib_dirs)}个，详情列表见: duplicated_data.tsv"
 
-                    dup_path_names = " | ".join(df_j["dir_path"].unique().tolist())
+                    dup_path_names = " | ".join(df_j["line_path"].unique().tolist())
                     self.error_recorder.record_error(
                         name=lib_dir_i,
                         error_type=FastqErrorType.DUPLICATED.value,
