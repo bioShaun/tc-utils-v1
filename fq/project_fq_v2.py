@@ -56,6 +56,7 @@ class Config:
     """
     # 路径配置
     base_dir: Path = Path("/public/home/zxchen/data_trans")
+    log_file: Path = Path("project_fq.log")
 
     # FASTQ文件匹配模式
     fastq_extensions: tuple[str, ...] = ("*.fastq.gz", "*.fq.gz")
@@ -349,7 +350,8 @@ class FastqScanner:
         """从路径提取文库ID"""
         parts = lib_path.name.split("-")
         lib_id = parts[-1]
-        if lib_id.isdigit() or (len(lib_id) == 1 and lib_id.islower()):
+        # 如果是数字或者单个字母（不区分大小写），则与前一部分组合
+        if lib_id.isdigit() or (len(lib_id) == 1 and lib_id.isalpha()):
             lib_id = "-".join(parts[-2:])
         return lib_id
 
@@ -790,6 +792,9 @@ class Pipeline:
         script_generator = ScriptGenerator(self.config)
         script_runner = ScriptRunner(self.config)
 
+        # 配置日志文件
+        logger.add(self.config.log_file, rotation="10 MB", retention="1 week", level="INFO")
+
         # 4. 验证样品信息
         sample_df = validator.validate(sample_df, self.threshold)
         sample_libs = sample_df["dir_name"].unique()
@@ -881,13 +886,21 @@ class Pipeline:
         logger.info("加载FASTQ配置")
         configs = []
 
-        for path in tqdm(target_dirs, desc="加载配置"):
-            try:
-                logger.info(f"获取配置：{path.name}")
-                if not (cfg := builder.build_or_load(path, self.force_rebuild)).empty:
-                    configs.append(cfg)
-            except Exception as e:
-                logger.error(f"处理 {path} 出错: {e}")
+
+        # 使用线程池并行加载配置
+        with ThreadPoolExecutor(max_workers=self.config.max_threads) as executor:
+            future_to_path = {
+                executor.submit(builder.build_or_load, path, self.force_rebuild): path
+                for path in target_dirs
+            }
+            
+            for future in tqdm(as_completed(future_to_path), total=len(target_dirs), desc="加载配置"):
+                path = future_to_path[future]
+                try:
+                    if not (cfg := future.result()).empty:
+                        configs.append(cfg)
+                except Exception as e:
+                    logger.error(f"处理 {path} 出错: {e}")
 
         builder.check_duplicates()
 
