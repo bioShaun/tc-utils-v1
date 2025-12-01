@@ -240,22 +240,12 @@ class FastqProcessor:
                         error_message=f"<cyan>文库目录</cyan> {dup_path_names} <cyan>包含重复的数据:</cyan> <w>{dir_names}</w>",
                     )
 
-            for (dir_name, lib_dir), df_i in dup_line_track_df.groupby(
-                ["dir_name", "lib_dir"]
-            ):
-                # self.error_recorder.record_error(
-                #     name=f"{dir_name} - {lib_dir}",
-                #     error_type=FastqErrorType.DUPLICATED.value,
-                #     error_message=f"重复的数据:  {dir_name}  {lib_dir} 在路径 {df_i['dir_path'].tolist()}",
-                # )
-                dup_lines.append(
-                    {
-                        "dir_name": dir_name,
-                        "lib_dir": lib_dir,
-                        "dir_path": ",".join(df_i["dir_path"].tolist()),
-                    }
-                )
-            self.duplicated_data_df = pd.DataFrame(dup_lines)
+            self.duplicated_data_df = (
+                dup_line_track_df.groupby(["dir_name", "lib_dir"])
+                .unique()
+                .map(lambda x: " | ".join(x))
+                .reset_index()
+            )
 
     def read_or_build_config(
         self, fq_line_dir: Path, force_rebuild: bool = False
@@ -762,6 +752,13 @@ def validate(
                 threads=threads,
                 run_script=False,
             )
+            if not processor.duplicated_data_df.empty:
+                dup_file = output_dir / "duplicated_data.tsv"
+                try:
+                    processor.duplicated_data_df.to_csv(dup_file, sep="\t", index=False)
+                    logger.success(f"重复数据详情已保存: {dup_file}")
+                except Exception as e:
+                    logger.error(f"保存重复数据文件失败: {e}")
 
     except KeyboardInterrupt:
         logger.info("用户中断操作")
