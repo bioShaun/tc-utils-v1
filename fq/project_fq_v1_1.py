@@ -105,6 +105,15 @@ def path_file_to_path_set(file_path: Optional[Path]) -> set[Path]:
     return path_set
 
 
+def path_is_included(line_path: Path, path_set) -> bool:
+    if line_path.resolve() in path_set:
+        return True
+    line_path_is_child = [line_path.is_relative_to(path_i) for path_i in path_set]
+    if any(line_path_is_child):
+        return True
+    return False
+
+
 class FastqProcessor:
     """FASTQ文件处理器"""
 
@@ -334,15 +343,17 @@ class FastqProcessor:
             if not date_dir.is_dir():
                 continue
             for tcwl_dir in date_dir.glob("*"):
-                if (
-                    tcwl_dir.name in fq_lines
-                    and tcwl_dir.resolve() not in self.exclude_path_set
+                if tcwl_dir.name in fq_lines and not path_is_included(
+                    tcwl_dir, self.exclude_path_set
                 ):
                     target_dirs.append(tcwl_dir.resolve())
 
         for include_path in self.include_path_set:
-            if include_path not in target_dirs:
-                target_dirs.append(include_path)
+            for include_path_child in include_path.glob("*"):
+                if not include_path_child.is_dir():
+                    continue
+                if include_path_child.resolve() not in target_dirs:
+                    target_dirs.append(include_path_child.resolve())
 
         if not target_dirs:
             logger.error("未找到匹配的目录")
