@@ -99,9 +99,8 @@ def process_vcf(vcf_path: Path, output_path: Path = None) -> Dict[str, int]:
         site_het = 0
         site_hom_alt = 0
 
-        for sample_name in vcf.samples:
-            gt = variant.genotypes[variant.sample_indexes[sample_name]]
-
+        # variant.genotypes 返回所有样本的基因型数组
+        for gt in variant.genotypes:
             # gt是长度为3的列表: [allele1, allele2, phase]
             if len(gt) >= 2:
                 gt_string = f"{gt[0]}/{gt[1]}"
@@ -201,10 +200,10 @@ def analyze(
             print("-" * 80)
 
     except FileNotFoundError:
-        typer.echo(f"错误: 找不到文件 {vcf_file}", fg=typer.colors.RED)
+        print(f"错误: 找不到文件 {vcf_file}")
         raise typer.Exit(1)
     except Exception as e:
-        typer.echo(f"错误: 处理文件时发生异常 - {str(e)}", fg=typer.colors.RED)
+        print(f"错误: 处理文件时发生异常 - {str(e)}")
         raise typer.Exit(1)
 
 
