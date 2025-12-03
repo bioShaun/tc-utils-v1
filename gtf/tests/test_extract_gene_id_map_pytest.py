@@ -25,14 +25,14 @@ TraesCS1A01G000600\t=\tTraesCS1A01G000600\tgene6\tchr5A\t+\t1100\t1200\t180
 """
 
 # 测试数据：group map文件
+# 注意：group_map是ref_gene_id到group_id的映射
 GROUP_MAP_CONTENT = """group_id\tgene_id
 1\tTraesCS1A01G000100
-2\tTraesCS1A01G000100LC
-3\tTraesCS1A01G000200
-4\tTraesCS1A01G000200LC
-5\tTraesCS1A01G000300
-6\tTraesCS1A01G000400
-7\tTraesCS1A01G000500
+2\tTraesCS1A01G000200
+3\tTraesCS1A01G000200LC
+4\tTraesCS1A01G000300
+5\tTraesCS1A01G000400
+6\tTraesCS1A01G000500
 """
 
 EXPECTED_GENE_MAP = """qry_gene_id\tref_gene_id\tclass_code
@@ -46,14 +46,16 @@ TraesCS1A01G000500\tTraesCS1A01G000500\t=
 TraesCS1A01G000600\tTraesCS1A01G000600\t=
 """
 
+# 期望的group映射输出：group_id -> qry_gene_id
+# 因为group_map建立了ref_gene到group的映射，输出时我们要输出group_id -> qry_gene
 EXPECTED_GROUP_MAP = """group_id\tgene_id
 1\tTraesCS1A01G000100
-2\tTraesCS1A01G000100LC
-3\tTraesCS1A01G000200
-4\tTraesCS1A01G000200LC
-5\tTraesCS1A01G000300
-6\tTraesCS1A01G000400
-7\tTraesCS1A01G000500
+1\tTraesCS1A01G000100LC
+2\tTraesCS1A01G000200
+3\tTraesCS1A01G000200LC
+4\tTraesCS1A01G000300
+5\tTraesCS1A01G000400
+6\tTraesCS1A01G000500
 """
 
 

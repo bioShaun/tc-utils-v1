@@ -54,15 +54,15 @@ chr3,RefChr3
 """
 
 # 测试数据：group map文件
+# 注意：group_map是ref_gene_id到group_id的映射
 GROUP_MAP_CONTENT = """group_id\tgene_id
-1\tGene1
-2\tGene2
-3\tGene3
-4\tGene4
-5\tGene5
-6\tGene6
-7\tGene7
-8\tGene8
+1\tRefGene1
+2\tRefGene2
+3\tRefGene3
+4\tRefGene4
+5\tRefGene5
+6\tRefGene6
+7\tRefGene7
 """
 
 # 期望的过滤结果：只保留染色体匹配的基因对
@@ -76,6 +76,7 @@ Gene6\tRefGene6\t=
 Gene7\tRefGene7\t=
 """
 
+# 期望的group映射输出：group_id -> qry_gene_id
 EXPECTED_FILTERED_GROUP_MAP = """group_id\tgene_id
 1\tGene1
 2\tGene2

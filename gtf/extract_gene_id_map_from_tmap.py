@@ -118,8 +118,9 @@ def write_mapping(mappings, output_file, group_map_file=None):
         with open(group_output, "w") as f:
             f.write("group_id\tgene_id\n")
             for qry_gene, ref_gene, _, _ in mappings:
-                if qry_gene in gene_to_group:
-                    group_id = gene_to_group[qry_gene]
+                # group_map是ref_gene_id到group_id的映射，所以用ref_gene查找
+                if ref_gene in gene_to_group:
+                    group_id = gene_to_group[ref_gene]
                     f.write(f"{group_id}\t{qry_gene}\n")
 
         return group_output

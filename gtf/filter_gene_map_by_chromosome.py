@@ -150,10 +150,12 @@ def filter_group_map(group_map_file, gene_map_file, qry_to_chrom, ref_to_chrom, 
     """
     过滤group map，只保留对应的qry_gene通过染色体检查的记录
 
+    注意：group_map文件格式是 group_id -> ref_gene_id
+
     返回: [(group_id, qry_gene)]
     """
-    # 首先获取通过染色体检查的qry_gene列表
-    valid_qry_genes = set()
+    # 首先建立ref_gene到qry_gene的映射，并过滤染色体不匹配的记录
+    ref_to_qry_valid = {}
 
     with open(gene_map_file, "r") as f:
         header = f.readline().strip()
@@ -184,8 +186,8 @@ def filter_group_map(group_map_file, gene_map_file, qry_to_chrom, ref_to_chrom, 
             if genome_mapping[qry_chrom] != ref_chrom:
                 continue
 
-            # 通过所有检查，添加到有效列表
-            valid_qry_genes.add(qry_gene)
+            # 通过所有检查，建立ref_gene到qry_gene的映射
+            ref_to_qry_valid[ref_gene] = qry_gene
 
     # 过滤group map
     filtered = []
@@ -207,10 +209,11 @@ def filter_group_map(group_map_file, gene_map_file, qry_to_chrom, ref_to_chrom, 
                 continue
 
             group_id = fields[0]
-            qry_gene = fields[1]
+            ref_gene = fields[1]  # group_map中的gene_id实际上是ref_gene_id
 
-            # 只保留通过染色体检查的qry_gene
-            if qry_gene in valid_qry_genes:
+            # 检查这个ref_gene是否对应有效的qry_gene
+            if ref_gene in ref_to_qry_valid:
+                qry_gene = ref_to_qry_valid[ref_gene]
                 filtered.append((group_id, qry_gene))
             else:
                 skipped_count += 1
