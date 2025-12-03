@@ -146,16 +146,16 @@ def filter_gene_map(gene_map_file, qry_to_chrom, ref_to_chrom, genome_mapping):
     return filtered, total_count, skipped_count
 
 
-def filter_group_map(group_map_file, gene_map_file, qry_to_chrom, ref_to_chrom, genome_mapping, gene_to_group):
+def filter_group_map(group_map_file, gene_map_file, qry_to_chrom, ref_to_chrom, genome_mapping):
     """
     过滤group map，只保留对应的qry_gene通过染色体检查的记录
 
-    注意：group_map文件格式是 group_id -> ref_gene_id
+    注意：group_map文件格式是 group_id -> qry_gene_id（从extract_gene_id_map_from_tmap.py生成）
 
     返回: [(group_id, qry_gene)]
     """
-    # 首先建立ref_gene到qry_gene的映射，并过滤染色体不匹配的记录
-    ref_to_qry_valid = {}
+    # 首先获取通过染色体检查的qry_gene列表
+    valid_qry_genes = set()
 
     with open(gene_map_file, "r") as f:
         header = f.readline().strip()
@@ -186,8 +186,8 @@ def filter_group_map(group_map_file, gene_map_file, qry_to_chrom, ref_to_chrom, 
             if genome_mapping[qry_chrom] != ref_chrom:
                 continue
 
-            # 通过所有检查，建立ref_gene到qry_gene的映射
-            ref_to_qry_valid[ref_gene] = qry_gene
+            # 通过所有检查，添加到有效列表
+            valid_qry_genes.add(qry_gene)
 
     # 过滤group map
     filtered = []
@@ -209,11 +209,10 @@ def filter_group_map(group_map_file, gene_map_file, qry_to_chrom, ref_to_chrom, 
                 continue
 
             group_id = fields[0]
-            ref_gene = fields[1]  # group_map中的gene_id实际上是ref_gene_id
+            qry_gene = fields[1]  # group_map中的gene_id是qry_gene_id
 
-            # 检查这个ref_gene是否对应有效的qry_gene
-            if ref_gene in ref_to_qry_valid:
-                qry_gene = ref_to_qry_valid[ref_gene]
+            # 只保留通过染色体检查的qry_gene
+            if qry_gene in valid_qry_genes:
                 filtered.append((group_id, qry_gene))
             else:
                 skipped_count += 1
@@ -281,22 +280,6 @@ def main():
     genome_mapping = read_genome_map(args.genome_map)
     print(f"  读取到 {len(genome_mapping)} 个genome映射", file=sys.stderr)
 
-    # 如果提供了group map文件，先读取它
-    gene_to_group = {}
-    if args.group_map:
-        print(f"解析group map文件: {args.group_map}", file=sys.stderr)
-        with open(args.group_map, "r") as f:
-            header = f.readline().strip()
-            for line in f:
-                if not line.strip():
-                    continue
-                fields = line.strip().split("\t")
-                if len(fields) >= 2:
-                    group_id = fields[0]
-                    gene_id = fields[1]
-                    gene_to_group[gene_id] = group_id
-        print(f"  读取到 {len(gene_to_group)} 个group映射", file=sys.stderr)
-
     # 过滤基因映射
     print(f"过滤基因映射文件: {args.gene_map}", file=sys.stderr)
     filtered, total, skipped = filter_gene_map(
@@ -313,7 +296,7 @@ def main():
         group_output = output_file.replace('.txt', '') + '_filtered_group_map.txt'
         filtered_group, group_total, group_skipped = filter_group_map(
             args.group_map, args.gene_map, qry_to_chrom, ref_to_chrom,
-            genome_mapping, gene_to_group
+            genome_mapping
         )
 
         # 写入过滤后的group映射
