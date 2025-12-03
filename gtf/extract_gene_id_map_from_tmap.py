@@ -10,6 +10,7 @@
 
 import argparse
 import sys
+from pathlib import Path
 
 
 def get_class_priority(class_code):
@@ -18,7 +19,9 @@ def get_class_priority(class_code):
     return priority.get(class_code, 999)
 
 
-def parse_tmap(tmap_file, valid_classes={"=", "c", "k", "m", "j"}):
+def parse_tmap(
+    tmap_file, valid_classes={"=", "c", "k", "m", "j"}
+) -> list[tuple[str, str, str, int]]:
     """
     解析tmap文件，提取基因ID映射
 
@@ -96,14 +99,17 @@ def read_group_map(group_map_file):
     return gene_to_group
 
 
-def write_mapping(mappings, output_file, group_map_file=None):
+def write_mapping(
+    mappings: list[tuple[str, str, str, int]], output_file: Path, group_map_file=None
+):
     """
     写入映射结果
     总是输出qry_gene_id\tref_gene_id\tclass_code格式
     如果提供了group_map_file，额外输出group_id\tgene_id格式
     """
+    gene_map_file = f"{output_file.stem}.gene_map.txt"
     # 总是输出原始格式
-    with open(output_file, "w") as f:
+    with open(gene_map_file, "w", encoding="utf-8") as f:
         f.write("qry_gene_id\tref_gene_id\tclass_code\n")
         for qry_gene, ref_gene, class_code, _ in mappings:
             f.write(f"{qry_gene}\t{ref_gene}\t{class_code}\n")
@@ -111,11 +117,11 @@ def write_mapping(mappings, output_file, group_map_file=None):
     # 如果提供了group map文件，额外输出group_id和qry_gene_id的映射
     if group_map_file:
         # 生成group map输出文件名
-        group_output = output_file.replace('.txt', '') + '_group_map.txt'
+        group_output = output_file.with_name(output_file.stem + "_group_map.txt")
 
         gene_to_group = read_group_map(group_map_file)
 
-        with open(group_output, "w") as f:
+        with open(group_output, "w", encoding="utf-8") as f:
             f.write("group_id\tgene_id\n")
             for qry_gene, ref_gene, _, _ in mappings:
                 # group_map是ref_gene_id到group_id的映射，所以用ref_gene查找
@@ -133,7 +139,7 @@ def main():
         description="从gffcompare的.tmap文件中提取基因ID映射"
     )
     parser.add_argument("tmap_file", help="输入的.tmap文件")
-    parser.add_argument("-o", "--output", help="输出文件(默认: gene_id_map.txt)")
+    parser.add_argument("-o", "--output", help="输出文件(默认: genome_A)")
     parser.add_argument(
         "-g",
         "--group-map",
@@ -149,7 +155,9 @@ def main():
     args = parser.parse_args()
 
     # 设置输出文件
-    output_file = args.output if args.output else "gene_id_map.txt"
+    output_file = Path(args.output) if args.output else Path("genome_A")
+    outdir = output_file.parent
+    outdir.mkdir(parents=True, exist_ok=True)
 
     # 解析有效的class codes
     valid_classes = set(args.classes.split(","))
