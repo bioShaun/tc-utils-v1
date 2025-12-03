@@ -15,6 +15,8 @@ import typer
 from loguru import logger
 from tqdm import tqdm
 
+from typing_extensions import Annotated
+
 __version__ = "1.0"
 
 app = typer.Typer(help="FASTQ文件处理和合并工具")
@@ -105,6 +107,25 @@ def path_file_to_path_set(file_path: Optional[Path]) -> set[Path]:
     return path_set
 
 
+def prepare_file_path_set(
+    paths: Optional[List[Path]], file_path: Optional[Path]
+) -> set[Path]:
+    """准备路径集合"""
+    path_set = set()
+
+    if not paths is None:
+        for path in paths:
+            path_resolved = path.resolve()
+            if not path_resolved.exists():
+                raise FileNotFoundError(f"-i/-e 提供的路径不存在: {path_resolved}")
+            path_set.add(path_resolved)
+
+    file_path_set = path_file_to_path_set(file_path)
+    path_set.update(file_path_set)
+
+    return path_set
+
+
 def path_is_included(line_path: Path, path_set) -> bool:
     line_path_resolved = line_path.resolve()
     if line_path_resolved in path_set:
@@ -124,15 +145,15 @@ class FastqProcessor:
         self,
         base_dir: Path,
         error_recorder: FastqErrorRecorder,
-        exclude_paths: Optional[Path] = None,
-        include_paths: Optional[Path] = None,
+        exclude_paths: set[Path],
+        include_paths: set[Path],
     ):  # 使用Optional类型提示
         self.base_dir = Path(base_dir)
         self.error_recorder = error_recorder
         self.line_tracker = []
         self.duplicated_data_df = pd.DataFrame()
-        self.include_path_set = path_file_to_path_set(include_paths)
-        self.exclude_path_set = path_file_to_path_set(exclude_paths)
+        self.include_path_set = include_paths
+        self.exclude_path_set = exclude_paths
         self._check_include_exclude()
 
     def _check_include_exclude(self) -> None:
@@ -627,11 +648,17 @@ def run(
     threads: int = typer.Option(8, min=1, max=32, help="并行处理线程数"),
     force_rebuild: bool = typer.Option(False, help="强制重建配置文件"),
     empty_data_threshold: float = typer.Option(0.01, help="空数据阈值"),
-    exclude: Path = typer.Option(
-        None, "-e", "--exclude", help="需要排除的line路径，每行包含一个LINE路径"
+    exclude: Annotated[
+        Optional[List[Path]], typer.Option("-e", "--exclude", help="需要排除的line路径")
+    ] = None,
+    include: Annotated[
+        Optional[List[Path]], typer.Option("-i", "--include", help="需要包含的line路径")
+    ] = None,
+    exclude_file: Path = typer.Option(
+        None, "-ef", "--exclude", help="需要排除的line路径，每行包含一个LINE路径"
     ),
-    include: Path = typer.Option(
-        None, "-i", "--include", help="需要包含的line路径，每行包含一个LINE路径"
+    include_file: Path = typer.Option(
+        None, "-if", "--include", help="需要包含的line路径，每行包含一个LINE路径"
     ),
     mode: DataMode = DataMode.link,
 ):
@@ -668,11 +695,15 @@ def run(
         # 初始化错误收集器
         error_collector = FastqErrorRecorder()
         warning_collector = FastqErrorRecorder()
+
+        include_set = prepare_file_path_set(include, include_file)
+        exclude_set = prepare_file_path_set(exclude, exclude_file)
+
         processor = FastqProcessor(
             base_dir,
             error_recorder=error_collector,
-            exclude_paths=exclude,
-            include_paths=include,
+            exclude_paths=exclude_set,
+            include_paths=include_set,
         )
 
         check_sample_map(
@@ -751,11 +782,17 @@ def validate(
     threads: int = typer.Option(8, min=1, max=32, help="并行处理线程数"),
     force_rebuild: bool = typer.Option(False, help="强制重建配置文件"),
     empty_data_threshold: int = typer.Option(0.01, help="空数据阈值"),
-    exclude: Path = typer.Option(
-        None, "-e", "--exclude", help="需要排除的line路径，每行包含一个LINE路径"
+    exclude: Annotated[
+        Optional[List[Path]], typer.Option("-e", "--exclude", help="需要排除的line路径")
+    ] = None,
+    include: Annotated[
+        Optional[List[Path]], typer.Option("-i", "--include", help="需要包含的line路径")
+    ] = None,
+    exclude_file: Path = typer.Option(
+        None, "-ef", "--exclude", help="需要排除的line路径，每行包含一个LINE路径"
     ),
-    include: Path = typer.Option(
-        None, "-i", "--include", help="需要包含的line路径，每行包含一个LINE路径"
+    include_file: Path = typer.Option(
+        None, "-if", "--include", help="需要包含的line路径，每行包含一个LINE路径"
     ),
 ):
     """
@@ -791,11 +828,15 @@ def validate(
         # 初始化错误收集器
         error_collector = FastqErrorRecorder()
         warning_collector = FastqErrorRecorder()
+
+        include_set = prepare_file_path_set(include, include_file)
+        exclude_set = prepare_file_path_set(exclude, exclude_file)
+
         processor = FastqProcessor(
             base_dir,
             error_recorder=error_collector,
-            exclude_paths=exclude,
-            include_paths=include,
+            exclude_paths=exclude_set,
+            include_paths=include_set,
         )
 
         check_sample_map(
