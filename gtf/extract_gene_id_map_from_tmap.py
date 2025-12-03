@@ -107,7 +107,7 @@ def write_mapping(
     总是输出qry_gene_id\tref_gene_id\tclass_code格式
     如果提供了group_map_file，额外输出group_id\tgene_id格式
     """
-    gene_map_file = f"{output_file.stem}.gene_map.txt"
+    gene_map_file = output_file.parent / f"{output_file.name}.gene_map.txt"
     # 总是输出原始格式
     with open(gene_map_file, "w", encoding="utf-8") as f:
         f.write("qry_gene_id\tref_gene_id\tclass_code\n")
@@ -117,7 +117,7 @@ def write_mapping(
     # 如果提供了group map文件，额外输出group_id和qry_gene_id的映射
     if group_map_file:
         # 生成group map输出文件名
-        group_output = output_file.with_name(output_file.stem + ".group_map.txt")
+        group_output = output_file.with_name(output_file.name + ".group_map.txt")
 
         gene_to_group = read_group_map(group_map_file)
 
