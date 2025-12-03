@@ -55,13 +55,13 @@ def parse_gff(gff_file):
 
                 # 模式3: ID=xxxxx
                 if not gene_id:
-                    match = re.search(r'\bID\s*=\s*([^;\s]+)', attr_str)
+                    match = re.search(r"\bID\s*=\s*([^;\s]+)", attr_str)
                     if match:
                         gene_id = match.group(1)
 
                 # 模式4: Name=xxxxx
                 if not gene_id:
-                    match = re.search(r'\bName\s*=\s*([^;\s]+)', attr_str)
+                    match = re.search(r"\bName\s*=\s*([^;\s]+)", attr_str)
                     if match:
                         gene_id = match.group(1)
 
@@ -146,7 +146,9 @@ def filter_gene_map(gene_map_file, qry_to_chrom, ref_to_chrom, genome_mapping):
     return filtered, total_count, skipped_count
 
 
-def filter_group_map(group_map_file, gene_map_file, qry_to_chrom, ref_to_chrom, genome_mapping):
+def filter_group_map(
+    group_map_file, gene_map_file, qry_to_chrom, ref_to_chrom, genome_mapping
+):
     """
     过滤group map，只保留对应的qry_gene通过染色体检查的记录
 
@@ -229,37 +231,25 @@ def write_filtered_map(filtered_mappings, output_file):
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="根据染色体信息过滤基因映射"
-    )
+    parser = argparse.ArgumentParser(description="根据染色体信息过滤基因映射")
     parser.add_argument(
         "--gene-map",
         required=True,
-        help="输入的基因映射文件 (qry_gene_id\\tref_gene_id\\tclass_code)"
+        help="输入的基因映射文件 (qry_gene_id\\tref_gene_id\\tclass_code)",
     )
-    parser.add_argument(
-        "--qry-gff",
-        required=True,
-        help="query基因的GFF文件"
-    )
-    parser.add_argument(
-        "--ref-gff",
-        required=True,
-        help="reference基因的GFF文件"
-    )
+    parser.add_argument("--qry-gff", required=True, help="query基因的GFF文件")
+    parser.add_argument("--ref-gff", required=True, help="reference基因的GFF文件")
     parser.add_argument(
         "--genome-map",
         required=True,
-        help="genome映射文件 (qry_genome,ref_genome，无表头)"
+        help="genome映射文件 (qry_genome,ref_genome，无表头)",
     )
     parser.add_argument(
-        "--group-map",
-        help="输入的group map文件 (group_id\\tgene_id，可选)"
+        "--group-map", help="输入的group map文件 (group_id\\tgene_id，可选)"
     )
+    parser.add_argument("-o", "--output", help="输出文件(默认: filtered_gene_map.txt)")
     parser.add_argument(
-        "-o",
-        "--output",
-        help="输出文件(默认: filtered_gene_map.txt)"
+        "-og", "--output-group", help="输出group映射文件(默认: filtered_group_map.txt)"
     )
 
     args = parser.parse_args()
@@ -290,17 +280,19 @@ def main():
     write_filtered_map(filtered, output_file)
 
     # 如果提供了group map文件，过滤它
-    group_output = None
     if args.group_map:
         print(f"过滤group map文件: {args.group_map}", file=sys.stderr)
-        group_output = output_file.replace('.txt', '') + '_filtered_group_map.txt'
+        group_output = (
+            args.output_group
+            if args.output_group
+            else output_file.replace(".txt", "") + "_filtered_group_map.txt"
+        )
         filtered_group, group_total, group_skipped = filter_group_map(
-            args.group_map, args.gene_map, qry_to_chrom, ref_to_chrom,
-            genome_mapping
+            args.group_map, args.gene_map, qry_to_chrom, ref_to_chrom, genome_mapping
         )
 
         # 写入过滤后的group映射
-        with open(group_output, "w") as f:
+        with open(group_output, "w", encoding="utf-8") as f:
             f.write("group_id\tgene_id\n")
             for group_id, qry_gene in filtered_group:
                 f.write(f"{group_id}\t{qry_gene}\n")
@@ -310,14 +302,24 @@ def main():
     print(f"  总记录数: {total}", file=sys.stderr)
     print(f"  跳过记录数: {skipped}", file=sys.stderr)
     print(f"  保留记录数: {len(filtered)}", file=sys.stderr)
-    print(f"  过滤率: {skipped/total*100:.2f}%" if total > 0 else "  过滤率: N/A", file=sys.stderr)
+    print(
+        f"  过滤率: {skipped/total*100:.2f}%" if total > 0 else "  过滤率: N/A",
+        file=sys.stderr,
+    )
 
     if group_output:
         print(f"\\n=== Group映射过滤结果 ===", file=sys.stderr)
         print(f"  总记录数: {group_total}", file=sys.stderr)
         print(f"  跳过记录数: {group_skipped}", file=sys.stderr)
         print(f"  保留记录数: {len(filtered_group)}", file=sys.stderr)
-        print(f"  过滤率: {group_skipped/group_total*100:.2f}%" if group_total > 0 else "  过滤率: N/A", file=sys.stderr)
+        print(
+            (
+                f"  过滤率: {group_skipped/group_total*100:.2f}%"
+                if group_total > 0
+                else "  过滤率: N/A"
+            ),
+            file=sys.stderr,
+        )
 
     print(f"\\n基因映射结果已写入: {output_file}", file=sys.stderr)
     if group_output:
