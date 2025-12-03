@@ -9,11 +9,16 @@ gtf/
 ├── extract_gene_id_map_from_tmap.py      # 基因映射提取脚本
 ├── filter_gene_map_by_chromosome.py      # 染色体过滤脚本
 ├── README.md                             # 文档说明
+├── pytest.ini                           # pytest配置文件
 └── tests/                                # 测试目录
     ├── __init__.py
-    ├── test_extract_gene_id_map.py       # 测试extract_gene_id_map_from_tmap.py
-    ├── test_filter_gene_map_by_chromosome.py  # 测试filter_gene_map_by_chromosome.py
-    └── run_all_tests.py                   # 运行所有测试
+    ├── conftest.py                       # pytest配置文件
+    ├── test_extract_gene_id_map.py       # 原生Python测试
+    ├── test_extract_gene_id_map_pytest.py  # pytest测试（推荐）
+    ├── test_filter_gene_map_by_chromosome.py  # 原生Python测试
+    ├── test_filter_gene_map_by_chromosome_pytest.py  # pytest测试（推荐）
+    ├── run_all_tests.py                   # 运行所有原生测试
+    └── run_pytest.py                      # 运行所有pytest测试（推荐）
 ```
 
 ## 脚本详情
@@ -131,7 +136,9 @@ chr2,RefChr2
 
 ## 测试
 
-测试文件位于`tests/`目录下：
+测试文件位于`tests/`目录下，支持两套测试框架：
+
+### 1. 原生Python测试（基于subprocess）
 
 ```bash
 cd tests
@@ -144,13 +151,47 @@ python test_filter_gene_map_by_chromosome.py
 python run_all_tests.py
 ```
 
-测试覆盖：
+### 2. pytest测试（推荐）
+
+**优点：**
+- 更简洁的断言语法
+- 自动生成详细的测试报告
+- 支持测试标记和过滤
+- 更好的测试发现机制
+- 支持fixture和参数化
+
+**运行方式：**
+
+```bash
+cd tests
+
+# 运行单个测试
+python test_extract_gene_id_map_pytest.py
+python test_filter_gene_map_by_chromosome_pytest.py
+
+# 或运行所有pytest测试
+python run_pytest.py
+
+# 或直接使用pytest
+pytest test_extract_gene_id_map_pytest.py -v
+pytest test_filter_gene_map_by_chromosome_pytest.py -v
+
+# 运行所有pytest测试（包括详细输出）
+pytest -v
+
+# 运行特定测试
+pytest test_extract_gene_id_map_pytest.py::test_with_group_map -v
+```
+
+**测试覆盖：**
 - 基本功能
 - 边界情况
 - 错误处理
 - 文件格式兼容性
+- 优先级处理
+- 染色体匹配逻辑
 
-测试结果：7个测试用例全部通过 ✓
+**测试结果：** 7个测试用例全部通过 ✓
 
 ---
 
@@ -160,3 +201,4 @@ python run_all_tests.py
 - v1.1: 增加group map支持和染色体过滤功能
 - v1.2: 增加完整测试套件
 - v1.3: 重构测试结构，将测试文件移至tests/目录
+- v2.0: 升级到pytest测试框架，增加更丰富的测试功能和更好的测试报告
