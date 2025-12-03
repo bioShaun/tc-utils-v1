@@ -117,7 +117,7 @@ def write_mapping(
     # 如果提供了group map文件，额外输出group_id和qry_gene_id的映射
     if group_map_file:
         # 生成group map输出文件名
-        group_output = output_file.with_name(output_file.stem + "_group_map.txt")
+        group_output = output_file.with_name(output_file.stem + ".group_map.txt")
 
         gene_to_group = read_group_map(group_map_file)
 
