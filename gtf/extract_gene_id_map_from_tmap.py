@@ -76,12 +76,55 @@ def parse_tmap(tmap_file, valid_classes={"=", "c", "k", "m", "j"}):
     return result
 
 
-def write_mapping(mappings, output_file):
-    """写入映射结果"""
+def read_group_map(group_map_file):
+    """
+    读取group map文件，建立ref_gene_id到group_id的映射
+
+    文件格式:
+    group_id\tgene_id（ref_gene_id）
+    """
+    gene_to_group = {}
+    with open(group_map_file, "r") as f:
+        for line in f:
+            if not line.strip():
+                continue
+            fields = line.strip().split("\t")
+            if len(fields) >= 2:
+                group_id = fields[0]
+                gene_id = fields[1]
+                gene_to_group[gene_id] = group_id
+    return gene_to_group
+
+
+def write_mapping(mappings, output_file, group_map_file=None):
+    """
+    写入映射结果
+    总是输出qry_gene_id\tref_gene_id\tclass_code格式
+    如果提供了group_map_file，额外输出group_id\tgene_id格式
+    """
+    # 总是输出原始格式
     with open(output_file, "w") as f:
         f.write("qry_gene_id\tref_gene_id\tclass_code\n")
         for qry_gene, ref_gene, class_code, _ in mappings:
             f.write(f"{qry_gene}\t{ref_gene}\t{class_code}\n")
+
+    # 如果提供了group map文件，额外输出group_id和qry_gene_id的映射
+    if group_map_file:
+        # 生成group map输出文件名
+        group_output = output_file.replace('.txt', '') + '_group_map.txt'
+
+        gene_to_group = read_group_map(group_map_file)
+
+        with open(group_output, "w") as f:
+            f.write("group_id\tgene_id\n")
+            for qry_gene, ref_gene, _, _ in mappings:
+                if qry_gene in gene_to_group:
+                    group_id = gene_to_group[qry_gene]
+                    f.write(f"{group_id}\t{qry_gene}\n")
+
+        return group_output
+
+    return None
 
 
 def main():
@@ -90,6 +133,11 @@ def main():
     )
     parser.add_argument("tmap_file", help="输入的.tmap文件")
     parser.add_argument("-o", "--output", help="输出文件(默认: gene_id_map.txt)")
+    parser.add_argument(
+        "-g",
+        "--group-map",
+        help="group map文件，包含group_id到ref_gene_id的映射",
+    )
     parser.add_argument(
         "-c",
         "--classes",
@@ -111,8 +159,10 @@ def main():
 
     # 写入结果
     print(f"找到 {len(mappings)} 个基因映射", file=sys.stderr)
-    write_mapping(mappings, output_file)
+    group_output = write_mapping(mappings, output_file, args.group_map)
     print(f"结果已写入: {output_file}", file=sys.stderr)
+    if group_output:
+        print(f"Group映射已写入: {group_output}", file=sys.stderr)
 
 
 if __name__ == "__main__":
