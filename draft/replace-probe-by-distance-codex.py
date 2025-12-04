@@ -31,7 +31,11 @@ def _require_columns(df: pd.DataFrame, required: List[str], name: str) -> None:
 
 
 def _prepare_df(
-    df: pd.DataFrame, name: str, *, require_maf: bool = True, require_priority: bool = False
+    df: pd.DataFrame,
+    name: str,
+    *,
+    require_maf: bool = True,
+    require_priority: bool = False,
 ) -> pd.DataFrame:
     """Cast key columns to expected types."""
     df = df.copy()
@@ -52,7 +56,9 @@ def _prepare_df(
         df["maf"] = -1.0
 
     if "priority" in df.columns:
-        df["priority"] = pd.to_numeric(df["priority"], errors="coerce").fillna(float("inf"))
+        df["priority"] = pd.to_numeric(df["priority"], errors="coerce").fillna(
+            float("inf")
+        )
     elif require_priority:
         typer.echo(f"[{name}] 缺少必要列: priority", err=True)
         raise typer.Exit(1)
@@ -78,9 +84,7 @@ def _select_candidate(
         return None
 
     # 计算距离并限制最大范围
-    chrom_df = chrom_df.assign(
-        distance_bp=(chrom_df["pos"] - target["pos"]).abs()
-    )
+    chrom_df = chrom_df.assign(distance_bp=(chrom_df["pos"] - target["pos"]).abs())
     chrom_df = chrom_df[chrom_df["distance_bp"] <= max_distance_bp]
     if chrom_df.empty:
         return None
@@ -177,6 +181,7 @@ def main(
     required_candidate_cols = required_replace_cols + ["maf", "priority"]
 
     replace_df = pd.read_table(replace_file)
+    replace_cols_original = replace_df.columns.tolist()
     candidate_df = pd.read_table(candidate_file)
 
     _require_columns(replace_df, required_replace_cols, "replace")
@@ -208,14 +213,17 @@ def main(
             err=True,
         )
         cols_to_show = [
-            col for col in ["chrom", "pos", "id", "target_id", "maf"] if col in missing_df.columns
+            col
+            for col in ["chrom", "pos", "id", "target_id", "maf"]
+            if col in missing_df.columns
         ]
         typer.echo(missing_df[cols_to_show].to_string(index=False), err=True)
 
         no_replace_path = out_file.parent / f"{out_file.stem}_no_replacement.tsv"
-        missing_df.drop(columns=["pos_id"], errors="ignore").to_csv(
-            no_replace_path, sep="\t", index=False
-        )
+        missing_output_df = missing_df.drop(
+            columns=["pos_id"], errors="ignore"
+        ).reindex(columns=replace_cols_original)
+        missing_output_df.to_csv(no_replace_path, sep="\t", index=False)
         typer.echo(f"无法替换的 probe 已输出到: {no_replace_path}", err=True)
 
         if not allow_missing:
@@ -283,12 +291,11 @@ def main(
     extra_cols = [
         "origin_chrom",
         "origin_pos",
-        "origin_id",
-        "origin_target_id",
         "distance_to_origin_bp",
-        "window_index",
     ]
-    output_cols = [col for col in base_cols + extra_cols if col in replacement_df.columns]
+    output_cols = [
+        col for col in base_cols + extra_cols if col in replacement_df.columns
+    ]
     output_df = replacement_df[output_cols]
 
     if out_file.suffix == ".xlsx":
@@ -314,9 +321,10 @@ def main(
 
         if no_replace_path is None and missing_df is not None and not missing_df.empty:
             no_replace_path = out_file.parent / f"{out_file.stem}_no_replacement.tsv"
-            missing_df.drop(columns=["pos_id"], errors="ignore").to_csv(
-                no_replace_path, sep="\t", index=False
-            )
+            missing_output_df = missing_df.drop(
+                columns=["pos_id"], errors="ignore"
+            ).reindex(columns=replace_cols_original)
+            missing_output_df.to_csv(no_replace_path, sep="\t", index=False)
 
 
 if __name__ == "__main__":
