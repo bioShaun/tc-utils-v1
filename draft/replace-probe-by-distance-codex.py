@@ -30,7 +30,9 @@ def _require_columns(df: pd.DataFrame, required: List[str], name: str) -> None:
         raise typer.Exit(1)
 
 
-def _prepare_df(df: pd.DataFrame, name: str, *, require_maf: bool = True) -> pd.DataFrame:
+def _prepare_df(
+    df: pd.DataFrame, name: str, *, require_maf: bool = True, require_priority: bool = False
+) -> pd.DataFrame:
     """Cast key columns to expected types."""
     df = df.copy()
     df["chrom"] = df["chrom"].astype(str)
@@ -49,6 +51,12 @@ def _prepare_df(df: pd.DataFrame, name: str, *, require_maf: bool = True) -> pd.
     else:
         df["maf"] = -1.0
 
+    if "priority" in df.columns:
+        df["priority"] = pd.to_numeric(df["priority"], errors="coerce").fillna(float("inf"))
+    elif require_priority:
+        typer.echo(f"[{name}] 缺少必要列: priority", err=True)
+        raise typer.Exit(1)
+
     df["pos_id"] = df["chrom"] + "_" + df["pos"].astype(str)
     return df
 
@@ -63,8 +71,7 @@ def _select_candidate(
     """
     在候选表中为单个 probe 选择最佳替换。
 
-    策略：按 window_bp 归类窗口，优先选择窗口索引最小且 maf 最大的候选；
-    同一窗口内次要按距离、id 排序。
+    策略：priority 优先，其次按 window_bp 归类窗口，再按 maf、距离、id 排序。
     """
     chrom_df = candidate_df[candidate_df["chrom"] == target["chrom"]]
     if chrom_df.empty:
@@ -86,8 +93,8 @@ def _select_candidate(
     chrom_df = chrom_df.assign(window_index=(chrom_df["distance_bp"] // window_bp))
 
     ranked = chrom_df.sort_values(
-        ["window_index", "maf", "distance_bp", "id"],
-        ascending=[True, False, True, True],
+        ["priority", "window_index", "maf", "distance_bp", "id"],
+        ascending=[True, True, False, True, True],
     )
     return ranked.iloc[0]
 
@@ -160,7 +167,7 @@ def main(
     3) 输出替换后的表格及映射文件。
     """
     required_replace_cols = ["chrom", "pos", "id", "target_id"]
-    required_candidate_cols = required_replace_cols + ["maf"]
+    required_candidate_cols = required_replace_cols + ["maf", "priority"]
 
     replace_df = pd.read_table(replace_file)
     candidate_df = pd.read_table(candidate_file)
@@ -169,7 +176,9 @@ def main(
     _require_columns(candidate_df, required_candidate_cols, "candidate")
 
     replace_df = _prepare_df(replace_df, "replace", require_maf=False)
-    candidate_df = _prepare_df(candidate_df, "candidate", require_maf=True)
+    candidate_df = _prepare_df(
+        candidate_df, "candidate", require_maf=True, require_priority=True
+    )
 
     # 删除候选表中与待替换表重复的条目（避免自替换）
     candidate_df = candidate_df[~candidate_df["pos_id"].isin(replace_df["pos_id"])]
