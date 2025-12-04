@@ -2,11 +2,11 @@
 """
 根据距离替换 probe 的脚本。
 
-以给定窗口大小（默认 10 kb）为步长，在最大范围（默认 100 kb）内
-从候选表格中选择 maf 最高的 probe 进行替换。
+以给定窗口大小（默认 10 kb）为步长，在最大范围（默认 100 kb）内，
+优先选 priority 数值最低、其后 maf 最高的 probe 进行替换。
 
 需求点：
-1. 在最大范围内找不到替换则直接报出所有无法替换的 probe 并退出；
+1. 在最大范围内找不到替换则直接报出所有无法替换的 probe 并退出（可配置继续执行）；
 2. 替换后的 probe 不允许重复；
 3. 输出替换后的表格，并输出原始/替换位置的映射。
 """
@@ -157,14 +157,21 @@ def main(
             help="替换映射输出文件（原始/新 probe 对应关系），默认与 out_file 同目录",
         ),
     ] = None,
+    allow_missing: Annotated[
+        bool,
+        typer.Option(
+            "--allow-missing",
+            help="允许存在无法找到替换的 probe，继续生成结果并输出缺失及剩余候选表",
+        ),
+    ] = False,
 ) -> None:
     """
-    根据距离替换 probe，窗口内优先 maf 高的候选。
+    根据距离替换 probe，优先较低 priority，窗口内再看 maf 高的候选。
 
     步骤：
-    1) 检查所有需要替换的 probe 是否能在最大范围内找到候选，否则直接退出；
+    1) 检查所有需要替换的 probe 是否能在最大范围内找到候选，必要时直接退出；
     2) 按窗口优先级选取候选，保证替换后的 probe 不重复；
-    3) 输出替换后的表格及映射文件。
+    3) 输出替换后的表格及映射文件，若允许缺失则额外输出缺失列表及剩余候选表。
     """
     required_replace_cols = ["chrom", "pos", "id", "target_id"]
     required_candidate_cols = required_replace_cols + ["maf", "priority"]
@@ -193,12 +200,16 @@ def main(
     ok, missing_df = _precheck_availability(
         replace_df, candidate_df, window_bp, max_distance_bp
     )
+    no_replace_path: Optional[Path] = None
     if not ok:
+        message_prefix = "错误" if not allow_missing else "警告"
         typer.echo(
-            f"\n错误：有 {len(missing_df)} 个 probe 在 {max_distance_kb} kb 内找不到可用替换：",
+            f"\n{message_prefix}：有 {len(missing_df)} 个 probe 在 {max_distance_kb} kb 内找不到可用替换：",
             err=True,
         )
-        cols_to_show = [col for col in ["chrom", "pos", "id", "target_id", "maf"] if col in missing_df.columns]
+        cols_to_show = [
+            col for col in ["chrom", "pos", "id", "target_id", "maf"] if col in missing_df.columns
+        ]
         typer.echo(missing_df[cols_to_show].to_string(index=False), err=True)
 
         no_replace_path = out_file.parent / f"{out_file.stem}_no_replacement.tsv"
@@ -206,7 +217,10 @@ def main(
             no_replace_path, sep="\t", index=False
         )
         typer.echo(f"无法替换的 probe 已输出到: {no_replace_path}", err=True)
-        raise typer.Exit(1)
+
+        if not allow_missing:
+            raise typer.Exit(1)
+        typer.echo("允许缺失，继续生成其他结果。", err=True)
 
     # 正式替换
     used: set = set()
@@ -289,6 +303,20 @@ def main(
     mapping_df = pd.DataFrame(mapping_records)
     mapping_df.to_csv(mapping_file, sep="\t", index=False)
     typer.echo(f"替换映射已保存到: {mapping_file}")
+
+    if allow_missing:
+        remaining_path = out_file.parent / f"{out_file.stem}_remaining_candidates.tsv"
+        remaining_df = candidate_df[~candidate_df["pos_id"].isin(used)].drop(
+            columns=["pos_id"], errors="ignore"
+        )
+        remaining_df.to_csv(remaining_path, sep="\t", index=False)
+        typer.echo(f"剩余候选已输出到: {remaining_path}")
+
+        if no_replace_path is None and missing_df is not None and not missing_df.empty:
+            no_replace_path = out_file.parent / f"{out_file.stem}_no_replacement.tsv"
+            missing_df.drop(columns=["pos_id"], errors="ignore").to_csv(
+                no_replace_path, sep="\t", index=False
+            )
 
 
 if __name__ == "__main__":
