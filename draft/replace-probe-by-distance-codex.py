@@ -30,7 +30,7 @@ def _require_columns(df: pd.DataFrame, required: List[str], name: str) -> None:
         raise typer.Exit(1)
 
 
-def _prepare_df(df: pd.DataFrame, name: str) -> pd.DataFrame:
+def _prepare_df(df: pd.DataFrame, name: str, *, require_maf: bool = True) -> pd.DataFrame:
     """Cast key columns to expected types."""
     df = df.copy()
     df["chrom"] = df["chrom"].astype(str)
@@ -41,7 +41,13 @@ def _prepare_df(df: pd.DataFrame, name: str) -> pd.DataFrame:
         raise typer.Exit(1)
 
     # maf 只用于排序，无法转换时设置为 -1 以降低优先级
-    df["maf"] = pd.to_numeric(df["maf"], errors="coerce").fillna(-1.0)
+    if "maf" in df.columns:
+        df["maf"] = pd.to_numeric(df["maf"], errors="coerce").fillna(-1.0)
+    elif require_maf:
+        typer.echo(f"[{name}] 缺少必要列: maf", err=True)
+        raise typer.Exit(1)
+    else:
+        df["maf"] = -1.0
 
     df["pos_id"] = df["chrom"] + "_" + df["pos"].astype(str)
     return df
@@ -153,16 +159,17 @@ def main(
     2) 按窗口优先级选取候选，保证替换后的 probe 不重复；
     3) 输出替换后的表格及映射文件。
     """
-    required_cols = ["chrom", "pos", "id", "target_id", "maf"]
+    required_replace_cols = ["chrom", "pos", "id", "target_id"]
+    required_candidate_cols = required_replace_cols + ["maf"]
 
     replace_df = pd.read_table(replace_file)
     candidate_df = pd.read_table(candidate_file)
 
-    _require_columns(replace_df, required_cols, "replace")
-    _require_columns(candidate_df, required_cols, "candidate")
+    _require_columns(replace_df, required_replace_cols, "replace")
+    _require_columns(candidate_df, required_candidate_cols, "candidate")
 
-    replace_df = _prepare_df(replace_df, "replace")
-    candidate_df = _prepare_df(candidate_df, "candidate")
+    replace_df = _prepare_df(replace_df, "replace", require_maf=False)
+    candidate_df = _prepare_df(candidate_df, "candidate", require_maf=True)
 
     # 删除候选表中与待替换表重复的条目（避免自替换）
     candidate_df = candidate_df[~candidate_df["pos_id"].isin(replace_df["pos_id"])]
