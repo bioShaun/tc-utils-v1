@@ -81,6 +81,7 @@ def classify_snpeff_region(effect_str: str) -> str:
         "coding_sequence",
         "frameshift",
         "non_coding_transcript",
+        "intragenic_variant",
     ]
     if any(k in s for k in cds_keywords):
         return "cds"
