@@ -12,11 +12,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, List, Optional
 
-from cyvcf2 import VCF
 import typer
+from cyvcf2 import VCF
 from loguru import logger
 from tqdm import tqdm
-
 
 IMPACT_PRIORITY = ["HIGH", "MODERATE", "LOW", "MODIFIER"]
 IMPACT_RANK = {impact: rank for rank, impact in enumerate(IMPACT_PRIORITY)}
@@ -28,6 +27,7 @@ class AnnEntry:
     effect: str
     impact: str
     gene_id: str
+    region: str
     raw: str
 
 
@@ -51,14 +51,62 @@ def parse_ann(entry: str) -> Optional[AnnEntry]:
     if len(parts) < 3:
         return None
     allele, effect, impact = parts[0], parts[1], parts[2]
+    region = classify_snpeff_region(effect)
     gene_id = parts[4] if len(parts) > 4 else "."
     return AnnEntry(
         allele=allele or ".",
         effect=effect or ".",
         impact=impact or ".",
         gene_id=gene_id or ".",
+        region=region,
         raw=entry,
     )
+
+
+def classify_snpeff_region(effect_str: str) -> str:
+    """
+    根据 SnpEff effect 字符串划分 genomic region。
+    优先级：CDS > UTR > Intron > Upstream > Downstream > Intergenic
+    """
+    s = str(effect_str).lower()
+
+    # --- CDS (Coding Sequence) ---
+    # 只要涉及编码氨基酸改变或同义突变，优先归为 CDS
+    cds_keywords = [
+        "missense",
+        "synonymous",
+        "stop_",
+        "start_",
+        "initiator_codon",
+        "coding_sequence",
+        "frameshift",
+    ]
+    if any(k in s for k in cds_keywords):
+        return "cds"
+
+    # --- UTR (Untranslated Region) ---
+    if "utr" in s:
+        return "utr"
+
+    # --- Intron (Introns & Splicing) ---
+    # 注意：涉及 CDS 的 splice 变异已在第一步被归为 CDS (如 missense&splice)
+    # 剩下的 splice 变异通常发生在内含子边界
+    if "intron" in s or "splice" in s:
+        return "intron"
+
+    # --- Upstream ---
+    if "upstream" in s:
+        return "upstream"
+
+    # --- Downstream ---
+    if "downstream" in s:
+        return "downstream"
+
+    # --- Intergenic ---
+    if "intergenic" in s:
+        return "intergenic"
+
+    raise ValueError(f"Unknown effect: {s}")
 
 
 def pick_best_annotation(entries: Iterable[AnnEntry]) -> Optional[AnnEntry]:
