@@ -140,6 +140,7 @@ def extract_best_annotations(
                 "effect",
                 "impact",
                 "gene_id",
+                "genome_region",
             ]
         )
 
