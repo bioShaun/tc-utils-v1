@@ -84,6 +84,7 @@ def classify_snpeff_region(effect_str: str) -> str:
         "intragenic_variant",
         "disruptive_inframe",
         "inframe",
+        "gene_fusion",
     ]
     if any(k in s for k in cds_keywords):
         return "cds"
