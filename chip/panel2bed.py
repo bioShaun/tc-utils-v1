@@ -8,7 +8,7 @@ from typing import Iterable, Tuple
 import pandas as pd
 import typer
 
-REQUIRED_COLUMNS = ("chrom", "pos", "probe_start", "probe_end")
+REQUIRED_COLUMNS = ("chrom", "pos")
 
 
 def merge_intervals(group: pd.DataFrame, start_col: str, end_col: str) -> pd.DataFrame:
@@ -98,14 +98,36 @@ def prepare_probe_dataframe(df: pd.DataFrame, chrom_df: pd.DataFrame) -> pd.Data
     df = df.copy()
     df["chrom"] = df["chrom"].astype(str)
     df["pos"] = pd.to_numeric(df["pos"], errors="raise").astype(int)
-    df["probe_start"] = pd.to_numeric(df["probe_start"], errors="raise").astype(int)
-    df["probe_end"] = pd.to_numeric(df["probe_end"], errors="raise").astype(int)
+
+    # Bring in chromosome size to bound default probe intervals.
+    df = df.merge(chrom_df, how="left", on="chrom")
+    if df["chrom_size"].isna().any():
+        invalid = df.loc[df["chrom_size"].isna(), "chrom"].unique()
+        raise ValueError(f"缺少染色体大小: {', '.join(map(str, invalid))}")
+
+    # Use provided probe_start / probe_end when available, otherwise fallback to pos ±100.
+    fallback_start = (df["pos"] - 100).clip(lower=0)
+    fallback_end = (df["pos"] + 100).clip(upper=df["chrom_size"])
+
+    if "probe_start" in df.columns:
+        df["probe_start"] = pd.to_numeric(df["probe_start"], errors="coerce")
+        df["probe_start"] = df["probe_start"].fillna(fallback_start)
+    else:
+        df["probe_start"] = fallback_start
+
+    if "probe_end" in df.columns:
+        df["probe_end"] = pd.to_numeric(df["probe_end"], errors="coerce")
+        df["probe_end"] = df["probe_end"].fillna(fallback_end)
+    else:
+        df["probe_end"] = fallback_end
+
+    df[["probe_start", "probe_end"]] = df[["probe_start", "probe_end"]].astype(int)
     df["pos_id"] = df["chrom"].astype(str) + "_" + df["pos"].astype(str)
     df["chrom"] = pd.Categorical(
         df["chrom"], categories=chrom_df["chrom"].tolist(), ordered=True
     )
     df["pos_0"] = df["pos"] - 1
-    return df.sort_values(by=["chrom", "pos"])
+    return df.sort_values(by=["chrom", "pos"]).drop(columns=["chrom_size"])
 
 
 def write_probe_targets(df: pd.DataFrame, out_path: Path, probe_id: str) -> None:
