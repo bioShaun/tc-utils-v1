@@ -179,7 +179,7 @@ def build_flank_intervals(
     )
 
     result = (
-        merged.groupby("chrom", group_keys=True, sort=False)
+        merged.groupby("chrom", group_keys=True, sort=False, observed=False)
         .apply(
             lambda grp: merge_intervals(grp, "flank_start", "flank_end"),
             include_groups=False,
