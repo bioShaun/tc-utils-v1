@@ -1,0 +1,825 @@
+import logging
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import List, Optional, Union
+from unittest.mock import Mock, patch
+
+import concurrent.futures
+import subprocess
+import numpy as np
+import pandas as pd
+import pytest
+import typer
+from loguru import logger
+
+try:
+    import delegator  # type: ignore
+except ModuleNotFoundError:  # pragma: no cover
+    delegator = None
+
+# R	A or G
+# Y	C or T
+# S	G or C
+# W	A or T
+# K	G or T
+# M	A or C
+# B	C or G or T
+# D	A or G or T
+# H	A or C or T
+# V	A or C or G
+
+
+def IUPAC_to_ATGC(seq: str) -> str:
+    """将DNA序列转换为IUPAC码"""
+    iupac_codes = {
+        "A": "A",
+        "C": "C",
+        "G": "G",
+        "T": "T",
+        "R": "AG",
+        "Y": "CT",
+        "S": "CG",
+        "W": "AT",
+        "K": "GT",
+        "M": "AC",
+        "B": "CGT",
+        "D": "AGT",
+        "H": "ACT",
+        "V": "ACG",
+        "N": "ATCG",
+    }
+    try:
+        return "".join([iupac_codes[each.upper()][0] for each in seq])
+    except KeyError:
+        raise ValueError(f"不支持的IUPAC码: {seq}")
+
+
+def ssr_table_to_fa(
+    ssr_table: pd.DataFrame,
+    out_dir: Union[str, Path],
+    prefix: str = "ssr",
+    check_sequences: bool = True,
+) -> tuple[Path, Path]:
+    """
+    将SSR表格数据转换为FASTA格式文件
+
+    参数:
+    ssr_table: pd.DataFrame - 包含SSR数据的DataFrame，需要包含name、left、right列
+    out_dir: Union[str, Path] - 输出目录路径
+    prefix: str - 输出文件的前缀，默认为"ssr"
+    check_sequences: bool - 是否检查序列合法性
+
+    返回:
+    tuple[Path, Path] - 返回生成的左右FASTA文件路径
+    """
+    # 转换路径对象
+    out_dir = Path(out_dir)
+
+    # 检查输出目录是否存在
+    if not out_dir.exists():
+        raise FileNotFoundError(f"输出目录不存在: {out_dir}")
+
+    # 检查必需的列
+    required_columns = {"name", "left", "right"}
+    missing_columns = required_columns - set(ssr_table.columns)
+    if missing_columns:
+        raise ValueError(f"缺少必需的列: {missing_columns}")
+
+    # 设置输出文件路径
+    ssr_left_fa = out_dir / f"{prefix}.left.fa"
+    ssr_right_fa = out_dir / f"{prefix}.right.fa"
+
+    # DNA序列合法性检查函数
+    def is_valid_dna(seq: str) -> bool:
+        return all(base.upper() in "ATCGN" for base in seq)
+
+    def safe_convert_to_string(value) -> str:
+        """安全地将值转换为字符串"""
+        try:
+            if pd.isna(value):
+                return ""
+            return str(value).strip()
+        except:
+            return ""
+
+    try:
+        with ssr_left_fa.open("w") as left_fa, ssr_right_fa.open("w") as right_fa:
+            for row in ssr_table.itertuples():
+                # 安全地获取并转换序列
+                left_seq = IUPAC_to_ATGC(safe_convert_to_string(row.left))
+                right_seq = IUPAC_to_ATGC(safe_convert_to_string(row.right))
+                name = safe_convert_to_string(row.name)
+
+                # 跳过空序列
+                if not left_seq or not right_seq:
+                    logging.warning(f"跳过记录 {name}: 序列为空")
+                    continue
+
+                # 检查序列合法性
+                if check_sequences:
+                    if not (is_valid_dna(left_seq) and is_valid_dna(right_seq)):
+                        logging.warning(f"跳过记录 {name}: 包含非法碱基")
+                        continue
+
+                # 写入FASTA格式
+                left_fa.write(f">{name}\n{left_seq.upper()}\n")
+                right_fa.write(f">{name}\n{right_seq.upper()}\n")
+
+    except Exception as e:
+        logging.error(f"写入文件时发生错误: {e}")
+        raise
+
+    return ssr_left_fa, ssr_right_fa
+
+
+def kasp_table_to_fa(
+    kasp_table: pd.DataFrame,
+    out_dir: Union[str, Path],
+    prefix: str = "kasp",
+    check_sequences: bool = True,
+) -> tuple[Path, Path, Path]:
+    """
+    将KASP表格数据转换为FASTA格式文件
+
+    参数:
+    kasp_table: pd.DataFrame - 包含KASP数据的DataFrame，需要包含name、fam、vic、common列
+    out_dir: Union[str, Path] - 输出目录路径
+    prefix: str - 输出文件的前缀，默认为"kasp"
+    check_sequences: bool - 是否检查序列合法性
+
+    返回:
+    tuple[Path, Path, Path] - 返回生成的fam、vic、common FASTA文件路径
+    """
+    # 转换路径对象
+    out_dir = Path(out_dir)
+
+    # 检查输出目录是否存在
+    if not out_dir.exists():
+        raise FileNotFoundError(f"输出目录不存在: {out_dir}")
+
+    # 检查必需的列
+    required_columns = {"name", "fam", "vic", "common"}
+    missing_columns = required_columns - set(kasp_table.columns)
+    if missing_columns:
+        raise ValueError(f"缺少必需的列: {missing_columns}")
+
+    # 设置输出文件路径
+    fam_fa = out_dir / f"{prefix}.fam.fa"
+    vic_fa = out_dir / f"{prefix}.vic.fa"
+    common_fa = out_dir / f"{prefix}.common.fa"
+
+    # DNA序列合法性检查函数
+    def is_valid_dna(seq: str) -> bool:
+        return all(base.upper() in "ATCGN" for base in seq)
+
+    def safe_convert_to_string(value) -> str:
+        """安全地将值转换为字符串"""
+        try:
+            if pd.isna(value):
+                return ""
+            return str(value).strip()
+        except:
+            return ""
+
+    try:
+        with fam_fa.open("w") as fam_f, vic_fa.open("w") as vic_f, common_fa.open(
+            "w"
+        ) as common_f:
+            for row in kasp_table.itertuples():
+                # 安全地获取并转换序列
+                fam_seq = IUPAC_to_ATGC(safe_convert_to_string(row.fam))
+                vic_seq = IUPAC_to_ATGC(safe_convert_to_string(row.vic))
+                common_seq = IUPAC_to_ATGC(safe_convert_to_string(row.common))
+                name = safe_convert_to_string(row.name)
+
+                # 跳过空序列
+                if not fam_seq or not vic_seq or not common_seq:
+                    logging.warning(f"跳过记录 {name}: 序列为空")
+                    continue
+
+                # 检查序列合法性
+                if check_sequences:
+                    if not (
+                        is_valid_dna(fam_seq)
+                        and is_valid_dna(vic_seq)
+                        and is_valid_dna(common_seq)
+                    ):
+                        logging.warning(f"跳过记录 {name}: 包含非法碱基")
+                        continue
+
+                # 写入FASTA格式
+                fam_f.write(f">{name}\n{fam_seq.upper()}\n")
+                vic_f.write(f">{name}\n{vic_seq.upper()}\n")
+                common_f.write(f">{name}\n{common_seq.upper()}\n")
+
+    except Exception as e:
+        logging.error(f"写入文件时发生错误: {e}")
+        raise
+
+    return fam_fa, vic_fa, common_fa
+
+
+# Generated by Qodo Gen
+
+
+class TestSsrTableToFa:
+    # Valid SSR table with required columns converts successfully to FASTA files
+    def test_valid_ssr_table_converts_to_fasta(self, tmp_path):
+        # Prepare test data
+        data = {
+            "name": ["SSR1", "SSR2"],
+            "left": ["ATCG", "GCTA"],
+            "right": ["CGAT", "TAGC"],
+        }
+        df = pd.DataFrame(data)
+
+        # Call function
+        left_fa, right_fa = ssr_table_to_fa(df, tmp_path)
+
+        # Verify left FASTA content
+        with open(left_fa) as f:
+            left_content = f.read()
+        assert ">SSR1\nATCG\n>SSR2\nGCTA\n" == left_content
+
+        # Verify right FASTA content
+        with open(right_fa) as f:
+            right_content = f.read()
+        assert ">SSR1\nCGAT\n>SSR2\nTAGC\n" == right_content
+
+    # Handle missing required columns in input DataFrame
+    def test_missing_required_columns_raises_error(self, tmp_path):
+        # Prepare test data with missing 'right' column
+        data = {"name": ["SSR1"], "left": ["ATCG"]}
+        df = pd.DataFrame(data)
+
+        # Verify ValueError is raised with correct message
+        with pytest.raises(ValueError) as exc_info:
+            ssr_table_to_fa(df, tmp_path)
+
+        assert "缺少必需的列: {'right'}" == str(exc_info.value)
+
+
+def align_ssr_seq(
+    ssr_fa: Path, blast_db: Path, threads: int = 16, force: bool = False
+) -> Path:
+    blast_out = ssr_fa.with_suffix(".blasttab.tsv")
+    if not force and blast_out.exists():
+        return blast_out
+    blast_cmd = (
+        f"blastn -task blastn-short -dust no -soft_masking false -reward 1 -penalty -3 -gapopen 5 -gapextend 2 "
+        f"-query {ssr_fa} -db {blast_db} -outfmt 6 -out {blast_out} -num_threads {threads}"
+    )
+    if delegator is not None:
+        delegator.run(blast_cmd)
+    else:  # pragma: no cover
+        subprocess.run(blast_cmd, shell=True, check=True)
+    return blast_out
+
+
+def best_match_pos(ssr_df: pd.DataFrame) -> pd.DataFrame:
+    df = ssr_df.copy()
+    df["total_mismatch"] = df["left_mismatch"] + df["right_mismatch"]
+    df["total_gap"] = df["left_gap"] + df["right_gap"]
+    df["total_match_length"] = df["left_match_length"] + df["right_match_length"]
+    best_match_length = (
+        df.groupby(["name"])["total_match_length"].max().reset_index().merge(df)
+    )
+    best_gap = (
+        best_match_length.groupby(["name"])["total_gap"]
+        .min()
+        .reset_index()
+        .merge(best_match_length)
+    )
+    best_mismatch = (
+        best_gap.groupby(["name"])["total_mismatch"].min().reset_index().merge(best_gap)
+    )
+    return best_mismatch
+
+
+@dataclass
+class BlastConfig:
+    """BLAST配置参数"""
+
+    max_distance: int = 1000
+    blast_columns: List[int] = field(
+        default_factory=lambda: [0, 1, 3, 4, 5, 6, 7, 8, 9]
+    )
+
+
+class BlastProcessor:
+    def __init__(self, config: Optional[BlastConfig] = None):
+        self.config = config or BlastConfig()
+
+    def load_blast_df(self, blast_out: Path, prefix: str) -> pd.DataFrame:
+        """
+        加载并处理BLAST输出文件
+
+        参数:
+        blast_out: Path - BLAST输出文件路径
+        prefix: str - 列名前缀
+
+        返回:
+        pd.DataFrame - 处理后的DataFrame
+        """
+        try:
+            # 读取BLAST输出文件（outfmt 6），优先按列索引读取后再重命名，
+            # 以兼容自定义 usecols（例如只读取 sstart/send）。
+            blast_df = pd.read_table(blast_out, header=None, usecols=self.config.blast_columns)
+
+            column_name_by_index = {
+                0: "name",
+                1: "chrom",
+                3: f"{prefix}_match_length",
+                4: f"{prefix}_mismatch",
+                5: f"{prefix}_gap",
+                6: f"{prefix}_query_start",
+                7: f"{prefix}_query_end",
+                8: f"{prefix}_start",
+                9: f"{prefix}_end",
+            }
+            blast_df = blast_df.rename(
+                columns={
+                    idx: col_name
+                    for idx, col_name in column_name_by_index.items()
+                    if idx in blast_df.columns
+                }
+            )
+
+            required_cols = {"name", "chrom", f"{prefix}_start", f"{prefix}_end"}
+            missing_cols = required_cols - set(blast_df.columns)
+            if missing_cols:
+                raise ValueError(f"BLAST输出缺少必需列 {missing_cols}: {blast_out}")
+
+            # 验证数据
+            if blast_df.empty:
+                raise ValueError(f"BLAST输出文件为空: {blast_out}")
+
+            # 使用向量化操作计算位置和链方向
+            blast_df[f"{prefix}_pos"] = (
+                blast_df[f"{prefix}_start"] + blast_df[f"{prefix}_end"]
+            ) // 2
+
+            blast_df[f"{prefix}_strand"] = np.where(
+                blast_df[f"{prefix}_start"] > blast_df[f"{prefix}_end"], "-", "+"
+            )
+
+            return blast_df
+
+        except Exception as e:
+            logger.error(f"处理BLAST文件时出错 {blast_out}: {str(e)}")
+            raise
+
+    @staticmethod
+    def calculate_ssr_positions(df: pd.DataFrame) -> pd.DataFrame:
+        """
+        计算SSR位置（向量化操作）
+        """
+        is_forward = df["left_pos"] < df["right_pos"]
+
+        df["ssr_left"] = np.where(
+            is_forward,
+            df[["left_start", "left_end"]].min(axis=1),
+            df[["right_start", "right_end"]].min(axis=1),
+        )
+
+        df["ssr_right"] = np.where(
+            is_forward,
+            df[["right_start", "right_end"]].max(axis=1),
+            df[["left_start", "left_end"]].max(axis=1),
+        )
+
+        return df
+
+    def process_blast_results(
+        self, left_blast_out: Path, right_blast_out: Path
+    ) -> pd.DataFrame:
+        """
+        处理两端BLAST结果并提取SSR位置
+
+        参数:
+        left_blast_out: Path - 左端BLAST结果文件
+        right_blast_out: Path - 右端BLAST结果文件
+
+        返回:
+        pd.DataFrame - 包含SSR位置信息的DataFrame
+        """
+        try:
+            # 加载BLAST结果
+            blast_left = self.load_blast_df(left_blast_out, "left")
+            blast_right = self.load_blast_df(right_blast_out, "right")
+
+            # 合并结果
+            merged_df = blast_left.merge(blast_right, on=["name", "chrom"], how="inner")
+
+            # 计算距离
+            merged_df["distance"] = abs(merged_df["left_pos"] - merged_df["right_pos"])
+
+            # 应用过滤条件
+            valid_pairs = (merged_df["left_strand"] != merged_df["right_strand"]) & (
+                merged_df["distance"] < self.config.max_distance
+            )
+
+            if not valid_pairs.any():
+                logger.warning("没有找到符合条件的SSR位置")
+                return pd.DataFrame()
+
+            # 提取有效数据并计算SSR位置
+            result_df = merged_df[valid_pairs].copy()
+            result_df = self.calculate_ssr_positions(result_df)
+
+            # 添加额外信息
+            result_df["ssr_length"] = result_df["ssr_right"] - result_df["ssr_left"]
+
+            return result_df
+
+        except Exception as e:
+            logger.error(f"处理BLAST结果时出错: {str(e)}")
+            raise
+
+
+@pytest.fixture
+def blast_config():
+    """创建测试配置"""
+    # BLAST输出的标准格式通常有12列，我们使用qseqid(0), sseqid(1), sstart(8), send(9)
+    return BlastConfig(max_distance=1000, blast_columns=[0, 1, 8, 9])
+
+
+@pytest.fixture
+def sample_blast_content():
+    """
+    生成模拟的BLAST输出内容
+    列的含义：
+    qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore
+    """
+    return (
+        "seq1\tchr1\t98.00\t100\t2\t0\t1\t100\t100\t200\t1e-50\t200.0\n"
+        "seq2\tchr1\t97.50\t100\t2\t1\t1\t100\t300\t200\t1e-48\t195.0\n"
+        "seq3\tchr2\t99.00\t100\t1\t0\t1\t100\t400\t500\t1e-52\t210.0\n"
+    )
+
+
+@pytest.fixture
+def sample_blast_pairs():
+    """
+    生成配对的BLAST输出内容
+    确保左右引物在合适距离内且在互补链上
+    """
+    # 生成三对有效的SSR引物配对
+    left_data = (
+        # qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore
+        "primer1\tchr1\t98.00\t100\t2\t0\t1\t100\t100\t150\t1e-50\t200.0\n"
+        "primer2\tchr1\t97.50\t100\t2\t1\t1\t100\t500\t600\t1e-48\t195.0\n"
+        "primer3\tchr2\t99.00\t100\t1\t0\t1\t100\t800\t900\t1e-52\t210.0\n"
+    )
+
+    right_data = (
+        # 对应的右引物，确保在合适距离内且在对应链上
+        "primer1\tchr1\t98.00\t100\t2\t0\t1\t100\t300\t200\t1e-50\t200.0\n"
+        "primer2\tchr1\t97.50\t100\t2\t1\t1\t100\t700\t650\t1e-48\t195.0\n"
+        "primer3\tchr2\t99.00\t100\t1\t0\t1\t100\t1000\t920\t1e-52\t210.0\n"
+    )
+
+    return left_data, right_data
+
+
+@pytest.fixture
+def blast_processor(blast_config):
+    """创建BlastProcessor实例"""
+    return BlastProcessor(config=blast_config)
+
+
+class TestBlastConfig:
+    """测试BlastConfig类"""
+
+    def test_default_values(self):
+        """测试默认配置值"""
+        config = BlastConfig()
+        assert config.max_distance == 1000
+        assert config.blast_columns == [0, 1, 8, 9]
+
+    def test_custom_values(self):
+        """测试自定义配置值"""
+        config = BlastConfig(max_distance=2000, blast_columns=[0, 1, 6, 7])
+        assert config.max_distance == 2000
+        assert config.blast_columns == [0, 1, 6, 7]
+
+
+class TestBlastProcessor:
+    """测试BlastProcessor类"""
+
+    def test_load_blast_df(self, blast_processor, tmp_path, sample_blast_content):
+        """测试BLAST文件加载"""
+        # 创建测试文件
+        blast_file = tmp_path / "test_blast.out"
+        blast_file.write_text(sample_blast_content)
+
+        # 加载数据
+        result = blast_processor.load_blast_df(blast_file, "left")
+
+        # 验证结果
+        assert len(result) == 3
+        assert list(result.columns) == [
+            "name",
+            "chrom",
+            "left_start",
+            "left_end",
+            "left_pos",
+            "left_strand",
+        ]
+
+        # 验证第一行数据
+        first_row = result.iloc[0]
+        assert first_row["name"] == "seq1"
+        assert first_row["chrom"] == "chr1"
+        assert first_row["left_start"] == 100
+        assert first_row["left_end"] == 200
+        assert first_row["left_pos"] == 150  # (100 + 200) // 2
+        assert first_row["left_strand"] == "+"
+
+    def test_load_blast_df_empty_file(self, blast_processor, tmp_path):
+        """测试空文件处理"""
+        empty_file = tmp_path / "empty_blast.out"
+        empty_file.write_text("")
+
+        with pytest.raises(ValueError, match="BLAST输出文件为空"):
+            blast_processor.load_blast_df(empty_file, "left")
+
+    def test_calculate_ssr_positions(self, blast_processor):
+        """测试SSR位置计算"""
+        test_df = pd.DataFrame(
+            {
+                "name": ["seq1", "seq2"],
+                "chrom": ["chr1", "chr1"],
+                "left_pos": [100, 300],
+                "right_pos": [200, 200],
+                "left_start": [90, 310],
+                "left_end": [110, 290],
+                "right_start": [190, 190],
+                "right_end": [210, 210],
+                "left_strand": ["+", "+"],
+                "right_strand": ["-", "-"],
+            }
+        )
+
+        result = blast_processor.calculate_ssr_positions(test_df)
+
+        # 测试正向情况
+        assert result.iloc[0]["ssr_left"] == 110
+        assert result.iloc[0]["ssr_right"] == 190
+
+        # 测试反向情况
+        assert result.iloc[1]["ssr_left"] == 210
+        assert result.iloc[1]["ssr_right"] == 290
+
+    def test_process_blast_results_integration(
+        self, blast_processor, tmp_path, sample_blast_pairs
+    ):
+        """集成测试：完整的BLAST结果处理流程"""
+        left_data, right_data = sample_blast_pairs
+
+        # 创建测试文件
+        left_file = tmp_path / "left_blast.out"
+        right_file = tmp_path / "right_blast.out"
+
+        # 写入测试数据
+        left_file.write_text(left_data)
+        right_file.write_text(right_data)
+
+        # 处理BLAST结果
+        result = blast_processor.process_blast_results(left_file, right_file)
+
+        # 验证结果
+        print(result)
+        print(left_file)
+        assert not result.empty, "结果不应为空"
+
+        # 验证结果包含预期的列
+        expected_columns = {
+            "name",
+            "chrom",
+            "left_start",
+            "left_end",
+            "left_pos",
+            "left_strand",
+            "right_start",
+            "right_end",
+            "right_pos",
+            "right_strand",
+            "distance",
+            "ssr_left",
+            "ssr_right",
+            "ssr_length",
+        }
+        assert all(col in result.columns for col in expected_columns)
+
+        # 验证第一对引物的结果
+        first_pair = result.iloc[0]
+        assert first_pair["chrom"] == "chr1"
+        assert first_pair["left_strand"] != first_pair["right_strand"]  # 确保在互补链上
+        assert (
+            0 < first_pair["distance"] < blast_processor.config.max_distance
+        )  # 确保距离合适
+
+        # 验证所有配对的基本要求
+        assert all(
+            result["left_strand"] != result["right_strand"]
+        )  # 所有配对都在互补链上
+        assert all(
+            result["distance"] < blast_processor.config.max_distance
+        )  # 所有距离都在允许范围内
+        print(result)
+        assert all(result["ssr_length"] > 0)  # SSR长度应该为正值
+
+    def test_process_blast_results_no_valid_pairs(self, blast_processor, tmp_path):
+        """测试没有有效配对的情况"""
+        # 创建测试数据：距离太大的配对
+        invalid_data = (
+            "seq1\tchr1\t98.00\t100\t2\t0\t1\t100\t100\t200\t1e-50\t200.0\n"
+            "seq1\tchr1\t97.50\t100\t2\t1\t1\t100\t2000\t2100\t1e-48\t195.0\n"
+        )
+
+        left_file = tmp_path / "left_invalid.out"
+        right_file = tmp_path / "right_invalid.out"
+
+        left_file.write_text(invalid_data)
+        right_file.write_text(invalid_data)
+
+        result = blast_processor.process_blast_results(left_file, right_file)
+        assert result.empty
+
+    @pytest.mark.parametrize(
+        "error_type,error_message",
+        [
+            (ValueError, "Invalid file format"),
+            (FileNotFoundError, "File not found"),
+            (pd.errors.EmptyDataError, "Empty file"),
+        ],
+    )
+    def test_error_handling(self, blast_processor, error_type, error_message):
+        """测试错误处理"""
+        with patch("pandas.read_table") as mock_read:
+            mock_read.side_effect = error_type(error_message)
+            with pytest.raises(error_type):
+                blast_processor.load_blast_df(Mock(), "left")
+
+
+def main(
+    ssr_table: Path,
+    blast_db: Path,
+    out_dir: Path,
+    threads: int = 16,
+    force: bool = False,
+    max_mismatch: int = 3,
+) -> None:
+    """Generate KASP primer positions from KASP table and blast database.
+
+    Args:
+        ssr_table (Path): Input KASP table. Must contain name, fam, vic, and common columns.
+        blast_db (Path): Path to blast database.
+        out_dir (Path): Output directory.
+        threads (int, optional): Number of threads to use. Defaults to 16.
+        force (bool, optional): Force re-run blast even if output exists. Defaults to False.
+        max_mismatch (int, optional): Maximum allowed mismatches for primers. Defaults to 3.
+    """
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    # Read KASP table
+    df = pd.read_table(ssr_table, header=None, names=["name", "fam", "vic", "common"])
+    df["fam_length"] = df["fam"].str.len()
+    df["vic_length"] = df["vic"].str.len()
+    df["common_length"] = df["common"].str.len()
+
+    # Generate fa files for fam, vic, and common primers
+    fam_fa, vic_fa, common_fa = kasp_table_to_fa(df, out_dir)
+
+    # Perform blast alignment for all three primers
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        futures = {
+            executor.submit(align_ssr_seq, fam_fa, blast_db, threads, force): "fam",
+            executor.submit(align_ssr_seq, vic_fa, blast_db, threads, force): "vic",
+            executor.submit(
+                align_ssr_seq, common_fa, blast_db, threads, force
+            ): "common",
+        }
+        results = {}
+        for future in concurrent.futures.as_completed(futures):
+            key = futures[future]
+            try:
+                results[key] = future.result()
+            except Exception as exc:
+                logger.error(f"{key} blast failed: {exc}")
+                raise
+
+    fam_blast_out = results["fam"]
+    vic_blast_out = results["vic"]
+    common_blast_out = results["common"]
+
+    # Load all three blast results
+    processor = BlastProcessor()
+    fam_blast = processor.load_blast_df(fam_blast_out, "fam")
+    vic_blast = processor.load_blast_df(vic_blast_out, "vic")
+    common_blast = processor.load_blast_df(common_blast_out, "common")
+
+    # Merge FAM with Common on same chromosome
+    fam_common = fam_blast.merge(
+        common_blast, on=["name", "chrom"], how="inner", suffixes=("_fam", "_common")
+    )
+    fam_common["fam_common_distance"] = abs(
+        fam_common["fam_pos"] - fam_common["common_pos"]
+    )
+    
+    # Add fam length for filtering
+    fam_common = fam_common.merge(
+        df[["name", "fam_length"]], on="name", how="left"
+    )
+
+    # Filter by strand, distance, and match quality
+    # Require at least 80% of the primer length to be matched
+    # AND the 3' end must be anchored (qend close to length) to ensure SNP specificity
+    fam_common = fam_common[
+        (fam_common["fam_strand"] != fam_common["common_strand"])
+        & (fam_common["fam_common_distance"] < processor.config.max_distance)
+        & (fam_common["fam_match_length"] >= fam_common["fam_length"] * 0.8)
+        & (fam_common["fam_query_end"] >= fam_common["fam_length"] - 1)
+        & (fam_common["fam_mismatch"] <= max_mismatch)
+        & (fam_common["common_mismatch"] <= max_mismatch)
+    ].copy()
+
+    # Merge VIC with Common on same chromosome
+    vic_common = vic_blast.merge(
+        common_blast, on=["name", "chrom"], how="inner", suffixes=("_vic", "_common")
+    )
+    vic_common["vic_common_distance"] = abs(
+        vic_common["vic_pos"] - vic_common["common_pos"]
+    )
+
+    # Add vic length for filtering
+    vic_common = vic_common.merge(
+        df[["name", "vic_length"]], on="name", how="left"
+    )
+
+    # Filter by strand, distance, and match quality
+    # Require at least 80% of the primer length to be matched
+    # AND the 3' end must be anchored (qend close to length) to ensure SNP specificity
+    vic_common = vic_common[
+        (vic_common["vic_strand"] != vic_common["common_strand"])
+        & (vic_common["vic_common_distance"] < processor.config.max_distance)
+        & (vic_common["vic_match_length"] >= vic_common["vic_length"] * 0.8)
+        & (vic_common["vic_query_end"] >= vic_common["vic_length"] - 1)
+        & (vic_common["vic_mismatch"] <= max_mismatch)
+        & (vic_common["common_mismatch"] <= max_mismatch)
+    ].copy()
+
+    # Merge FAM and VIC results on the same Common primer position
+    # This ensures FAM and VIC are paired with the same Common primer location
+    kasp_result = fam_common.merge(
+        vic_common,
+        on=[
+            "name",
+            "chrom",
+            "common_start",
+            "common_end",
+            "common_pos",
+            "common_strand",
+        ],
+        how="inner",
+        suffixes=("", "_vic"),
+    )
+
+    # Calculate SNP position using the 'end' column from BLAST.
+    # In BLAST output (fmt 6), 'send' (mapped to _end here) always corresponds to 'qend'.
+    # Since qend is the 3' end of the primer (highest coordinate in query),
+    # 'send' is the genomic coordinate of the SNP.
+    kasp_result["fam_snp_pos"] = kasp_result["fam_end"]
+    kasp_result["vic_snp_pos"] = kasp_result["vic_end"]
+
+    # Ensure FAM and VIC point to the same SNP (allow 1bp diff for potential indels/clipping)
+    kasp_result = kasp_result[
+        abs(kasp_result["fam_snp_pos"] - kasp_result["vic_snp_pos"]) <= 1
+    ].copy()
+
+    # Use FAM primer's position as the canonical SNP position
+    kasp_result["snp_pos"] = kasp_result["fam_snp_pos"]
+
+    # Calculate primer span
+    kasp_result["primer_span"] = kasp_result[
+        ["fam_start", "fam_end", "vic_start", "vic_end", "common_start", "common_end"]
+    ].max(axis=1) - kasp_result[
+        ["fam_start", "fam_end", "vic_start", "vic_end", "common_start", "common_end"]
+    ].min(
+        axis=1
+    )
+
+    # Merge with original data
+    kasp_result = df.merge(kasp_result, on="name", how="left")
+
+    # Save result to file
+    kasp_out = ssr_table.with_suffix(".pos.tsv")
+    kasp_result.to_csv(kasp_out, index=False, sep="\t")
+
+    logger.info(f"KASP引物比对结果已保存到: {kasp_out}")
+    logger.info(f"成功配对的KASP引物数量: {kasp_result['chrom'].notna().sum()}")
+
+
+if __name__ == "__main__":
+    typer.run(main)
