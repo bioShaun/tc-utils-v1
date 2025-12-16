@@ -126,7 +126,7 @@ def one_month_stats(df: pl.DataFrame) -> pl.DataFrame:
     return monthly_stats
 
 
-def main(stats_dir: Path, summary_filename: Path, prefix: Optional[str] = None):
+def main(stats_dir: Path, summary_filename: Path, prefix: Optional[list[str]] = None):
     """Main function to process all zip files in a directory and generate a summary CSV."""
     if not stats_dir.exists():
         logger.error(f"错误：找不到目录 '{stats_dir}'。")
@@ -134,10 +134,16 @@ def main(stats_dir: Path, summary_filename: Path, prefix: Optional[str] = None):
 
     stats_df_list = []
     # Iterate over all .zip files in the specified directory
-    if prefix is None:
-        stats_files = stats_dir.glob("*.zip")
+    if prefix is None or len(prefix) == 0:
+        stats_files = list(stats_dir.glob("*.zip"))
     else:
-        stats_files = stats_dir.glob(f"*{prefix}*zip")
+        # Find files matching any of the prefixes
+        stats_files = []
+        for p in prefix:
+            stats_files.extend(stats_dir.glob(f"*{p}*.zip"))
+        # Remove duplicates while preserving order
+        stats_files = list(dict.fromkeys(stats_files))
+
     for file_i in stats_files:
         logger.info(f"正在处理文件 {file_i}")
         df = load_one_month_data(file_i)
