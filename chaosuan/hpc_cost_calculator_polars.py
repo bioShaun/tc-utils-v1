@@ -126,7 +126,13 @@ def one_month_stats(df: pl.DataFrame) -> pl.DataFrame:
     return monthly_stats
 
 
-def main(stats_dir: Path, summary_filename: Path, prefix: Optional[list[str]] = None):
+def main(
+    stats_dir: Path,
+    summary_filename: Path,
+    prefix: Optional[list[str]] = typer.Option(
+        None, help="文件名前缀过滤器，可以指定多个。例如: --prefix abc --prefix xyz"
+    ),
+):
     """Main function to process all zip files in a directory and generate a summary CSV."""
     if not stats_dir.exists():
         logger.error(f"错误：找不到目录 '{stats_dir}'。")
