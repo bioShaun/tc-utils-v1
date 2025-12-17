@@ -790,8 +790,21 @@ def main(
     # In BLAST output (fmt 6), 'send' (mapped to _end here) always corresponds to 'qend'.
     # Since qend is the 3' end of the primer (highest coordinate in query),
     # 'send' is the genomic coordinate of the SNP.
-    kasp_result["fam_snp_pos"] = kasp_result["fam_end"]
-    kasp_result["vic_snp_pos"] = kasp_result["vic_end"]
+    # We extrapolate to the primer 3' end in case of clipped alignments to get the true SNP position
+    kasp_result["fam_snp_pos"] = np.where(
+        kasp_result["fam_strand"] == "+",
+        kasp_result["fam_end"]
+        + (kasp_result["fam_length"] - kasp_result["fam_query_end"]),
+        kasp_result["fam_end"]
+        - (kasp_result["fam_length"] - kasp_result["fam_query_end"]),
+    )
+    kasp_result["vic_snp_pos"] = np.where(
+        kasp_result["vic_strand"] == "+",
+        kasp_result["vic_end"]
+        + (kasp_result["vic_length"] - kasp_result["vic_query_end"]),
+        kasp_result["vic_end"]
+        - (kasp_result["vic_length"] - kasp_result["vic_query_end"]),
+    )
 
     # Ensure FAM and VIC point to the same SNP (allow 1bp diff for potential indels/clipping)
     kasp_result = kasp_result[

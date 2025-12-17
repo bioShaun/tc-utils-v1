@@ -183,6 +183,42 @@ def test_main_generates_pos_table(tmp_path, align_kasp_module, monkeypatch):
     assert int(result.loc[0, "snp_pos"]) == 109
 
 
+def test_main_extrapolates_snp_pos_for_clipped_alignment(tmp_path, align_kasp_module, monkeypatch):
+    kasp_in = tmp_path / "kasp.tsv"
+    kasp_in.write_text("m1\tAAAAAAAAAA\tCCCCCCCCCC\tGGGGGGGGGG\n")
+    out_dir = tmp_path / "out"
+    blast_db = tmp_path / "blast_db"
+    blast_db.write_text("fake-db")
+
+    def fake_align_ssr_seq(
+        ssr_fa: Path, _blast_db: Path, threads: int = 1, force: bool = False
+    ):
+        blast_out = ssr_fa.with_suffix(".blasttab.tsv")
+        if ".fam." in ssr_fa.name:
+            # qend=9 (10-mer primer clipped by 1bp at 3'), so true SNP pos should be send+1
+            blast_out.write_text(
+                "m1\tchr1\t100\t9\t0\t0\t1\t9\t100\t108\t1e-10\t50\n"
+            )
+        elif ".vic." in ssr_fa.name:
+            blast_out.write_text(
+                "m1\tchr1\t100\t9\t0\t0\t1\t9\t100\t108\t1e-10\t50\n"
+            )
+        else:
+            # common on reverse strand to satisfy strand filter
+            blast_out.write_text(
+                "m1\tchr1\t100\t10\t0\t0\t1\t10\t160\t151\t1e-10\t50\n"
+            )
+        return blast_out
+
+    monkeypatch.setattr(align_kasp_module, "align_ssr_seq", fake_align_ssr_seq)
+
+    align_kasp_module.main(kasp_in, blast_db, out_dir, threads=1, force=True)
+
+    pos_out = kasp_in.with_suffix(".pos.tsv")
+    result = pd.read_table(pos_out)
+    assert int(result.loc[0, "snp_pos"]) == 109
+
+
 def test_main_respects_max_mismatch_filter(tmp_path, align_kasp_module, monkeypatch):
     kasp_in = tmp_path / "kasp.tsv"
     kasp_in.write_text("m1\tAAAAAAAAAA\tCCCCCCCCCC\tGGGGGGGGGG\n")
