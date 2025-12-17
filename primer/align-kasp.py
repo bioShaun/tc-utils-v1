@@ -830,7 +830,45 @@ def main(
     kasp_out = ssr_table.with_suffix(".pos.tsv")
     kasp_result.to_csv(kasp_out, index=False, sep="\t")
 
+    # Save simplified result
+    # Create a temporary DataFrame for simplified output to avoid modifying kasp_result
+    simple_df = kasp_result.copy()
+
+    # Prepare merged columns for fam/vic start/end
+    def format_merge_fv(df_temp, c1, c2):
+        s1 = df_temp[c1].fillna(-1).astype(int).astype(str).replace("-1", "")
+        s2 = df_temp[c2].fillna(-1).astype(int).astype(str).replace("-1", "")
+        return np.where((s1 == s2) | (s2 == ""), s1, s1 + "/" + s2)
+
+    simple_df["fam_vic_start"] = format_merge_fv(simple_df, "fam_start", "vic_start")
+    simple_df["fam_vic_end"] = format_merge_fv(simple_df, "fam_end", "vic_end")
+
+    # Format common start/end columns to avoid .0
+    for col in ["common_start", "common_end"]:
+        simple_df[col] = (
+            simple_df[col].fillna(-1).astype(int).astype(str).replace("-1", "")
+        )
+
+    simple_cols_final = [
+        "name",
+        "chrom",
+        "snp_pos",
+        "primer_span",
+        "fam_vic_start",
+        "fam_vic_end",
+        "common_start",
+        "common_end",
+        "fam_mismatch",
+        "vic_mismatch",
+        "common_mismatch",
+    ]
+    # Check if columns exist (just in case)
+    available_cols = [c for c in simple_cols_final if c in simple_df.columns]
+    simple_out = ssr_table.with_suffix(".simple.xlsx")
+    simple_df[available_cols].to_excel(simple_out, index=False)
+
     logger.info(f"KASP引物比对结果已保存到: {kasp_out}")
+    logger.info(f"简化结果已保存到: {simple_out}")
     logger.info(f"成功配对的KASP引物数量: {kasp_result['chrom'].notna().sum()}")
 
 
