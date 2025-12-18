@@ -48,6 +48,7 @@ def read_table_b_lazy(path: str, separator: str, has_header: bool) -> pl.LazyFra
     Read Table B lazily.
     Expected columns: chrom, pos, refer, alt, type, impact, gene, transcript, exon_rank, cds_pos, protein_pos
     Note: exon_rank and protein_pos may be missing in some rows.
+    Note: chrom in Table B is like 'Chr1A', will be converted to '1A' to match Table A.
     """
     column_names = [
         "chrom",
@@ -79,9 +80,9 @@ def read_table_b_lazy(path: str, separator: str, has_header: bool) -> pl.LazyFra
             low_memory=True,
         )
 
-    # Select columns, handling missing ones with allow_missing=True
+    # Select columns and normalize chrom format (Chr1A -> 1A)
     return lf.select(
-        pl.col("chrom"),
+        pl.col("chrom").str.replace("^Chr", ""),
         pl.col("pos").cast(pl.Int64),
         pl.col("refer"),
         pl.col("alt"),
