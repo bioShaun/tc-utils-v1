@@ -47,6 +47,7 @@ def read_table_b_lazy(path: str, separator: str, has_header: bool) -> pl.LazyFra
     """
     Read Table B lazily.
     Expected columns: chrom, pos, refer, alt, type, impact, gene, transcript, exon_rank, cds_pos, protein_pos
+    Note: exon_rank and protein_pos may be missing in some rows.
     """
     column_names = [
         "chrom",
@@ -78,21 +79,19 @@ def read_table_b_lazy(path: str, separator: str, has_header: bool) -> pl.LazyFra
             low_memory=True,
         )
 
-    # Select and cast columns
+    # Select columns, handling missing ones with allow_missing=True
     return lf.select(
-        [
-            pl.col("chrom"),
-            pl.col("pos").cast(pl.Int64),
-            pl.col("refer"),
-            pl.col("alt"),
-            pl.col("type"),
-            pl.col("impact"),
-            pl.col("gene"),
-            pl.col("transcript"),
-            pl.col("exon_rank"),
-            pl.col("cds_pos"),
-            pl.col("protein_pos"),
-        ]
+        pl.col("chrom"),
+        pl.col("pos").cast(pl.Int64),
+        pl.col("refer"),
+        pl.col("alt"),
+        pl.col("type"),
+        pl.col("impact"),
+        pl.col("gene"),
+        pl.col("transcript"),
+        pl.col("exon_rank").fill_null(""),
+        pl.col("cds_pos"),
+        pl.col("protein_pos").fill_null(""),
     )
 
 
@@ -150,11 +149,11 @@ def main(
     ] = False,
     sep_a: Annotated[
         str,
-        typer.Option("--sep-a", help="Separator for Table A"),
+        typer.Option("--sep-a", help="Separator for Table A", show_default="tab"),
     ] = "\t",
     sep_b: Annotated[
         str,
-        typer.Option("--sep-b", help="Separator for Table B"),
+        typer.Option("--sep-b", help="Separator for Table B", show_default="tab"),
     ] = "\t",
 ):
     """Merge Table A and Table B on variant keys (chrom, pos, refer, alt)."""
