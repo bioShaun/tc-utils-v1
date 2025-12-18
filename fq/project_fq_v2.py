@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 FASTQ文件处理和合并工具 v2.0
 
@@ -23,21 +22,18 @@ FASTQ文件处理和合并工具 v2.0
 from __future__ import annotations
 
 import subprocess
-from abc import ABC, abstractmethod
+from collections.abc import Iterable, Iterator
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from enum import StrEnum, auto
 from itertools import chain
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated, Iterator, NamedTuple, Protocol, Self
+from typing import Annotated, NamedTuple, Self, cast
 
 import pandas as pd
 import typer
 from loguru import logger
 from tqdm import tqdm
-
-if TYPE_CHECKING:
-    from collections.abc import Iterable
 
 __version__ = "2.0"
 
@@ -54,6 +50,7 @@ class Config:
 
     遵循单一职责原则：只负责配置参数的存储和访问
     """
+
     # 路径配置
     base_dir: Path = Path("/public/home/zxchen/data_trans")
     log_file: Path = Path("project_fq.log")
@@ -62,26 +59,30 @@ class Config:
     fastq_extensions: tuple[str, ...] = ("*.fastq.gz", "*.fq.gz")
 
     # 读取类型模式映射
-    read_type_patterns: dict[str, str] = field(default_factory=lambda: {
-        "combined_R1.fastq.gz": "R1",
-        "combined_R2.fastq.gz": "R2",
-        "_R1.fastq.gz": "R1",
-        "_R2.fastq.gz": "R2",
-        "_1.fastq.gz": "R1",
-        "_2.fastq.gz": "R2",
-    })
+    read_type_patterns: dict[str, str] = field(
+        default_factory=lambda: {
+            "combined_R1.fastq.gz": "R1",
+            "combined_R2.fastq.gz": "R2",
+            "_R1.fastq.gz": "R1",
+            "_R2.fastq.gz": "R2",
+            "_1.fastq.gz": "R1",
+            "_2.fastq.gz": "R2",
+        }
+    )
 
     # 必需的列名
     required_sample_cols: frozenset[str] = frozenset({"libid", "sample_id", "dir_name"})
     required_config_cols: frozenset[str] = frozenset({"libid", "read_type", "path"})
 
     # 样本信息文件列映射
-    sample_info_columns: dict[str, int] = field(default_factory=lambda: {
-        "sample_id": 1,
-        "data_size": 2,
-        "dir_name": 3,
-        "libid": 5,
-    })
+    sample_info_columns: dict[str, int] = field(
+        default_factory=lambda: {
+            "sample_id": 1,
+            "data_size": 2,
+            "dir_name": 3,
+            "libid": 5,
+        }
+    )
 
     # 默认参数
     default_threads: int = 8
@@ -106,6 +107,7 @@ DEFAULT_CONFIG = Config()
 
 class FastqErrorType(StrEnum):
     """FASTQ文件错误类型"""
+
     DUPLICATED = auto()
     INCOMPLETE = auto()
     FORMAT = auto()
@@ -115,6 +117,7 @@ class FastqErrorType(StrEnum):
 
 class DataMode(StrEnum):
     """数据处理模式"""
+
     CP = "cp"
     LINK = "link"
 
@@ -143,6 +146,7 @@ class ValidationError(Exception):
 
 class FastqInfo(NamedTuple):
     """FASTQ文件信息 - 不可变数据结构"""
+
     libid: str
     read_type: str
     path: str
@@ -150,6 +154,7 @@ class FastqInfo(NamedTuple):
 
 class LineTrack(NamedTuple):
     """目录跟踪信息 - 不可变数据结构"""
+
     line: str
     lib_dir: str
     line_path: str
@@ -158,6 +163,7 @@ class LineTrack(NamedTuple):
 @dataclass(frozen=True, slots=True)
 class FastqError:
     """FASTQ文件错误记录 - 不可变数据结构"""
+
     name: str
     error_type: FastqErrorType
     message: str
@@ -181,6 +187,7 @@ class ErrorRecorder:
     遵循单一职责原则：只负责错误的记录和输出
     支持迭代协议和布尔判断
     """
+
     _items: list[FastqError] = field(default_factory=list)
 
     def record(self, name: str, error_type: FastqErrorType, message: str) -> Self:
@@ -219,6 +226,7 @@ class PathResolver:
 
     遵循单一职责原则：只负责路径的加载、验证和匹配
     """
+
     include_paths: frozenset[Path] = field(default_factory=frozenset)
     exclude_paths: frozenset[Path] = field(default_factory=frozenset)
 
@@ -263,9 +271,7 @@ class PathResolver:
     def is_excluded(self, path: Path) -> bool:
         """检查路径是否被排除"""
         resolved = path.resolve()
-        return resolved in self.exclude_paths or any(
-            resolved.is_relative_to(p) for p in self.exclude_paths
-        )
+        return resolved in self.exclude_paths or any(resolved.is_relative_to(p) for p in self.exclude_paths)
 
     def find_target_dirs(
         self,
@@ -287,10 +293,7 @@ class PathResolver:
 
         # 添加include路径中的目录
         for inc_path in self.include_paths:
-            targets.extend(
-                c.resolve() for c in inc_path.glob("*")
-                if c.is_dir() and c.resolve() not in targets
-            )
+            targets.extend(c.resolve() for c in inc_path.glob("*") if c.is_dir() and c.resolve() not in targets)
 
         return targets
 
@@ -322,9 +325,7 @@ class FastqScanner:
 
         if not fastqs:
             logger.warning(f"在 {sample_path} 中未找到FASTQ文件")
-            self.errors.record(
-                lib_id, FastqErrorType.INCOMPLETE, f"未找到FASTQ文件 {sample_path}"
-            )
+            self.errors.record(lib_id, FastqErrorType.INCOMPLETE, f"未找到FASTQ文件 {sample_path}")
             return []
 
         results = []
@@ -333,18 +334,14 @@ class FastqScanner:
                 results.append(FastqInfo(lib_id, read_type, str(fq.absolute())))
             else:
                 logger.warning(f"无法识别的FASTQ文件: {fq.name}")
-                self.errors.record(
-                    lib_id, FastqErrorType.FORMAT, f"无法识别: {fq.name}"
-                )
+                self.errors.record(lib_id, FastqErrorType.FORMAT, f"无法识别: {fq.name}")
 
         self._check_r1r2_pairing(fastqs, lib_id)
         return results
 
     def _glob_fastqs(self, path: Path) -> list[Path]:
         """获取目录下所有FASTQ文件"""
-        return list(chain.from_iterable(
-            path.glob(ext) for ext in self.config.fastq_extensions
-        ))
+        return list(chain.from_iterable(path.glob(ext) for ext in self.config.fastq_extensions))
 
     def _extract_lib_id(self, lib_path: Path) -> str:
         """从路径提取文库ID"""
@@ -358,9 +355,8 @@ class FastqScanner:
     def _determine_read_type(self, filename: str) -> str | None:
         """根据文件名确定读取类型(R1/R2)"""
         return next(
-            (rt for pattern, rt in self.config.read_type_patterns.items()
-             if filename.endswith(pattern)),
-            None
+            (rt for pattern, rt in self.config.read_type_patterns.items() if filename.endswith(pattern)),
+            None,
         )
 
     def _check_r1r2_pairing(self, fastqs: list[Path], lib_id: str) -> None:
@@ -368,9 +364,7 @@ class FastqScanner:
         r1 = sum(1 for f in fastqs if "_R1.fastq.gz" in f.name)
         r2 = sum(1 for f in fastqs if "_R2.fastq.gz" in f.name)
         if r1 != r2:
-            self.errors.record(
-                lib_id, FastqErrorType.FORMAT, f"R1/R2不配对: {r1} != {r2}"
-            )
+            self.errors.record(lib_id, FastqErrorType.FORMAT, f"R1/R2不配对: {r1} != {r2}")
 
 
 # ============================================================================
@@ -478,8 +472,9 @@ class ConfigBuilder:
 
         for libid in counts[counts["R1"] != counts["R2"]].index:
             self.errors.record(
-                str(libid), FastqErrorType.INCOMPLETE,
-                f"{fq_line_dir} - {libid} R1/R2不配对"
+                str(libid),
+                FastqErrorType.INCOMPLETE,
+                f"{fq_line_dir} - {libid} R1/R2不配对",
             )
 
     def check_duplicates(self) -> None:
@@ -495,11 +490,14 @@ class ConfigBuilder:
             return
 
         for line, group in dup_df.groupby("line"):
-            if len(group) <= 1:
+            group_df = cast(pd.DataFrame, group)
+            if len(group_df) <= 1:
                 continue
-            dirs = group["lib_dir"].unique()
+            lib_dirs = cast(pd.Series, group_df["lib_dir"])
+            line_paths = cast(pd.Series, group_df["line_path"])
+            dirs = lib_dirs.unique()
             dir_names = ",".join(dirs[:3]) + (f" ...共{len(dirs)}个" if len(dirs) > 3 else "")
-            paths = " | ".join(group["line_path"].unique())
+            paths = " | ".join(line_paths.unique())
             self.errors.record(
                 str(line),
                 FastqErrorType.DUPLICATED,
@@ -508,8 +506,7 @@ class ConfigBuilder:
 
         self._duplicated_df = (
             dup_df.groupby(["line", "lib_dir"])["line_path"]
-            .unique()
-            .map(" | ".join)
+            .agg(lambda s: " | ".join(pd.Series(s).unique()))
             .reset_index()
         )
 
@@ -565,11 +562,12 @@ class SampleValidator:
     def _check_duplicated_mapping(self, df: pd.DataFrame) -> None:
         """检查重复映射"""
         dup_mask = df.duplicated(subset=["libid", "sample_id", "dir_name"])  # type: ignore[arg-type]
-        for row in df[dup_mask].itertuples():
+        dup_rows = df.loc[dup_mask, ["libid", "sample_id", "dir_name"]].to_dict("records")
+        for row in dup_rows:
             self.warnings.record(
-                str(row.libid),
+                str(row["libid"]),
                 FastqErrorType.DUPLICATED,
-                f"重复: {row.libid} | {row.sample_id} | {row.dir_name}",
+                f"重复: {row['libid']} | {row['sample_id']} | {row['dir_name']}",
             )
 
     def _check_low_data(self, df: pd.DataFrame, threshold: float) -> None:
@@ -577,11 +575,11 @@ class SampleValidator:
         low_df = df[df["data_size"] < threshold]
         if not low_df.empty:
             logger.warning(f"{len(low_df)}个样本数据量 < {threshold}G")
-            for row in low_df.itertuples():
+            for row in low_df[["libid", "sample_id", "dir_name"]].to_dict("records"):
                 self.errors.record(
-                    str(row.libid),
+                    str(row["libid"]),
                     FastqErrorType.INCOMPLETE,
-                    f"数据量过低: {row.libid} | {row.sample_id} | {row.dir_name}",
+                    f"数据量过低: {row['libid']} | {row['sample_id']} | {row['dir_name']}",
                 )
 
     def validate(self, df: pd.DataFrame, threshold: float) -> pd.DataFrame:
@@ -624,14 +622,19 @@ class ScriptGenerator:
             if group["path"].isna().any():
                 logger.warning(f"缺失路径: {sample_id}-{read_type}")
                 errors.record(
-                    str(sample_id), FastqErrorType.INCOMPLETE,
-                    f"缺失: {sample_id}-{read_type}"
+                    str(sample_id),
+                    FastqErrorType.INCOMPLETE,
+                    f"缺失: {sample_id}-{read_type}",
                 )
                 continue
 
             script_file = self._create_script(
-                scripts_dir, output_dir, sample_id, read_type,  # type: ignore[arg-type]
-                sorted(group["path"].tolist()), mode
+                scripts_dir,
+                output_dir,
+                sample_id,
+                read_type,  # type: ignore[arg-type]
+                sorted(group["path"].tolist()),
+                mode,
             )
             if script_file:
                 script_count += 1
@@ -708,10 +711,7 @@ class ScriptRunner:
     def _run_script(script_path: Path) -> tuple[bool, str]:
         """运行单个脚本"""
         try:
-            subprocess.run(
-                ["bash", str(script_path)],
-                check=True, capture_output=True, text=True
-            )
+            subprocess.run(["bash", str(script_path)], check=True, capture_output=True, text=True)
             return True, f"成功: {script_path.name}"
         except subprocess.CalledProcessError as e:
             msg = f"失败: {script_path.name} - {e.stderr}"
@@ -741,10 +741,7 @@ class StatisticsLogger:
         if miss.empty:
             logger.success("所有数据已找到")
         else:
-            logger.error(
-                f"缺失: {miss['sample_id'].nunique()} 样品, "
-                f"{miss['libid'].nunique()} 文库"
-            )
+            logger.error(f"缺失: {miss['sample_id'].nunique()} 样品, {miss['libid'].nunique()} 文库")
             logger.error(f"示例: {list(miss['sample_id'].unique()[:10])}")
 
 
@@ -760,6 +757,7 @@ class Pipeline:
 
     遵循单一职责原则：只负责流程的编排和协调
     """
+
     sample_info: Path
     base_dir: Path
     output_dir: Path
@@ -804,9 +802,7 @@ class Pipeline:
         sample_df = sample_df.drop_duplicates(subset=["sample_id", "dir_name", "libid"])  # type: ignore[call-overload]
 
         # 6. 查找目标目录
-        target_dirs = path_resolver.find_target_dirs(
-            self.base_dir, sample_libs, self.config
-        )
+        target_dirs = path_resolver.find_target_dirs(self.base_dir, sample_libs, self.config)
         if not target_dirs:
             logger.error("未找到匹配目录")
             raise typer.Exit(1)
@@ -836,9 +832,7 @@ class Pipeline:
 
         script_count = 0
         if self.run_script:
-            script_count = script_generator.generate(
-                merged, self.output_dir, errors, self.mode
-            )
+            script_count = script_generator.generate(merged, self.output_dir, errors, self.mode)
 
         # 12. 输出日志
         errors.log_all("error")
@@ -854,9 +848,7 @@ class Pipeline:
             elif script_count == 0:
                 logger.warning("无脚本生成")
             else:
-                results = script_runner.run_parallel(
-                    self.output_dir / "scripts", self.threads
-                )
+                results = script_runner.run_parallel(self.output_dir / "scripts", self.threads)
                 logger.info(f"执行结果: {results}")
         else:
             if not errors and not warnings:
@@ -879,21 +871,17 @@ class Pipeline:
             logger.error(f"读取失败: {e}")
             raise typer.Exit(1)
 
-    def _load_all_configs(
-        self, target_dirs: list[Path], builder: ConfigBuilder
-    ) -> pd.DataFrame:
+    def _load_all_configs(self, target_dirs: list[Path], builder: ConfigBuilder) -> pd.DataFrame:
         """加载所有配置"""
         logger.info("加载FASTQ配置")
         configs = []
 
-
         # 使用线程池并行加载配置
         with ThreadPoolExecutor(max_workers=self.config.max_threads) as executor:
             future_to_path = {
-                executor.submit(builder.build_or_load, path, self.force_rebuild): path
-                for path in target_dirs
+                executor.submit(builder.build_or_load, path, self.force_rebuild): path for path in target_dirs
             }
-            
+
             for future in tqdm(as_completed(future_to_path), total=len(target_dirs), desc="加载配置"):
                 path = future_to_path[future]
                 try:
@@ -987,10 +975,21 @@ def run(
     mode: ModeOpt = DataMode.LINK,
 ) -> None:
     """处理FASTQ文件并执行合并脚本"""
-    _run_pipeline(Pipeline(
-        sample_info, base_dir, output_dir, check_file, threads,
-        force, threshold, exclude, include, mode, run_script=True
-    ))
+    _run_pipeline(
+        Pipeline(
+            sample_info,
+            base_dir,
+            output_dir,
+            check_file,
+            threads,
+            force,
+            threshold,
+            exclude,
+            include,
+            mode,
+            run_script=True,
+        )
+    )
 
 
 @app.command()
@@ -1006,10 +1005,21 @@ def validate(
     include: IncludeOpt = None,
 ) -> None:
     """仅验证FASTQ文件，不执行合并脚本"""
-    _run_pipeline(Pipeline(
-        sample_info, base_dir, output_dir, check_file, threads,
-        force, threshold, exclude, include, DataMode.LINK, run_script=False
-    ))
+    _run_pipeline(
+        Pipeline(
+            sample_info,
+            base_dir,
+            output_dir,
+            check_file,
+            threads,
+            force,
+            threshold,
+            exclude,
+            include,
+            DataMode.LINK,
+            run_script=False,
+        )
+    )
 
 
 if __name__ == "__main__":
