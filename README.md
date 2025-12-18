@@ -10,5 +10,6 @@
 
 ## 文档链接
 - primer 模块：`primer/README_add_flank_sequence.md`（介绍加引物侧翼序列脚本的用法）
+- primer 模块：`primer/README.md`（align-kasp 等脚本说明）
 
 提交新脚本时，建议在对应目录添加 README 描述输入/输出示例和依赖，并在这里补充链接，便于快速查阅。***
