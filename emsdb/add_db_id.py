@@ -35,7 +35,7 @@ def read_table_a_lazy(path: str, separator: str) -> pl.LazyFrame:
     ).select(
         [
             pl.col("id"),
-            pl.col("chrom"),
+            pl.col("chrom").cast(pl.String),
             pl.col("pos").cast(pl.Int64),
             pl.col("refer"),
             pl.col("alt"),
@@ -82,7 +82,7 @@ def read_table_b_lazy(path: str, separator: str, has_header: bool) -> pl.LazyFra
 
     # Select columns and normalize chrom format (Chr1A -> 1A)
     return lf.select(
-        pl.col("chrom").str.replace("^Chr", ""),
+        pl.col("chrom").cast(pl.String).str.replace("^Chr", ""),
         pl.col("pos").cast(pl.Int64),
         pl.col("refer"),
         pl.col("alt"),
