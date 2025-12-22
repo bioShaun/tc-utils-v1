@@ -1,0 +1,115 @@
+[project]
+name = "tc-pytools"
+version = "0.1.0"
+description = "生信流程中常用的 Python/脚本工具集合"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+    { name = "Your Name", email = "your.email@example.com" }
+]
+dependencies = [
+    "pandas>=2.0.0",
+    "numpy>=1.24.0",
+    "matplotlib>=3.7.0",
+    "typer>=0.9.0",
+    "tqdm>=4.65.0",
+    "delegator.py>=0.1.1",
+    "loguru>=0.7.0",
+    "pandera>=0.15.0",
+    "attrs>=23.0.0",
+    "pysam>=0.21.0",
+    "cyvcf2>=0.30.0",
+    "polars>=0.19.0",
+    "pyfaidx>=0.7.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "ruff>=0.6.0",
+    "pyright>=1.1.300",
+    "pre-commit>=3.3.0",
+]
+
+[build-system]
+requires = ["setuptools>=68.0.0"]
+build-backend = "setuptools.build_meta"
+
+# ===== Setuptools 配置 =====
+[tool.setuptools]
+# 作为工具集合项目，不打包为标准 Python 包
+# 使用 editable 模式安装：pip install -e .
+py-modules = []
+
+[tool.setuptools.packages.find]
+# 包含所有工具模块目录
+include = [
+    "bsa*", "chip*", "database*", "exome*", "fasta*", "fq*",
+    "gene_expression*", "gtf*", "gwas*", "liftover*", "pacbio*",
+    "panel*", "postgres*", "primer*", "rnaseq*", "transgene*",
+    "utils*", "vcf*", "web*"
+]
+exclude = ["*notes*", "draft*", ".*", "tests*"]
+
+[tool.uv]
+index-url = "https://mirrors.aliyun.com/pypi/simple/"
+
+# ===== Ruff 配置 =====
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # pyflakes
+    "I",      # isort
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "UP",     # pyupgrade
+]
+ignore = [
+    "E501",   # line too long (handled by formatter)
+    "B008",   # do not perform function calls in argument defaults
+    "C901",   # too complex
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]  # unused imports in __init__.py
+
+# ===== Pyright/Basedpyright 配置 =====
+[tool.pyright]
+pythonVersion = "3.11"
+typeCheckingMode = "basic"
+reportMissingImports = true
+reportMissingTypeStubs = false
+exclude = [
+    "**/__pycache__",
+    ".venv",
+    ".pytest_cache",
+    "*.egg-info",
+]
+
+# ===== Pytest 配置 =====
+[tool.pytest.ini_options]
+testpaths = [
+    "panel/tests",
+    "fasta/tests",
+    "web/mutant_db/tests",
+    "fq/tests",
+    "chip/tests",
+    "gtf/tests",
+    "primer/tests",
+    "exome/tests",
+    "liftover/tests",
+]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+addopts = "-v --cov=. --cov-report=term-missing"
+
+# ===== Coverage 配置 =====
+[tool.coverage.run]
+omit = ["*/tests/*", "*/.venv/*", "*/test_*.py"]
