@@ -6,7 +6,7 @@
 - [x] Task: Conductor - User Manual Verification 'Phase 1: Setup and Relocation' (Protocol in workflow.md) 29b5970
 
 ## Phase 2: Core Logic Refactoring (TDD)
-- [ ] Task: **Write Tests** for genotype classification logic (hom_ref, het, hom_alt, missing).
+- [x] Task: **Write Tests** for genotype classification logic (hom_ref, het, hom_alt, missing). e04fe1f
 - [ ] Task: **Implement** refactored genotype classification logic using `loguru`.
 - [ ] Task: **Write Tests** for VCF processing and aggregation (using a small sample VCF).
 - [ ] Task: **Implement** refactored VCF processing logic with `typer` CLI.
