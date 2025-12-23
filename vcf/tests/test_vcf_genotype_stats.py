@@ -1,5 +1,6 @@
 import pytest
-from vcf.vcf_genotype_stats import get_genotype_class
+from pathlib import Path
+from vcf.vcf_genotype_stats import get_genotype_class, process_vcf
 
 @pytest.mark.parametrize("a1, a2, expected", [
     (0, 0, "hom_ref"),
@@ -17,6 +18,32 @@ from vcf.vcf_genotype_stats import get_genotype_class
 def test_get_genotype_class(a1, a2, expected):
     """Test the genotype classification logic."""
     assert get_genotype_class(a1, a2) == expected
+
+@pytest.fixture
+def sample_vcf(tmp_path):
+    """Create a small sample VCF file."""
+    vcf_path = tmp_path / "sample.vcf"
+    content = (
+        "##fileformat=VCFv4.2\n"
+        "##FILTER=<ID=PASS,Description=\"All filters passed\">\n"
+        "##contig=<ID=chr1,length=1000>\n"
+        "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">\n"
+        "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tSample1\tSample2\tSample3\n"
+        "chr1\t100\t.\tA\tG\t100\tPASS\t.\tGT\t0/0\t0/1\t1/1\n"
+        "chr1\t200\t.\tT\tC\t100\tPASS\t.\tGT\t0/0\t./.\t1/1\n"
+        "chr1\t300\t.\tC\tG\t100\tPASS\t.\tGT\t0/1\t0/1\t0/1\n"
+    )
+    vcf_path.write_text(content)
+    return vcf_path
+
+def test_process_vcf(sample_vcf):
+    """Test the process_vcf function."""
+    stats = process_vcf(sample_vcf)
+    
+    assert stats["hom_ref"] == 2
+    assert stats["het"] == 4
+    assert stats["hom_alt"] == 2
+    assert stats["missing"] == 1
 
 def test_import():
     """Verify that the module can be imported."""
