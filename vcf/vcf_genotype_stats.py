@@ -6,10 +6,11 @@ VCF基因型统计脚本 (修复版)
 """
 
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 import typer
 from cyvcf2 import VCF
 from tqdm import tqdm
+from loguru import logger
 
 
 app = typer.Typer(add_completion=False, help="VCF基因型统计工具")
