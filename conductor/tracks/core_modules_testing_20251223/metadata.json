@@ -1,0 +1,8 @@
+{
+  "track_id": "core_modules_testing_20251223",
+  "type": "feature",
+  "status": "new",
+  "created_at": "2025-12-23T00:00:00Z",
+  "updated_at": "2025-12-23T00:00:00Z",
+  "description": "Comprehensive Testing and Documentation for Core Modules: Implement unit tests and detailed READMEs for the vcf and fasta modules to meet the new project guidelines."
+}
