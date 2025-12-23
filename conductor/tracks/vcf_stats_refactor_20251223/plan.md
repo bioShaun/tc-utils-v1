@@ -1,9 +1,9 @@
 # Plan: Refactor VCF Genotype Statistics Script
 
-## Phase 1: Setup and Relocation
+## Phase 1: Setup and Relocation [checkpoint: 29b5970]
 - [x] Task: Relocate script from `draft/vcf_genotype_stats.py` to `vcf/vcf_genotype_stats.py` and ensure `vcf/__init__.py` exists. 5ef42e7
 - [x] Task: Create initial test directory and file `vcf/tests/test_vcf_genotype_stats.py`. 896d410
-- [ ] Task: Conductor - User Manual Verification 'Phase 1: Setup and Relocation' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 1: Setup and Relocation' (Protocol in workflow.md) 29b5970
 
 ## Phase 2: Core Logic Refactoring (TDD)
 - [ ] Task: **Write Tests** for genotype classification logic (hom_ref, het, hom_alt, missing).
