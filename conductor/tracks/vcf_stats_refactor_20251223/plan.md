@@ -7,7 +7,7 @@
 
 ## Phase 2: Core Logic Refactoring (TDD)
 - [x] Task: **Write Tests** for genotype classification logic (hom_ref, het, hom_alt, missing). e04fe1f
-- [ ] Task: **Implement** refactored genotype classification logic using `loguru`.
+- [x] Task: **Implement** refactored genotype classification logic using `loguru`. 0ad8ac5
 - [ ] Task: **Write Tests** for VCF processing and aggregation (using a small sample VCF).
 - [ ] Task: **Implement** refactored VCF processing logic with `typer` CLI.
 - [ ] Task: **Write Tests** for CSV output functionality.
