@@ -1,3 +1,4 @@
+import csv
 import pytest
 from pathlib import Path
 from vcf.vcf_genotype_stats import get_genotype_class, process_vcf
@@ -44,6 +45,28 @@ def test_process_vcf(sample_vcf):
     assert stats["het"] == 4
     assert stats["hom_alt"] == 2
     assert stats["missing"] == 1
+
+def test_process_vcf_with_csv(sample_vcf, tmp_path):
+    """Test the process_vcf function with CSV output."""
+    output_csv = tmp_path / "stats.csv"
+    process_vcf(sample_vcf, output_path=output_csv)
+    
+    assert output_csv.exists()
+    
+    with open(output_csv, newline="") as f:
+        reader = csv.DictReader(f)
+        rows = list(reader)
+        
+    assert len(rows) == 3
+    assert rows[0]["CHROM"] == "chr1"
+    assert rows[0]["POS"] == "100"
+    assert int(rows[0]["hom_ref"]) == 1
+    assert int(rows[0]["het"]) == 1
+    assert int(rows[0]["hom_alt"]) == 1
+    assert int(rows[0]["missing"]) == 0
+    
+    assert rows[1]["POS"] == "200"
+    assert int(rows[1]["missing"]) == 1
 
 def test_import():
     """Verify that the module can be imported."""
