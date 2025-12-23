@@ -15,7 +15,7 @@
 - [x] Task: Conductor - User Manual Verification 'Phase 2: Core Logic Refactoring (TDD)' (Protocol in workflow.md) 99aff50
 
 ## Phase 3: Quality Assurance and Finalization
-- [ ] Task: Verify >80% test coverage for `vcf/vcf_genotype_stats.py`.
+- [x] Task: Verify >80% test coverage for `vcf/vcf_genotype_stats.py`. 8411895
 - [ ] Task: Run `ruff` and `pyright` checks and resolve any findings.
 - [ ] Task: Final manual verification of CLI output formatting and CSV content.
 - [ ] Task: Conductor - User Manual Verification 'Phase 3: Quality Assurance and Finalization' (Protocol in workflow.md)
