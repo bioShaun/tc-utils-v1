@@ -37,13 +37,20 @@ def get_genotype_class(a1: int, a2: int) -> str:
     return "het"
 
 
-def process_vcf(vcf_path: Path, output_path: Path | None = None) -> dict[str, int]:
+def process_vcf(
+    vcf_path: Path,
+    output_path: Path | None = None,
+    max_missing: float = 0.1,
+    max_het: float = 0.1,
+) -> dict[str, int]:
     """
     Process VCF file and aggregate genotype statistics.
 
     Args:
         vcf_path: Path to the input VCF file.
         output_path: Optional path to save site-level statistics as CSV.
+        max_missing: Maximum missing rate allowed (default: 0.1).
+        max_het: Maximum heterozygous rate allowed (default: 0.1).
 
     Returns:
         A dictionary containing aggregated genotype counts.
@@ -73,6 +80,22 @@ def process_vcf(vcf_path: Path, output_path: Path | None = None) -> dict[str, in
             site_total = sum(site_stats.values())
             site_valid = site_total - site_stats["missing"]
 
+            het_rate = site_stats["het"] / site_valid if site_valid > 0 else 0.0
+            missing_rate = site_stats["missing"] / site_total if site_total > 0 else 0.0
+
+            filter_status = "PASS"
+            if missing_rate > max_missing:
+                filter_status = f"MISS>{max_missing}"
+            elif het_rate > max_het:
+                filter_status = f"HET>{max_het}"
+            else:
+                has_het = site_stats["het"] > 0
+                has_hom_ref = site_stats["hom_ref"] > 0
+                has_hom_alt = site_stats["hom_alt"] > 0
+
+                if has_het and ((has_hom_ref and not has_hom_alt) or (not has_hom_ref and has_hom_alt)):
+                    filter_status = "NO_REF_OR_ALT"
+
             site_records.append({
                 "CHROM": variant.CHROM,
                 "POS": variant.POS,
@@ -80,8 +103,9 @@ def process_vcf(vcf_path: Path, output_path: Path | None = None) -> dict[str, in
                 "ALT": ",".join(variant.ALT) if variant.ALT else ".",
                 **site_stats,
                 "total_samples": len(vcf.samples),
-                "het_rate(%)": round(site_stats["het"] / site_valid * 100, 2) if site_valid > 0 else 0,
-                "missing_rate(%)": round(site_stats["missing"] / site_total * 100, 2) if site_total > 0 else 0,
+                "het_rate(%)": round(het_rate * 100, 2),
+                "missing_rate(%)": round(missing_rate * 100, 2),
+                "FILTER": filter_status,
             })
 
     vcf.close()
@@ -102,7 +126,7 @@ def save_site_records(output_path: Path, records: list[dict]):
     """
     fieldnames = [
         "CHROM", "POS", "REF", "ALT", "hom_ref", "het", "hom_alt", "missing",
-        "total_samples", "het_rate(%)", "missing_rate(%)"
+        "total_samples", "het_rate(%)", "missing_rate(%)", "FILTER"
     ]
     with open(output_path, "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
@@ -142,12 +166,14 @@ def print_summary(stats: dict[str, int]):
 def analyze(
     vcf_file: Path = typer.Argument(..., help="Path to input VCF file", exists=True, dir_okay=False),
     output: Path | None = typer.Option(None, "--output", "-o", help="Path to output CSV file for site-level stats"),
+    max_missing: float = typer.Option(0.1, "--max-missing", help="Maximum missing rate threshold (e.g. 0.1 for 10%)"),
+    max_het: float = typer.Option(0.1, "--max-het", help="Maximum heterozygous rate threshold (e.g. 0.1 for 10%)"),
 ):
     """
     Analyze VCF genotype distribution.
     """
     try:
-        stats = process_vcf(vcf_file, output)
+        stats = process_vcf(vcf_file, output, max_missing, max_het)
         print_summary(stats)
     except Exception as e:
         logger.error(f"Analysis failed: {e}")

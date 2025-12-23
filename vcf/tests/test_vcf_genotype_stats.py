@@ -23,17 +23,22 @@ def test_get_genotype_class(a1, a2, expected):
 
 @pytest.fixture
 def sample_vcf(tmp_path):
-    """Create a small sample VCF file."""
+    """Create a small sample VCF file with 3 samples."""
     vcf_path = tmp_path / "sample.vcf"
+    # Row 1: 0/0, 0/0, 0/0 -> PASS
+    # Row 2: 0/0, 0/1, 0/0 -> HET>... (1/3 = 0.33)
+    # Row 3: 0/0, ./., 0/0 -> MISS>... (1/3 = 0.33)
+    # Row 4: 0/1, 1/1, 1/1 -> HET>... (1/3=0.33) OR NO_REF_OR_ALT if HET threshold is high enough
     content = (
         "##fileformat=VCFv4.2\n"
         "##FILTER=<ID=PASS,Description=\"All filters passed\">\n"
         "##contig=<ID=chr1,length=1000>\n"
         "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">\n"
         "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tSample1\tSample2\tSample3\n"
-        "chr1\t100\t.\tA\tG\t100\tPASS\t.\tGT\t0/0\t0/1\t1/1\n"
-        "chr1\t200\t.\tT\tC\t100\tPASS\t.\tGT\t0/0\t./.\t1/1\n"
-        "chr1\t300\t.\tC\tG\t100\tPASS\t.\tGT\t0/1\t0/1\t0/1\n"
+        "chr1\t100\t.\tA\tG\t100\tPASS\t.\tGT\t0/0\t0/0\t0/0\n"
+        "chr1\t200\t.\tT\tC\t100\tPASS\t.\tGT\t0/0\t0/1\t0/0\n"
+        "chr1\t300\t.\tC\tG\t100\tPASS\t.\tGT\t0/0\t./.\t0/0\n"
+        "chr1\t400\t.\tG\tA\t100\tPASS\t.\tGT\t0/1\t1/1\t1/1\n"
     )
     vcf_path.write_text(content)
     return vcf_path
@@ -42,15 +47,21 @@ def test_process_vcf(sample_vcf):
     """Test the process_vcf function."""
     stats = process_vcf(sample_vcf)
     
-    assert stats["hom_ref"] == 2
-    assert stats["het"] == 4
+    # 4 sites * 3 samples = 12 genotypes
+    # 100: 3 Ref
+    # 200: 2 Ref, 1 Het
+    # 300: 2 Ref, 1 Miss
+    # 400: 1 Het, 2 Alt
+    # Totals: Ref=7, Het=2, Alt=2, Miss=1
+    assert stats["hom_ref"] == 7
+    assert stats["het"] == 2
     assert stats["hom_alt"] == 2
     assert stats["missing"] == 1
 
-def test_process_vcf_with_csv(sample_vcf, tmp_path):
-    """Test the process_vcf function with CSV output."""
-    output_csv = tmp_path / "stats.csv"
-    process_vcf(sample_vcf, output_path=output_csv)
+def test_process_vcf_with_csv_defaults(sample_vcf, tmp_path):
+    """Test process_vcf with CSV output using default thresholds (0.1)."""
+    output_csv = tmp_path / "stats_default.csv"
+    process_vcf(sample_vcf, output_path=output_csv, max_missing=0.1, max_het=0.1)
     
     assert output_csv.exists()
     
@@ -58,18 +69,45 @@ def test_process_vcf_with_csv(sample_vcf, tmp_path):
         reader = csv.DictReader(f)
         rows = list(reader)
         
-    assert len(rows) == 3
-    assert rows[0]["CHROM"] == "chr1"
-    assert rows[0]["POS"] == "100"
-    assert int(rows[0]["hom_ref"]) == 1
-    assert int(rows[0]["het"]) == 1
-    assert int(rows[0]["hom_alt"]) == 1
-    assert int(rows[0]["missing"]) == 0
-    assert "het_rate(%)" in rows[0]
-    assert "missing_rate(%)" in rows[0]
+    assert len(rows) == 4
+    # Row 1 (100): PASS
+    assert rows[0]["FILTER"] == "PASS"
     
-    assert rows[1]["POS"] == "200"
-    assert int(rows[1]["missing"]) == 1
+    # Row 2 (200): Het 0.33 > 0.1 -> HET>0.1
+    assert rows[1]["FILTER"] == "HET>0.1"
+    
+    # Row 3 (300): Miss 0.33 > 0.1 -> MISS>0.1
+    assert rows[2]["FILTER"] == "MISS>0.1"
+    
+    # Row 4 (400): Het 0.33 > 0.1 -> HET>0.1
+    assert rows[3]["FILTER"] == "HET>0.1"
+
+def test_process_vcf_custom_thresholds(sample_vcf, tmp_path):
+    """Test process_vcf with relaxed thresholds to check precedence and NO_REF_OR_ALT."""
+    output_csv = tmp_path / "stats_relaxed.csv"
+    # Relax thresholds to 0.4 so 0.33 doesn't trigger HET/MISS filters
+    process_vcf(sample_vcf, output_path=output_csv, max_missing=0.4, max_het=0.4)
+    
+    with open(output_csv, newline="") as f:
+        reader = csv.DictReader(f)
+        rows = list(reader)
+    
+    # Row 1 (100): PASS
+    assert rows[0]["FILTER"] == "PASS"
+    
+    # Row 2 (200): Het 0.33 <= 0.4.
+    # Ref > 0 (2), Het > 0 (1), Alt = 0.
+    # has_het=T, has_ref=T, has_alt=F -> NO_REF_OR_ALT
+    assert rows[1]["FILTER"] == "NO_REF_OR_ALT"
+    
+    # Row 3 (300): Miss 0.33 <= 0.4.
+    # Ref > 0 (2), Het = 0, Alt = 0. -> PASS
+    assert rows[2]["FILTER"] == "PASS"
+    
+    # Row 4 (400): Het 0.33 <= 0.4.
+    # Ref = 0, Het > 0 (1), Alt > 0 (2).
+    # has_het=T, has_ref=F, has_alt=T -> NO_REF_OR_ALT
+    assert rows[3]["FILTER"] == "NO_REF_OR_ALT"
 
 def test_print_summary(capsys):
     """Test the print_summary function."""
@@ -80,12 +118,28 @@ def test_print_summary(capsys):
     assert "Homozygous REF (0/0):" in captured.out
     assert "10" in captured.out
 
-def test_analyze_cli(sample_vcf):
-    """Test the analyze command via CliRunner."""
+def test_analyze_cli(sample_vcf, tmp_path):
+    """Test the analyze command with new arguments."""
     runner = CliRunner()
-    result = runner.invoke(app, [str(sample_vcf)])
+    output_csv = tmp_path / "cli_out.csv"
+    
+    result = runner.invoke(app, [
+        str(sample_vcf),
+        "--output", str(output_csv),
+        "--max-missing", "0.4",
+        "--max-het", "0.4"
+    ])
+    
     assert result.exit_code == 0
     assert "Genotype Statistics Summary" in result.stdout
+    assert output_csv.exists()
+    
+    # Verify content lightly to ensure args were passed
+    with open(output_csv, newline="") as f:
+        reader = csv.DictReader(f)
+        rows = list(reader)
+    # Based on test_process_vcf_custom_thresholds, row 2 (pos 200) should be NO_REF_OR_ALT
+    assert rows[1]["FILTER"] == "NO_REF_OR_ALT"
 
 def test_analyze_cli_error():
     """Test CLI error handling with non-existent file."""
