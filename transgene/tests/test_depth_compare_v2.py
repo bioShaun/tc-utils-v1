@@ -4,7 +4,7 @@ from pathlib import Path
 import polars as pl
 import pytest
 
-from transgene.depth_compare_v2 import read_depth_median, process_single_sample
+from transgene.depth_compare_v2 import read_depth_median, process_single_sample, DepthStats
 
 
 BAMDST_HEADER = "#Chr\tPos\tRaw Depth"
@@ -76,13 +76,14 @@ class TestProcessSingleSample:
         result = process_single_sample(transgene_dir, bg_dir)
 
         assert result is not None
-        assert result["sample_id"] == "sample1"
+        assert isinstance(result, DepthStats)
+        assert result.sample_id == "sample1"
         # transgene: [20,30,40,50,60] 中位数 40
-        assert result["transgene_depth"] == 40.0
+        assert result.transgene_depth == 40.0
         # background: [10,20,30,40,50] 中位数 30
-        assert result["background_depth"] == 30.0
+        assert result.background_depth == 30.0
         # ratio: 40/30 = 1.333...
-        assert abs(result["ratio"] - 1.333333) < 0.01
+        assert abs(result.ratio - 1.333333) < 0.01
 
     def test_missing_background(self, tmp_path):
         """测试背景文件缺失"""
