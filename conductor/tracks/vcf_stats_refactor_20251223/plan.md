@@ -9,7 +9,7 @@
 - [x] Task: **Write Tests** for genotype classification logic (hom_ref, het, hom_alt, missing). e04fe1f
 - [x] Task: **Implement** refactored genotype classification logic using `loguru`. 0ad8ac5
 - [x] Task: **Write Tests** for VCF processing and aggregation (using a small sample VCF). c09a261
-- [ ] Task: **Implement** refactored VCF processing logic with `typer` CLI.
+- [x] Task: **Implement** refactored VCF processing logic with `typer` CLI. bde0a46
 - [ ] Task: **Write Tests** for CSV output functionality.
 - [ ] Task: **Implement** CSV output logic.
 - [ ] Task: Conductor - User Manual Verification 'Phase 2: Core Logic Refactoring (TDD)' (Protocol in workflow.md)
