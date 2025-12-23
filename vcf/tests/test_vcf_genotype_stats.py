@@ -65,6 +65,8 @@ def test_process_vcf_with_csv(sample_vcf, tmp_path):
     assert int(rows[0]["het"]) == 1
     assert int(rows[0]["hom_alt"]) == 1
     assert int(rows[0]["missing"]) == 0
+    assert "het_rate(%)" in rows[0]
+    assert "missing_rate(%)" in rows[0]
     
     assert rows[1]["POS"] == "200"
     assert int(rows[1]["missing"]) == 1

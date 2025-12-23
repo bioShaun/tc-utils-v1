@@ -80,8 +80,8 @@ def process_vcf(vcf_path: Path, output_path: Path | None = None) -> dict[str, in
                 "ALT": ",".join(variant.ALT) if variant.ALT else ".",
                 **site_stats,
                 "total_samples": len(vcf.samples),
-                "het_rate": round(site_stats["het"] / site_valid * 100, 2) if site_valid > 0 else 0,
-                "missing_rate": round(site_stats["missing"] / site_total * 100, 2) if site_total > 0 else 0,
+                "het_rate(%)": round(site_stats["het"] / site_valid * 100, 2) if site_valid > 0 else 0,
+                "missing_rate(%)": round(site_stats["missing"] / site_total * 100, 2) if site_total > 0 else 0,
             })
 
     vcf.close()
@@ -102,7 +102,7 @@ def save_site_records(output_path: Path, records: list[dict]):
     """
     fieldnames = [
         "CHROM", "POS", "REF", "ALT", "hom_ref", "het", "hom_alt", "missing",
-        "total_samples", "het_rate", "missing_rate"
+        "total_samples", "het_rate(%)", "missing_rate(%)"
     ]
     with open(output_path, "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
