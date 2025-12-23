@@ -14,8 +14,8 @@
 - [x] Task: **Implement** CSV output logic. ca4b830
 - [x] Task: Conductor - User Manual Verification 'Phase 2: Core Logic Refactoring (TDD)' (Protocol in workflow.md) 99aff50
 
-## Phase 3: Quality Assurance and Finalization
+## Phase 3: Quality Assurance and Finalization [checkpoint: b3cf8a0]
 - [x] Task: Verify >80% test coverage for `vcf/vcf_genotype_stats.py`. 8411895
 - [x] Task: Run `ruff` and `pyright` checks and resolve any findings. 8c8efc8
 - [x] Task: Final manual verification of CLI output formatting and CSV content. 8c8efc8
-- [ ] Task: Conductor - User Manual Verification 'Phase 3: Quality Assurance and Finalization' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 3: Quality Assurance and Finalization' (Protocol in workflow.md) b3cf8a0
