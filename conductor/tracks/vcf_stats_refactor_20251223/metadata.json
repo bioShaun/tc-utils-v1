@@ -1,0 +1,8 @@
+{
+  "track_id": "vcf_stats_refactor_20251223",
+  "type": "refactor",
+  "status": "new",
+  "created_at": "2025-12-23T00:00:00Z",
+  "updated_at": "2025-12-23T00:00:00Z",
+  "description": "Refactor VCF Genotype Statistics Script: Move and refactor draft/vcf_genotype_stats.py into the vcf/ module with TDD, loguru, and comprehensive tests."
+}
