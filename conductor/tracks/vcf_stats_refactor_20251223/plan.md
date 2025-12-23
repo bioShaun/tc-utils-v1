@@ -11,7 +11,7 @@
 - [x] Task: **Write Tests** for VCF processing and aggregation (using a small sample VCF). c09a261
 - [x] Task: **Implement** refactored VCF processing logic with `typer` CLI. bde0a46
 - [x] Task: **Write Tests** for CSV output functionality. 5363d3c
-- [ ] Task: **Implement** CSV output logic.
+- [x] Task: **Implement** CSV output logic. ca4b830
 - [ ] Task: Conductor - User Manual Verification 'Phase 2: Core Logic Refactoring (TDD)' (Protocol in workflow.md)
 
 ## Phase 3: Quality Assurance and Finalization
