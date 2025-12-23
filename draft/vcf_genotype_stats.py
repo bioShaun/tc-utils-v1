@@ -94,6 +94,9 @@ def process_vcf(vcf_path: Path, output_path: Path = None) -> Dict[str, int]:
 
         # 记录该位点的详细信息 (可选：只记录有变异的位点)
         if output_path:
+            site_total = site_hom_ref + site_het + site_hom_alt + site_missing
+            site_valid = site_hom_ref + site_het + site_hom_alt
+
             site_records.append(
                 {
                     "CHROM": variant.CHROM,
@@ -105,6 +108,8 @@ def process_vcf(vcf_path: Path, output_path: Path = None) -> Dict[str, int]:
                     "hom_alt": site_hom_alt,
                     "missing": site_missing,
                     "total_samples": len(vcf.samples),
+                    "het_rate": round(site_het / site_valid * 100, 2) if site_valid > 0 else 0,
+                    "missing_rate": round(site_missing / site_total * 100, 2) if site_total > 0 else 0,
                 }
             )
 
@@ -127,10 +132,16 @@ def process_vcf(vcf_path: Path, output_path: Path = None) -> Dict[str, int]:
     print(f"  缺失/未检出 (./.): {total_stats['missing']:,}")
 
     if valid_calls > 0:
+        het_rate = total_stats['het'] / valid_calls * 100
+        missing_rate = total_stats['missing'] / total_calls * 100
+
         print(f"\n有效检出频率 (不含缺失):")
         print(f"  纯合REF: {total_stats['hom_ref']/valid_calls*100:.2f}%")
         print(f"  杂合型:  {total_stats['het']/valid_calls*100:.2f}%")
         print(f"  纯合ALT: {total_stats['hom_alt']/valid_calls*100:.2f}%")
+
+        print(f"\n杂合率: {het_rate:.2f}%")
+        print(f"缺失率: {missing_rate:.2f}%")
 
     # 输出到文件
     if output_path and site_records:
@@ -149,6 +160,8 @@ def process_vcf(vcf_path: Path, output_path: Path = None) -> Dict[str, int]:
                     "hom_alt",
                     "missing",
                     "total_samples",
+                    "het_rate",
+                    "missing_rate",
                 ],
             )
             writer.writeheader()
