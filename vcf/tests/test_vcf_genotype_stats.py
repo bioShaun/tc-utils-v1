@@ -1,7 +1,8 @@
 import csv
 import pytest
 from pathlib import Path
-from vcf.vcf_genotype_stats import get_genotype_class, process_vcf
+from typer.testing import CliRunner
+from vcf.vcf_genotype_stats import app, get_genotype_class, process_vcf, print_summary
 
 @pytest.mark.parametrize("a1, a2, expected", [
     (0, 0, "hom_ref"),
@@ -67,6 +68,28 @@ def test_process_vcf_with_csv(sample_vcf, tmp_path):
     
     assert rows[1]["POS"] == "200"
     assert int(rows[1]["missing"]) == 1
+
+def test_print_summary(capsys):
+    """Test the print_summary function."""
+    stats = {"hom_ref": 10, "het": 5, "hom_alt": 5, "missing": 2}
+    print_summary(stats)
+    captured = capsys.readouterr()
+    assert "Genotype Statistics Summary" in captured.out
+    assert "Homozygous REF (0/0):" in captured.out
+    assert "10" in captured.out
+
+def test_analyze_cli(sample_vcf):
+    """Test the analyze command via CliRunner."""
+    runner = CliRunner()
+    result = runner.invoke(app, [str(sample_vcf)])
+    assert result.exit_code == 0
+    assert "Genotype Statistics Summary" in result.stdout
+
+def test_analyze_cli_error():
+    """Test CLI error handling with non-existent file."""
+    runner = CliRunner()
+    result = runner.invoke(app, ["non_existent.vcf"])
+    assert result.exit_code != 0
 
 def test_import():
     """Verify that the module can be imported."""
