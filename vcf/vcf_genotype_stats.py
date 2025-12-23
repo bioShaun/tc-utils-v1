@@ -8,7 +8,6 @@ Optimized for performance using cyvcf2.
 
 import csv
 from pathlib import Path
-from typing import Dict, List, Optional
 
 import typer
 from cyvcf2 import VCF
@@ -38,7 +37,7 @@ def get_genotype_class(a1: int, a2: int) -> str:
     return "het"
 
 
-def process_vcf(vcf_path: Path, output_path: Optional[Path] = None) -> Dict[str, int]:
+def process_vcf(vcf_path: Path, output_path: Path | None = None) -> dict[str, int]:
     """
     Process VCF file and aggregate genotype statistics.
 
@@ -73,7 +72,7 @@ def process_vcf(vcf_path: Path, output_path: Optional[Path] = None) -> Dict[str,
         if output_path:
             site_total = sum(site_stats.values())
             site_valid = site_total - site_stats["missing"]
-            
+
             site_records.append({
                 "CHROM": variant.CHROM,
                 "POS": variant.POS,
@@ -93,7 +92,7 @@ def process_vcf(vcf_path: Path, output_path: Optional[Path] = None) -> Dict[str,
     return total_stats
 
 
-def save_site_records(output_path: Path, records: List[Dict]):
+def save_site_records(output_path: Path, records: list[dict]):
     """
     Save site-level genotype records to a CSV file.
 
@@ -112,7 +111,7 @@ def save_site_records(output_path: Path, records: List[Dict]):
     logger.info(f"Detailed results saved to: {output_path}")
 
 
-def print_summary(stats: Dict[str, int]):
+def print_summary(stats: dict[str, int]):
     """Print a summary of the genotype statistics."""
     total_calls = sum(stats.values())
     valid_calls = total_calls - stats["missing"]
@@ -121,7 +120,7 @@ def print_summary(stats: Dict[str, int]):
     print("Genotype Statistics Summary")
     print("=" * 60)
     print(f"\nTotal genotype calls (Samples * Sites): {total_calls:,}")
-    print(f"\nDistribution:")
+    print("\nDistribution:")
     print(f"  Homozygous REF (0/0):   {stats['hom_ref']:12,}")
     print(f"  Heterozygous (0/1..):   {stats['het']:12,}")
     print(f"  Homozygous ALT (1/1..): {stats['hom_alt']:12,}")
@@ -131,7 +130,7 @@ def print_summary(stats: Dict[str, int]):
         het_rate = stats['het'] / valid_calls * 100
         missing_rate = stats['missing'] / total_calls * 100
 
-        print(f"\nFrequency (excluding missing):")
+        print("\nFrequency (excluding missing):")
         print(f"  Homozygous REF: {stats['hom_ref']/valid_calls*100:6.2f}%")
         print(f"  Heterozygous:   {stats['het']/valid_calls*100:6.2f}%")
         print(f"  Homozygous ALT: {stats['hom_alt']/valid_calls*100:6.2f}%")
@@ -142,7 +141,7 @@ def print_summary(stats: Dict[str, int]):
 @app.command()
 def analyze(
     vcf_file: Path = typer.Argument(..., help="Path to input VCF file", exists=True, dir_okay=False),
-    output: Optional[Path] = typer.Option(None, "--output", "-o", help="Path to output CSV file for site-level stats"),
+    output: Path | None = typer.Option(None, "--output", "-o", help="Path to output CSV file for site-level stats"),
 ):
     """
     Analyze VCF genotype distribution.
@@ -152,7 +151,7 @@ def analyze(
         print_summary(stats)
     except Exception as e:
         logger.error(f"Analysis failed: {e}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
 
 
 if __name__ == "__main__":
