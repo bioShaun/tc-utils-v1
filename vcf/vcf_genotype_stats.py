@@ -94,7 +94,13 @@ def process_vcf(vcf_path: Path, output_path: Optional[Path] = None) -> Dict[str,
 
 
 def save_site_records(output_path: Path, records: List[Dict]):
-    """Save site-level records to a CSV file."""
+    """
+    Save site-level genotype records to a CSV file.
+
+    Args:
+        output_path: Path to the output CSV file.
+        records: List of dictionaries containing site statistics.
+    """
     fieldnames = [
         "CHROM", "POS", "REF", "ALT", "hom_ref", "het", "hom_alt", "missing",
         "total_samples", "het_rate", "missing_rate"
