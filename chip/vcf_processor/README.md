@@ -40,10 +40,45 @@ The VCF Processor is a high-performance tool designed to process VCF files for g
 - **Fast VCF Processing**: Uses cyvcf2 for efficient VCF file parsing
 - **Memory Efficient**: Configurable batch processing for large files
 - **Flexible Output**: Supports both genotype (.gt.txt) and sequence (.seq.txt) formats
+- **Variant Type Annotation**: Optional variant type classification (SNP/INDEL/MNP/REF)
 - **Comprehensive CLI**: Full command-line interface with progress reporting
 - **Error Handling**: Robust error handling with detailed logging
 - **Performance Monitoring**: Built-in performance profiling and optimization
 - **Extensive Testing**: Property-based testing with hypothesis for reliability
+
+## Variant Type Annotation
+
+The VCF Processor supports optional variant type annotation using the `--va-type` parameter. When enabled, it adds a `Variant_Type` column after the `ALT` column in both output files.
+
+### Classification Rules
+
+- **SNP**: Single nucleotide polymorphism (REF and ALT are both single bases, different)
+- **INDEL**: Insertion or deletion (REF and ALT have different lengths)
+- **MNP**: Multi-nucleotide polymorphism (REF and ALT have same length >1, different sequences)
+- **REF**: Reference allele (REF and ALT are identical, no variation)
+
+### Multi-Allelic Variants
+
+For multi-allelic variants, types are combined with pipe separators and sorted in the order: `SNP|INDEL|MNP|REF`
+
+Examples:
+- Single SNP: `SNP`
+- Single insertion: `INDEL`
+- Multi-allelic with SNP and insertion: `SNP|INDEL`
+- Multi-allelic with all types: `SNP|INDEL|MNP|REF`
+
+### Usage Examples
+
+```bash
+# Enable variant type annotation
+python vcf_processor_standalone.py input.vcf output --va-type
+
+# With modular CLI
+python -m chip.vcf_processor.cli process input.vcf output --va-type
+
+# Combined with other options
+python vcf_processor_standalone.py input.vcf output --targets targets.txt --va-type --compress
+```
 
 ## Quick Start
 
@@ -56,12 +91,16 @@ python vcf_processor_standalone.py input.vcf output
 # Process specific target variants
 python vcf_processor_standalone.py input.vcf output --targets targets.txt
 
+# With variant type annotation
+python vcf_processor_standalone.py input.vcf output --va-type
+
 # With custom options (same as modular version)
 python vcf_processor_standalone.py input.vcf output --targets targets.txt \
     --batch-size 20000 \
     --compress \
     --miss-fmt "NN" \
-    --gt-sep ""
+    --gt-sep "" \
+    --va-type
 ```
 
 **See [STANDALONE_USAGE.md](STANDALONE_USAGE.md) for detailed standalone usage guide.**
@@ -87,13 +126,17 @@ python -m chip.vcf_processor.cli process input.vcf output
 # Process specific target variants
 python -m chip.vcf_processor.cli process input.vcf output --targets targets.txt
 
+# With variant type annotation
+python -m chip.vcf_processor.cli process input.vcf output --va-type
+
 # With custom options (identical to standalone version)
 python -m chip.vcf_processor.cli process input.vcf output --targets targets.txt \
     --batch-size 20000 \
     --threads 4 \
     --compress \
     --miss-fmt "NN" \
-    --gt-sep ""
+    --gt-sep "" \
+    --va-type
 ```
 
 ### Python API
@@ -110,7 +153,8 @@ config = ProcessingConfig(
     output_file=Path("output"),
     batch_size=10000,
     threads=4,
-    compress_output=True
+    compress_output=True,
+    include_variant_type=True  # Enable variant type annotation
 )
 
 # Process VCF
@@ -132,6 +176,7 @@ print(summary)
 | **Memory Usage** | Efficient→More efficient | More efficient |
 | **Multi-threading** | No | Yes (`--threads` option) |
 | **Configuration Files** | No | Yes (JSON config support) |
+| **Variant Type Annotation** | ✅ Yes (`--va-type`) | ✅ Yes (`--va-type`) |
 | **Command Compatibility** | ✅ Identical arguments | ✅ Identical arguments |
 | **Output Format** | ✅ Identical | ✅ Identical |
 | **Best For** | Any environment, maximum compatibility | Production, large files |
@@ -200,6 +245,7 @@ ProcessingConfig(
     batch_size=10000,                     # Processing batch size
     threads=4,                            # Number of threads
     compress_output=True,                 # Enable output compression
+    include_variant_type=False,           # Enable variant type annotation
     verbose=False,                        # Enable verbose logging
     quiet=False,                          # Enable quiet mode
     dry_run=False,                        # Preview mode
@@ -216,6 +262,7 @@ Options:
   --threads INTEGER      Number of threads [default: 4]
   --batch-size INTEGER   Processing batch size [default: 10000]
   --compress/--no-compress  Compress output files [default: compress]
+  --va-type              Add variant type annotation column
   --verbose / -v         Enable verbose logging
   --quiet / -q           Enable quiet mode
   --dry-run              Preview operations without executing

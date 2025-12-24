@@ -191,6 +191,56 @@ This implementation plan converts the existing bcftools-based VCF processor to u
 - [x] 13. Final checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
+- [ ] 14. Implement variant type annotation feature
+  - [x] 14.1 Add --va-type parameter to CLI and configuration
+    - Update ProcessingConfig dataclass to include include_variant_type parameter
+    - Add --va-type option to CLI interface in config_manager.py
+    - Update standalone script to support the new parameter
+    - _Requirements: 8.1_
+
+  - [x] 14.2 Implement variant type classification logic
+    - Add classify_variant_type method to VariantTransformer class
+    - Add classify_multi_allelic_types method for multi-allelic variants
+    - Implement classification rules for SNP, INDEL, MNP, and REF
+    - _Requirements: 8.2, 8.3, 8.4, 8.5, 8.6_
+
+  - [x] 14.3 Write property test for variant type classification
+    - **Property 18: Variant Type Classification Accuracy**
+    - **Validates: Requirements 8.2, 8.3, 8.4, 8.5, 8.6**
+
+  - [x] 14.4 Write property test for multi-allelic type combination
+    - **Property 19: Multi-Allelic Type Combination**
+    - **Validates: Requirements 8.7**
+
+  - [x] 14.5 Update output writer to include Variant_Type column
+    - Modify OutputWriter to add Variant_Type column after ALT column when enabled
+    - Ensure both genotype_codes.tsv and genotype_bases.tsv include the column
+    - _Requirements: 8.1, 8.8_
+
+  - [x] 14.6 Write property test for variant type column placement
+    - **Property 20: Variant Type Column Placement**
+    - **Validates: Requirements 8.1, 8.8**
+
+  - [x] 14.7 Write unit tests for variant type edge cases
+    - Test edge cases like empty ALT, complex variants, and malformed data
+    - Test multi-allelic variants with various type combinations
+    - _Requirements: 8.2, 8.7_
+
+- [x] 15. Integration testing for variant type annotation
+  - [x] 15.1 Update integration tests to cover --va-type parameter
+    - Test end-to-end processing with variant type annotation enabled
+    - Verify output format matches expected structure
+    - _Requirements: 8.1, 8.8_
+
+  - [x] 15.2 Update documentation and examples
+    - Add --va-type parameter to usage examples
+    - Document variant type classification rules
+    - Update README with new feature description
+    - _Requirements: 8.1_
+
+- [x] 16. Final checkpoint for variant type annotation
+  - Ensure all variant type annotation tests pass, ask the user if questions arise.
+
 ## Notes
 
 - Each task references specific requirements for traceability

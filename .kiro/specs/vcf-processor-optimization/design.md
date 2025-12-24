@@ -53,6 +53,13 @@ class VariantTransformer:
     @staticmethod
     def transform_multi_alt(ref: str, alts: List[str]) -> str
     def validate_transformation(self, ref: str, alt: str) -> bool
+    
+    # New methods for variant type annotation
+    @staticmethod
+    def classify_variant_type(ref: str, alt: str) -> str
+    @staticmethod
+    def classify_multi_allelic_types(ref: str, alts: List[str]) -> str
+    def get_variant_type_column(self, variants: List[VariantInfo]) -> List[str]
 ```
 
 ### OutputWriter Class
@@ -77,6 +84,7 @@ class ProcessingConfig:
     batch_size: int = 10000
     compress_output: bool = True
     verbose: bool = False
+    include_variant_type: bool = False  # New parameter for --va-type
 
 class ConfigManager:
     @staticmethod
@@ -114,6 +122,67 @@ class ProcessingResult:
     processing_time: float
     
     def summary(self) -> str
+```
+
+## Variant Type Classification
+
+The variant type annotation feature classifies variants based on the comparison between REF and ALT alleles:
+
+### Classification Rules
+
+1. **SNP (Single Nucleotide Polymorphism)**:
+   - REF and ALT have the same length (1 base each)
+   - Example: REF=A, ALT=T → SNP
+
+2. **INDEL (Insertion/Deletion)**:
+   - REF and ALT have different lengths
+   - Example: REF=A, ALT=AT → INDEL (insertion)
+   - Example: REF=AT, ALT=A → INDEL (deletion)
+
+3. **MNP (Multi-Nucleotide Polymorphism)**:
+   - REF and ALT have the same length (>1 base each)
+   - Example: REF=AT, ALT=GC → MNP
+
+4. **REF (Reference)**:
+   - ALT is identical to REF or represents no variation
+   - Example: REF=A, ALT=A → REF
+
+### Multi-Allelic Handling
+
+For variants with multiple ALT alleles:
+- Each ALT allele is classified independently
+- Types are combined with pipe separator (|)
+- Types are sorted in order: SNP|INDEL|MNP|REF
+- Example: REF=A, ALT=[T,AT] → SNP|INDEL
+
+### Implementation Details
+
+```python
+def classify_variant_type(ref: str, alt: str) -> str:
+    """Classify a single variant type based on REF and ALT."""
+    if ref == alt:
+        return "REF"
+    elif len(ref) == len(alt) == 1:
+        return "SNP"
+    elif len(ref) != len(alt):
+        return "INDEL"
+    elif len(ref) == len(alt) > 1:
+        return "MNP"
+    else:
+        return "UNKNOWN"  # Fallback for edge cases
+
+def classify_multi_allelic_types(ref: str, alts: List[str]) -> str:
+    """Classify multi-allelic variant types."""
+    types = set()
+    for alt in alts:
+        variant_type = classify_variant_type(ref, alt)
+        types.add(variant_type)
+    
+    # Sort types in predefined order
+    type_order = ["SNP", "INDEL", "MNP", "REF"]
+    sorted_types = [t for t in type_order if t in types]
+    
+    return "|".join(sorted_types)
 ```
 
 ## Error Handling
@@ -222,6 +291,18 @@ Each error type will have specific handling strategies:
 ### Property 17: Variant Transformation Preservation
 *For any* variant (REF, ALT combination), the transformation to annotation format should produce identical results to the original implementation
 **Validates: Requirements 7.5**
+
+### Property 18: Variant Type Classification Accuracy
+*For any* variant with REF and ALT alleles, the variant type classification should correctly identify SNP, INDEL, MNP, or REF based on allele comparison rules
+**Validates: Requirements 8.2, 8.3, 8.4, 8.5, 8.6**
+
+### Property 19: Multi-Allelic Type Combination
+*For any* multi-allelic variant, the combined variant types should be pipe-separated and sorted in the order SNP|INDEL|MNP|REF
+**Validates: Requirements 8.7**
+
+### Property 20: Variant Type Column Placement
+*For any* output table when --va-type is enabled, the Variant_Type column should appear immediately after the ALT column and before sample columns
+**Validates: Requirements 8.1, 8.8**
 
 ## Error Handling
 

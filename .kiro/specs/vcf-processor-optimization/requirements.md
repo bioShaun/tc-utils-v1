@@ -13,6 +13,11 @@ This feature involves optimizing the existing VCF genotype table processing scri
 - **Target_ID_File**: File containing specific variant identifiers to extract
 - **GT_Conversion**: Process of converting VCF genotype format to sequence format
 - **Variant_Transformation**: Converting VCF variant notation to annotation format
+- **Variant_Type**: Classification of variants as SNP, INDEL, MNP, or REF based on REF and ALT alleles
+- **SNP**: Single Nucleotide Polymorphism (single base substitution)
+- **INDEL**: Insertion or deletion variant
+- **MNP**: Multi-Nucleotide Polymorphism (multiple base substitution)
+- **REF**: Reference allele (no variation)
 
 ## Requirements
 
@@ -103,3 +108,18 @@ This feature involves optimizing the existing VCF genotype table processing scri
 3. THE VCF_Processor SHALL maintain backward compatibility with existing output file naming
 4. THE VCF_Processor SHALL support both compressed and uncompressed output formats
 5. THE VCF_Processor SHALL preserve original variant transformation behavior
+
+### Requirement 8: Variant Type Annotation
+
+**User Story:** As a user, I want to annotate variants with their type classification, so that I can easily filter and analyze different types of genetic variations.
+
+#### Acceptance Criteria
+
+1. WHEN the --va-type parameter is provided, THE VCF_Processor SHALL add a Variant_Type column after the ALT column
+2. WHEN classifying variants, THE VCF_Processor SHALL determine variant type based on REF and ALT allele comparison
+3. WHEN a variant is a single nucleotide substitution, THE VCF_Processor SHALL classify it as SNP
+4. WHEN a variant is an insertion or deletion, THE VCF_Processor SHALL classify it as INDEL
+5. WHEN a variant is a multi-nucleotide substitution of equal length, THE VCF_Processor SHALL classify it as MNP
+6. WHEN a variant represents the reference allele, THE VCF_Processor SHALL classify it as REF
+7. WHEN a variant has multiple types (multi-allelic), THE VCF_Processor SHALL combine types with pipe separator (|) and sort them as SNP|INDEL|MNP|REF
+8. THE VCF_Processor SHALL maintain the same output format for both genotype_codes.tsv and genotype_bases.tsv files when --va-type is used

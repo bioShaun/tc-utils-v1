@@ -59,6 +59,7 @@ class ConfigManager:
                     "quiet": quiet,
                     "dry_run": dry_run,
                     "log_file": log_file,
+                    "include_variant_type": va_type,
                 }
                 
                 # Only override if CLI argument differs from default
@@ -181,7 +182,7 @@ class ConfigManager:
                 errors["batch_size"] = "batch_size must be a valid integer"
         
         # Validate boolean fields
-        bool_fields = ["compress_output", "verbose", "quiet", "dry_run"]
+        bool_fields = ["compress_output", "verbose", "quiet", "dry_run", "include_variant_type"]
         for field in bool_fields:
             if field in config_dict and not isinstance(config_dict[field], bool):
                 errors[field] = f"{field} must be a boolean"
@@ -217,7 +218,8 @@ class ConfigManager:
             "verbose": False,
             "quiet": False,
             "dry_run": False,
-            "log_file": None
+            "log_file": None,
+            "include_variant_type": False
         }
         
         output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -255,6 +257,7 @@ def create_cli_app() -> typer.Typer:
         dry_run: bool = typer.Option(False, "--dry-run", help="Preview operations without executing"),
         log_file: Optional[Path] = typer.Option(None, "--log-file", help="Log file path"),
         config_file: Optional[Path] = typer.Option(None, "--config", "-c", help="Configuration file path"),
+        va_type: bool = typer.Option(False, "--va-type", help="Include variant type annotation (SNP/INDEL/MNP/REF)"),
     ) -> None:
         """Process VCF files to generate genotype tables."""
         from .logging_config import setup_logging
@@ -285,6 +288,7 @@ def create_cli_app() -> typer.Typer:
                 quiet=quiet,
                 dry_run=dry_run,
                 log_file=log_file,
+                include_variant_type=va_type,
             )
         
         # Setup logging

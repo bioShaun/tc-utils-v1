@@ -783,6 +783,19 @@ class VCFProcessor:
                 logger.debug("No genotypes to process after conversion")
                 return
             
+            # Add Variant_Type column if enabled
+            if self.config.include_variant_type:
+                variant_types = self._variant_transformer.get_variant_type_column(transformed_variants)
+                
+                # Insert Variant_Type column after ALT column in both DataFrames
+                alt_col_index = gt_df.columns.get_loc('ALT') + 1
+                
+                # Insert in GT DataFrame
+                gt_df.insert(alt_col_index, 'Variant_Type', variant_types)
+                
+                # Insert in SEQ DataFrame
+                seq_df.insert(alt_col_index, 'Variant_Type', variant_types)
+            
             # Write output
             with self._output_writer as writer:
                 writer.write_batch(gt_df, seq_df)

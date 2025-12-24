@@ -243,3 +243,160 @@ class TestVariantTransformerUnit:
         # Multiple issues
         issues = validate_variant_alleles("", ["", "X"])
         assert len(issues) == 3  # Empty ref, empty alt1, invalid alt2
+
+
+class TestVariantTypeClassification:
+    """Unit tests for variant type classification edge cases."""
+    
+    def test_classify_variant_type_snp_cases(self):
+        """Test SNP classification edge cases."""
+        # Standard SNPs
+        assert VariantTransformer.classify_variant_type("A", "T") == "SNP"
+        assert VariantTransformer.classify_variant_type("G", "C") == "SNP"
+        assert VariantTransformer.classify_variant_type("T", "A") == "SNP"
+        assert VariantTransformer.classify_variant_type("C", "G") == "SNP"
+        
+        # Case sensitivity (should work with any case)
+        assert VariantTransformer.classify_variant_type("a", "t") == "SNP"
+        assert VariantTransformer.classify_variant_type("G", "c") == "SNP"
+    
+    def test_classify_variant_type_indel_cases(self):
+        """Test INDEL classification edge cases."""
+        # Simple insertions
+        assert VariantTransformer.classify_variant_type("A", "AT") == "INDEL"
+        assert VariantTransformer.classify_variant_type("G", "GCA") == "INDEL"
+        assert VariantTransformer.classify_variant_type("T", "TAAAAAA") == "INDEL"
+        
+        # Simple deletions
+        assert VariantTransformer.classify_variant_type("AT", "A") == "INDEL"
+        assert VariantTransformer.classify_variant_type("GCA", "G") == "INDEL"
+        assert VariantTransformer.classify_variant_type("TAAAAAA", "T") == "INDEL"
+        
+        # Symbolic deletion
+        assert VariantTransformer.classify_variant_type("A", "*") == "INDEL"
+        assert VariantTransformer.classify_variant_type("ATG", "*") == "INDEL"
+        
+        # Complex indels (very different lengths)
+        assert VariantTransformer.classify_variant_type("A", "ATCGATCGATCG") == "INDEL"
+        assert VariantTransformer.classify_variant_type("ATCGATCGATCG", "A") == "INDEL"
+    
+    def test_classify_variant_type_mnp_cases(self):
+        """Test MNP classification edge cases."""
+        # Standard MNPs
+        assert VariantTransformer.classify_variant_type("AT", "GC") == "MNP"
+        assert VariantTransformer.classify_variant_type("GCA", "TTT") == "MNP"
+        assert VariantTransformer.classify_variant_type("AAAA", "TTTT") == "MNP"
+        
+        # Long MNPs
+        assert VariantTransformer.classify_variant_type("ATCGATCG", "GCTAGCTA") == "MNP"
+        
+        # MNPs with repeated sequences
+        assert VariantTransformer.classify_variant_type("AAAA", "GGGG") == "MNP"
+        assert VariantTransformer.classify_variant_type("ATATATAT", "GCGCGCGC") == "MNP"
+    
+    def test_classify_variant_type_ref_cases(self):
+        """Test REF classification edge cases."""
+        # Identical sequences
+        assert VariantTransformer.classify_variant_type("A", "A") == "REF"
+        assert VariantTransformer.classify_variant_type("ATG", "ATG") == "REF"
+        assert VariantTransformer.classify_variant_type("ATCGATCGATCG", "ATCGATCGATCG") == "REF"
+        
+        # Case sensitivity
+        assert VariantTransformer.classify_variant_type("A", "a") == "REF"
+        assert VariantTransformer.classify_variant_type("ATG", "atg") == "REF"
+    
+    def test_classify_variant_type_edge_cases(self):
+        """Test edge cases and error conditions."""
+        # Empty inputs
+        assert VariantTransformer.classify_variant_type("", "A") == "UNKNOWN"
+        assert VariantTransformer.classify_variant_type("A", "") == "UNKNOWN"
+        assert VariantTransformer.classify_variant_type("", "") == "UNKNOWN"
+        
+        # Invalid nucleotides (should still classify by length rules)
+        assert VariantTransformer.classify_variant_type("X", "Y") == "SNP"  # Same length, different
+        assert VariantTransformer.classify_variant_type("X", "XY") == "INDEL"  # Different length
+        assert VariantTransformer.classify_variant_type("XY", "ZW") == "MNP"  # Same length >1
+        assert VariantTransformer.classify_variant_type("X", "X") == "REF"  # Identical
+    
+    def test_classify_multi_allelic_types_basic(self):
+        """Test basic multi-allelic type combination."""
+        # Single type cases
+        assert VariantTransformer.classify_multi_allelic_types("A", ["T"]) == "SNP"
+        assert VariantTransformer.classify_multi_allelic_types("A", ["AT"]) == "INDEL"
+        assert VariantTransformer.classify_multi_allelic_types("AT", ["GC"]) == "MNP"
+        assert VariantTransformer.classify_multi_allelic_types("A", ["A"]) == "REF"
+        
+        # Multiple types - should be sorted
+        assert VariantTransformer.classify_multi_allelic_types("A", ["T", "AT"]) == "SNP|INDEL"
+        assert VariantTransformer.classify_multi_allelic_types("A", ["AT", "T"]) == "SNP|INDEL"  # Order shouldn't matter
+        
+        # All types - need to include a real MNP (same length >1)
+        assert VariantTransformer.classify_multi_allelic_types("AT", ["GC", "A", "ATG", "AT"]) == "INDEL|MNP|REF"
+        
+        # Reverse order input - should still be sorted correctly  
+        assert VariantTransformer.classify_multi_allelic_types("AT", ["AT", "ATG", "A", "GC"]) == "INDEL|MNP|REF"
+    
+    def test_classify_multi_allelic_types_edge_cases(self):
+        """Test edge cases for multi-allelic classification."""
+        # Empty alt list
+        assert VariantTransformer.classify_multi_allelic_types("A", []) == "REF"
+        
+        # All same type
+        assert VariantTransformer.classify_multi_allelic_types("A", ["T", "G", "C"]) == "SNP"
+        assert VariantTransformer.classify_multi_allelic_types("A", ["AT", "AG", "AC"]) == "INDEL"
+        
+        # With symbolic deletion
+        assert VariantTransformer.classify_multi_allelic_types("A", ["T", "*"]) == "SNP|INDEL"
+        
+        # With unknown/invalid types (should be filtered out)
+        assert VariantTransformer.classify_multi_allelic_types("", ["T", "G"]) == "UNKNOWN"
+        
+        # Duplicates should be deduplicated
+        assert VariantTransformer.classify_multi_allelic_types("A", ["T", "T", "AT", "AT"]) == "SNP|INDEL"
+    
+    def test_get_variant_type_column(self):
+        """Test variant type column generation."""
+        transformer = VariantTransformer()
+        
+        # Create test variants
+        variants = [
+            VariantInfo(chrom="chr1", pos=100, ref="A", alt=["T"], variant_id="chr1_100", genotypes=["0/1"]),
+            VariantInfo(chrom="chr1", pos=200, ref="A", alt=["AT"], variant_id="chr1_200", genotypes=["0/1"]),
+            VariantInfo(chrom="chr1", pos=300, ref="AT", alt=["GC"], variant_id="chr1_300", genotypes=["0/1"]),
+            VariantInfo(chrom="chr1", pos=400, ref="A", alt=["A"], variant_id="chr1_400", genotypes=["0/1"]),
+            VariantInfo(chrom="chr1", pos=500, ref="A", alt=["T", "AT"], variant_id="chr1_500", genotypes=["0/1"]),
+        ]
+        
+        # Get variant type column
+        variant_types = transformer.get_variant_type_column(variants)
+        
+        # Check results
+        assert len(variant_types) == 5
+        assert variant_types[0] == "SNP"
+        assert variant_types[1] == "INDEL"
+        assert variant_types[2] == "MNP"
+        assert variant_types[3] == "REF"
+        assert variant_types[4] == "SNP|INDEL"
+    
+    def test_variant_type_with_complex_cases(self):
+        """Test variant type classification with complex real-world cases."""
+        # Complex structural variants
+        assert VariantTransformer.classify_variant_type("ATCGATCG", "A") == "INDEL"  # Large deletion
+        assert VariantTransformer.classify_variant_type("A", "ATCGATCGATCGATCG") == "INDEL"  # Large insertion
+        
+        # Microsatellite-like variants
+        assert VariantTransformer.classify_variant_type("ATATAT", "ATATATAT") == "INDEL"  # Repeat expansion
+        assert VariantTransformer.classify_variant_type("ATATATAT", "ATATAT") == "INDEL"  # Repeat contraction
+        
+        # Complex substitutions
+        assert VariantTransformer.classify_variant_type("ATCG", "GCTA") == "MNP"  # Complex MNP
+        
+        # Multi-allelic with all types
+        complex_alts = ["T", "ATCG", "GC", "A", "*"]  # SNP, INDEL, MNP, REF, symbolic
+        result = VariantTransformer.classify_multi_allelic_types("A", complex_alts)
+        assert result == "SNP|INDEL|REF"  # MNP not possible with ref="A"
+        
+        # Real-world multi-allelic example
+        real_alts = ["G", "GA", "GAA"]  # SNP and two different insertions
+        result = VariantTransformer.classify_multi_allelic_types("A", real_alts)
+        assert result == "SNP|INDEL"

@@ -231,6 +231,93 @@ class VariantTransformer:
         ]
         
         return "\n".join(lines)
+    
+    @staticmethod
+    def classify_variant_type(ref: str, alt: str) -> str:
+        """Classify a single variant type based on REF and ALT.
+        
+        Args:
+            ref: Reference allele
+            alt: Alternative allele
+            
+        Returns:
+            Variant type: "SNP", "INDEL", "MNP", "REF", or "UNKNOWN"
+        """
+        # Handle empty inputs
+        if not ref or not alt:
+            return "UNKNOWN"
+        
+        # Handle symbolic alleles
+        if alt == "*":
+            return "INDEL"  # Deletion
+        
+        # Normalize case for comparison
+        ref_upper = ref.upper()
+        alt_upper = alt.upper()
+        
+        # Reference allele (no variation)
+        if ref_upper == alt_upper:
+            return "REF"
+        
+        # Single nucleotide polymorphism
+        if len(ref) == 1 and len(alt) == 1:
+            return "SNP"
+        
+        # Insertion or deletion (different lengths)
+        if len(ref) != len(alt):
+            return "INDEL"
+        
+        # Multi-nucleotide polymorphism (same length, >1 base)
+        if len(ref) == len(alt) and len(ref) > 1:
+            return "MNP"
+        
+        # Fallback for edge cases
+        return "UNKNOWN"
+    
+    @staticmethod
+    def classify_multi_allelic_types(ref: str, alts: List[str]) -> str:
+        """Classify multi-allelic variant types.
+        
+        Args:
+            ref: Reference allele
+            alts: List of alternative alleles
+            
+        Returns:
+            Combined variant types separated by pipe (|) and sorted as SNP|INDEL|MNP|REF
+        """
+        if not alts:
+            return "REF"
+        
+        types = set()
+        for alt in alts:
+            variant_type = VariantTransformer.classify_variant_type(ref, alt)
+            if variant_type != "UNKNOWN":  # Only include known types
+                types.add(variant_type)
+        
+        # Sort types in predefined order
+        type_order = ["SNP", "INDEL", "MNP", "REF"]
+        sorted_types = [t for t in type_order if t in types]
+        
+        # If no known types found, return UNKNOWN
+        if not sorted_types:
+            return "UNKNOWN"
+        
+        return "|".join(sorted_types)
+    
+    def get_variant_type_column(self, variants: List[VariantInfo]) -> List[str]:
+        """Get variant type column for a list of variants.
+        
+        Args:
+            variants: List of VariantInfo objects
+            
+        Returns:
+            List of variant type strings for each variant
+        """
+        variant_types = []
+        for variant in variants:
+            variant_type = self.classify_multi_allelic_types(variant.ref, variant.alt)
+            variant_types.append(variant_type)
+        return variant_types
 
 
 def validate_variant_alleles(ref: str, alt_alleles: List[str]) -> List[str]:

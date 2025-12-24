@@ -54,7 +54,8 @@ if str(project_root) not in sys.path:
 
 def process_vcf(vcf_file: str, output_prefix: str, target_file: str = None,
                 miss_fmt: str = "./.", gt_sep: str = "", batch_size: int = 10000,
-                compress_output: bool = False, verbose: bool = False, quiet: bool = False) -> Dict:
+                compress_output: bool = False, verbose: bool = False, quiet: bool = False,
+                include_variant_type: bool = False) -> Dict:
     """使用VCFProcessor处理VCF文件
     
     Args:
@@ -67,6 +68,7 @@ def process_vcf(vcf_file: str, output_prefix: str, target_file: str = None,
         compress_output: 是否压缩输出
         verbose: 是否详细输出
         quiet: 是否静默模式
+        include_variant_type: 是否包含变异类型注释
         
     Returns:
         处理结果字典
@@ -86,7 +88,8 @@ def process_vcf(vcf_file: str, output_prefix: str, target_file: str = None,
         compress_output=compress_output,
         verbose=verbose,
         quiet=quiet,  # 正确传递静默模式参数
-        threads=1  # 独立脚本使用单线程
+        threads=1,  # 独立脚本使用单线程
+        include_variant_type=include_variant_type
     )
     
     # 执行处理
@@ -116,6 +119,7 @@ def main(
     compress: Annotated[bool, typer.Option("--compress", help="压缩输出文件")] = False,
     verbose: Annotated[bool, typer.Option("--verbose", "-v", help="详细输出")] = False,
     quiet: Annotated[bool, typer.Option("--quiet", "-q", help="静默模式")] = False,
+    va_type: Annotated[bool, typer.Option("--va-type", help="包含变异类型注释 (SNP/INDEL/MNP/REF)")] = False,
 ) -> None:
     """VCF处理器 - 独立脚本版本
     
@@ -163,7 +167,8 @@ def main(
             batch_size=batch_size,
             compress_output=compress,
             verbose=verbose and not quiet,
-            quiet=quiet
+            quiet=quiet,
+            include_variant_type=va_type
         )
         
         # 输出结果摘要

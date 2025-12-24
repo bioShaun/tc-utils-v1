@@ -72,6 +72,7 @@ class ProcessingConfig:
         quiet: Enable quiet mode (default: False)
         dry_run: Preview operations without executing (default: False)
         log_file: Optional log file path
+        include_variant_type: Whether to include variant type annotation (default: False)
     """
     vcf_file: Path
     output_file: Path
@@ -85,6 +86,7 @@ class ProcessingConfig:
     quiet: bool = False
     dry_run: bool = False
     log_file: Optional[Path] = None
+    include_variant_type: bool = False
     
     def __post_init__(self) -> None:
         """Validate configuration after initialization."""
@@ -139,6 +141,7 @@ class ProcessingConfig:
             "quiet": self.quiet,
             "dry_run": self.dry_run,
             "log_file": str(self.log_file) if self.log_file else None,
+            "include_variant_type": self.include_variant_type,
         }
 
 

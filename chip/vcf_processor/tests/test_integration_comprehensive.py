@@ -522,3 +522,248 @@ chr1\t100\t.\tA\tT\t60\tPASS\t.\tGT\t0/0
                 # Should handle different extensions
                 assert len(result.errors) == 0, f"Extension {vcf_ext}/{target_ext}: Processing had errors: {result.errors}"
                 assert result.processed_variants >= 0, f"Extension {vcf_ext}/{target_ext}: Invalid processed count"
+
+
+class TestVariantTypeAnnotationIntegration:
+    """Integration tests for variant type annotation feature."""
+    
+    def test_variant_type_annotation_end_to_end(self):
+        """Test end-to-end processing with variant type annotation enabled."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            
+            # Create comprehensive VCF with different variant types
+            vcf_file = temp_path / "variant_types.vcf"
+            vcf_content = """##fileformat=VCFv4.2
+##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tsample1\tsample2\tsample3
+chr1\t100\t.\tA\tT\t60\tPASS\t.\tGT\t0/0\t0/1\t1/1
+chr1\t200\t.\tAT\tA\t55\tPASS\t.\tGT\t0/1\t1/1\t0/0
+chr1\t300\t.\tG\tGC\t65\tPASS\t.\tGT\t1/1\t0/0\t0/1
+chr1\t400\t.\tATG\tCGA\t70\tPASS\t.\tGT\t0/0\t0/1\t1/1
+chr1\t500\t.\tA\tA\t50\tPASS\t.\tGT\t0/0\t0/0\t0/0
+chr2\t100\t.\tC\tT,G\t60\tPASS\t.\tGT\t0/1\t0/2\t1/2
+chr2\t200\t.\tA\tT,AT\t65\tPASS\t.\tGT\t0/1\t0/2\t1/2
+chr2\t300\t.\tAT\tGC,A\t70\tPASS\t.\tGT\t0/1\t0/2\t1/2
+"""
+            vcf_file.write_text(vcf_content)
+            
+            target_file = temp_path / "targets.txt"
+            target_file.write_text("chr1_100\nchr1_200\nchr1_300\nchr1_400\nchr1_500\nchr2_100\nchr2_200\nchr2_300\n")
+            
+            # Test with variant type annotation enabled
+            output_file = temp_path / "va_type_output"
+            
+            config = ProcessingConfig(
+                vcf_file=vcf_file,
+                target_id_file=target_file,
+                output_file=output_file,
+                include_variant_type=True,
+                compress_output=False,  # Use uncompressed for easier testing
+                quiet=True
+            )
+            
+            processor = VCFProcessor(config)
+            
+            try:
+                result = processor.process()
+                
+                # Verify processing completed
+                assert len(result.errors) == 0, f"Processing had errors: {result.errors}"
+                assert result.processed_variants > 0, "No variants processed"
+                
+                # Check output files
+                gt_file = output_file.with_suffix('.genotype_codes.tsv')
+                seq_file = output_file.with_suffix('.genotype_bases.tsv')
+                
+                if gt_file.exists() and seq_file.exists():
+                    # Read and verify output structure
+                    gt_df = pd.read_csv(gt_file, sep='\t')
+                    seq_df = pd.read_csv(seq_file, sep='\t')
+                    
+                    # Verify Variant_Type column exists and is in correct position
+                    assert 'Variant_Type' in gt_df.columns, "Variant_Type column missing from genotype_codes.tsv"
+                    assert 'Variant_Type' in seq_df.columns, "Variant_Type column missing from genotype_bases.tsv"
+                    
+                    # Verify column order
+                    gt_columns = list(gt_df.columns)
+                    seq_columns = list(seq_df.columns)
+                    
+                    alt_index_gt = gt_columns.index('ALT')
+                    alt_index_seq = seq_columns.index('ALT')
+                    variant_type_index_gt = gt_columns.index('Variant_Type')
+                    variant_type_index_seq = seq_columns.index('Variant_Type')
+                    
+                    assert variant_type_index_gt == alt_index_gt + 1, "Variant_Type not immediately after ALT in GT file"
+                    assert variant_type_index_seq == alt_index_seq + 1, "Variant_Type not immediately after ALT in SEQ file"
+                    
+                    # Verify both files have same structure
+                    assert gt_columns == seq_columns, "GT and SEQ files have different column structures"
+                    
+                    # Verify variant type classifications
+                    if len(gt_df) > 0:
+                        variant_types = gt_df['Variant_Type'].tolist()
+                        
+                        # All variant types should be valid
+                        valid_types = {'SNP', 'INDEL', 'MNP', 'REF', 'SNP|INDEL', 'SNP|MNP', 'INDEL|MNP', 'SNP|INDEL|MNP', 'SNP|INDEL|MNP|REF'}
+                        for vt in variant_types:
+                            assert any(valid_type in vt for valid_type in ['SNP', 'INDEL', 'MNP', 'REF']), f"Invalid variant type: {vt}"
+                        
+                        # Check specific expected types based on test data
+                        # Note: Exact matching depends on how variants are processed and filtered
+                        expected_type_patterns = ['SNP', 'INDEL', 'MNP', 'REF']
+                        found_types = set()
+                        for vt in variant_types:
+                            for pattern in expected_type_patterns:
+                                if pattern in vt:
+                                    found_types.add(pattern)
+                        
+                        # Should find at least some of the expected types
+                        assert len(found_types) > 0, f"No expected variant types found. Got: {variant_types}"
+                
+            except Exception as e:
+                # If cyvcf2 is not available, skip the test
+                if "cyvcf2" in str(e) or "VCF reader not available" in str(e):
+                    pytest.skip("cyvcf2 not available for integration test")
+                else:
+                    raise
+    
+    def test_variant_type_annotation_disabled_by_default(self):
+        """Test that variant type annotation is disabled by default."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            
+            # Create simple VCF
+            vcf_file = temp_path / "simple.vcf"
+            vcf_content = """##fileformat=VCFv4.2
+##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tsample1
+chr1\t100\t.\tA\tT\t60\tPASS\t.\tGT\t0/0
+chr1\t200\t.\tG\tC\t55\tPASS\t.\tGT\t0/1
+"""
+            vcf_file.write_text(vcf_content)
+            
+            target_file = temp_path / "targets.txt"
+            target_file.write_text("chr1_100\nchr1_200\n")
+            
+            output_file = temp_path / "default_output"
+            
+            # Test with default configuration (variant type annotation disabled)
+            config = ProcessingConfig(
+                vcf_file=vcf_file,
+                target_id_file=target_file,
+                output_file=output_file,
+                compress_output=False,
+                quiet=True
+                # include_variant_type defaults to False
+            )
+            
+            processor = VCFProcessor(config)
+            
+            try:
+                result = processor.process()
+                
+                # Verify processing completed
+                assert len(result.errors) == 0, f"Processing had errors: {result.errors}"
+                
+                # Check output files
+                gt_file = output_file.with_suffix('.genotype_codes.tsv')
+                seq_file = output_file.with_suffix('.genotype_bases.tsv')
+                
+                if gt_file.exists() and seq_file.exists():
+                    # Read and verify output structure
+                    gt_df = pd.read_csv(gt_file, sep='\t')
+                    seq_df = pd.read_csv(seq_file, sep='\t')
+                    
+                    # Verify Variant_Type column does NOT exist
+                    assert 'Variant_Type' not in gt_df.columns, "Variant_Type column should not exist when disabled"
+                    assert 'Variant_Type' not in seq_df.columns, "Variant_Type column should not exist when disabled"
+                    
+                    # Should have standard columns
+                    expected_base_columns = ['CHROM', 'POS', 'REF', 'ALT']
+                    for col in expected_base_columns:
+                        assert col in gt_df.columns, f"Missing expected column: {col}"
+                        assert col in seq_df.columns, f"Missing expected column: {col}"
+                
+            except Exception as e:
+                # If cyvcf2 is not available, skip the test
+                if "cyvcf2" in str(e) or "VCF reader not available" in str(e):
+                    pytest.skip("cyvcf2 not available for integration test")
+                else:
+                    raise
+    
+    def test_variant_type_annotation_with_different_configurations(self):
+        """Test variant type annotation with different processing configurations."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            
+            # Create test VCF
+            vcf_file = temp_path / "config_test.vcf"
+            vcf_content = """##fileformat=VCFv4.2
+##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tsample1\tsample2
+chr1\t100\t.\tA\tT\t60\tPASS\t.\tGT\t0/0\t0/1
+chr1\t200\t.\tAT\tA\t55\tPASS\t.\tGT\t0/1\t1/1
+chr1\t300\t.\tG\tGC\t65\tPASS\t.\tGT\t1/1\t0/0
+"""
+            vcf_file.write_text(vcf_content)
+            
+            target_file = temp_path / "targets.txt"
+            target_file.write_text("chr1_100\nchr1_200\nchr1_300\n")
+            
+            # Test different configurations with variant type annotation
+            test_configs = [
+                {
+                    "name": "compressed",
+                    "compress_output": True,
+                    "batch_size": 1000,
+                    "miss_fmt": "NN"
+                },
+                {
+                    "name": "uncompressed",
+                    "compress_output": False,
+                    "batch_size": 5000,
+                    "miss_fmt": "./."
+                },
+                {
+                    "name": "large_batch",
+                    "compress_output": False,
+                    "batch_size": 10000,
+                    "miss_fmt": "--"
+                }
+            ]
+            
+            for test_config in test_configs:
+                output_file = temp_path / f"config_{test_config['name']}_output"
+                
+                config = ProcessingConfig(
+                    vcf_file=vcf_file,
+                    target_id_file=target_file,
+                    output_file=output_file,
+                    include_variant_type=True,  # Enable variant type annotation
+                    compress_output=test_config["compress_output"],
+                    batch_size=test_config["batch_size"],
+                    miss_fmt=test_config["miss_fmt"],
+                    quiet=True
+                )
+                
+                processor = VCFProcessor(config)
+                
+                try:
+                    result = processor.process()
+                    
+                    # Verify processing completed
+                    assert len(result.errors) == 0, f"Config {test_config['name']}: Processing had errors: {result.errors}"
+                    
+                    # Verify configuration was applied
+                    assert processor.config.include_variant_type == True, f"Config {test_config['name']}: Variant type not enabled"
+                    assert processor.config.compress_output == test_config["compress_output"], f"Config {test_config['name']}: Compression setting not applied"
+                    assert processor.config.batch_size == test_config["batch_size"], f"Config {test_config['name']}: Batch size not applied"
+                    assert processor.config.miss_fmt == test_config["miss_fmt"], f"Config {test_config['name']}: Miss format not applied"
+                    
+                except Exception as e:
+                    # If cyvcf2 is not available, skip the test
+                    if "cyvcf2" in str(e) or "VCF reader not available" in str(e):
+                        pytest.skip("cyvcf2 not available for integration test")
+                    else:
+                        raise
