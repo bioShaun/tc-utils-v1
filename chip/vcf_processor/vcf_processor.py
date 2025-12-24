@@ -388,9 +388,12 @@ class VCFProcessor:
                     logger.warning("VCF reader not available, will use fallback methods")
             
             # Initialize other components
-            self._variant_filter = VariantFilter(self.config)
-            self._variant_transformer = VariantTransformer(self.config)
-            self._genotype_converter = GenotypeConverter(self.config)
+            self._variant_filter = VariantFilter()  # Will be configured with target IDs later
+            self._variant_transformer = VariantTransformer(strict_mode=False)  # Use non-strict mode
+            self._genotype_converter = GenotypeConverter(
+                miss_fmt=self.config.miss_fmt,
+                gt_sep=self.config.gt_sep
+            )
             self._output_writer = OutputWriter(self.config, self.result)
             
             logger.debug("All components initialized successfully")

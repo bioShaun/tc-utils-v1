@@ -12,6 +12,13 @@ The user reported that ProcessingConfig debug information was appearing in the o
 
 3. **Progress Bar in Quiet Mode**: The ProgressTracker was still creating tqdm progress bars even in quiet mode due to the hardcoded quiet parameter issue.
 
+4. **CRITICAL: Incorrect Component Initialization**: The most serious issue was in `vcf_processor.py` where components were initialized with the wrong parameters:
+   - `GenotypeConverter(self.config)` - but GenotypeConverter expects `miss_fmt` and `gt_sep` parameters, not a config object
+   - `VariantFilter(self.config)` - but VariantFilter expects `target_ids` parameter, not a config object  
+   - `VariantTransformer(self.config)` - but VariantTransformer expects `strict_mode` parameter, not a config object
+
+   This caused the entire ProcessingConfig object to be used as the `miss_fmt` parameter in GenotypeConverter, which is why ProcessingConfig strings appeared in the genotype data columns.
+
 ## Fixes Applied
 
 ### 1. Fixed Print Statement (vcf_processor.py)
@@ -82,7 +89,29 @@ else:
     )
 ```
 
-### 4. Moved Imports to Prevent Early Logger Creation
+### 4. CRITICAL FIX: Correct Component Initialization (vcf_processor.py)
+**Before:**
+```python
+# Initialize other components
+self._variant_filter = VariantFilter(self.config)
+self._variant_transformer = VariantTransformer(self.config)
+self._genotype_converter = GenotypeConverter(self.config)
+self._output_writer = OutputWriter(self.config, self.result)
+```
+
+**After:**
+```python
+# Initialize other components
+self._variant_filter = VariantFilter()  # Will be configured with target IDs later
+self._variant_transformer = VariantTransformer(strict_mode=False)  # Use non-strict mode
+self._genotype_converter = GenotypeConverter(
+    miss_fmt=self.config.miss_fmt,
+    gt_sep=self.config.gt_sep
+)
+self._output_writer = OutputWriter(self.config, self.result)
+```
+
+### 5. Moved Imports to Prevent Early Logger Creation
 Moved VCF processor imports inside the `process_vcf` function to ensure logging is configured before any loggers are created.
 
 ## Test Results
@@ -94,25 +123,28 @@ All modes now work correctly:
 - ✅ No output to stderr  
 - ✅ No progress bars
 - ✅ No debug information
-- ✅ Clean data files
+- ✅ Clean data files with correct genotype data
 
 ### Normal Mode (default)
 - ✅ Summary output to stdout
 - ✅ Appropriate logging to stderr
 - ✅ Progress bars shown
 - ✅ No debug contamination in data files
+- ✅ Correct genotype data (NN for missing, proper allele sequences)
 
 ### Verbose Mode (`--verbose`)
 - ✅ Summary output to stdout
 - ✅ Detailed logging to stderr (including processing summary)
 - ✅ Progress bars shown
 - ✅ No debug contamination in data files
+- ✅ Correct genotype data
 
 ## Files Modified
 
 1. `chip/vcf_processor/vcf_processor.py`
    - Fixed print statement to use logger
    - Enhanced ProgressTracker quiet mode handling
+   - **CRITICAL**: Fixed component initialization to pass correct parameters
 
 2. `chip/vcf_processor/vcf_processor_standalone.py`
    - Added quiet parameter to process_vcf function
@@ -129,4 +161,10 @@ Created comprehensive test suite:
 - `test_quiet_mode_complete.py`: Tests complete quiet mode functionality
 - `test_final_validation.py`: Comprehensive validation of all modes
 
-All tests pass, confirming the debug output contamination issue is completely resolved.
+**Real-world validation**: Tested with actual user data (`allele_function.20260926.vcf.gz`) and confirmed:
+- No ProcessingConfig objects in output files
+- Correct genotype conversion (NN for missing genotypes)
+- Proper ALT field handling (empty ALT shows as ".")
+- All output modes work correctly
+
+The debug output contamination issue is now completely resolved. The critical fix was correcting the component initialization parameters - this was the root cause of ProcessingConfig objects appearing in the genotype data.
