@@ -33,66 +33,66 @@ This implementation plan converts the existing bcftools-based VCF processor to u
     - Test configuration file loading and validation
     - _Requirements: 5.1, 5.2, 5.3_
 
-- [ ] 3. Implement VCF reading with cyvcf2
-  - [-] 3.1 Create VCFReader class
+- [x] 3. Implement VCF reading with cyvcf2
+  - [x] 3.1 Create VCFReader class
     - Implement cyvcf2-based VCF file reading
     - Add sample name extraction
     - Add variant iteration with optional filtering
     - _Requirements: 1.1, 1.4_
 
-  - [ ] 3.2 Write property test for VCF reading
+  - [x] 3.2 Write property test for VCF reading
     - **Property 1: Variant ID Generation Consistency**
     - **Validates: Requirements 1.2**
 
-  - [ ] 3.3 Implement VariantFilter class
+  - [x] 3.3 Implement VariantFilter class
     - Add target ID loading from file
     - Add variant filtering logic
     - _Requirements: 1.3, 6.2_
 
-  - [ ] 3.4 Write property test for variant filtering
+  - [x] 3.4 Write property test for variant filtering
     - **Property 11: Invalid Target ID Handling**
     - **Validates: Requirements 6.2**
 
 - [ ] 4. Checkpoint - Ensure VCF reading tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 5. Implement variant transformation logic
-  - [ ] 5.1 Create VariantTransformer class
+- [x] 5. Implement variant transformation logic
+  - [x] 5.1 Create VariantTransformer class
     - Port existing transformOneAlt and transformAlt functions
     - Add comprehensive error handling for complex variants
     - Add validation methods
     - _Requirements: 6.3, 7.5_
 
-  - [ ] 5.2 Write property test for variant transformation
+  - [x] 5.2 Write property test for variant transformation
     - **Property 17: Variant Transformation Preservation**
     - **Validates: Requirements 7.5**
 
-  - [ ] 5.3 Write property test for transformation error handling
+  - [x] 5.3 Write property test for transformation error handling
     - **Property 12: Transformation Error Context**
     - **Validates: Requirements 6.3**
 
-  - [ ] 5.4 Write unit tests for variant transformation edge cases
+  - [x] 5.4 Write unit tests for variant transformation edge cases
     - Test SNPs, insertions, deletions, and complex variants
     - Test error conditions with invalid inputs
     - _Requirements: 6.3, 7.5_
 
-- [ ] 6. Implement genotype conversion
-  - [ ] 6.1 Create GenotypeConverter class
+- [x] 6. Implement genotype conversion
+  - [x] 6.1 Create GenotypeConverter class
     - Port existing genotype conversion logic
     - Add batch processing capabilities
     - Optimize with vectorized operations where possible
     - _Requirements: 4.2, 7.1, 7.2_
 
-  - [ ] 6.2 Write property test for genotype conversion
+  - [x] 6.2 Write property test for genotype conversion
     - **Property 2: Output Format Equivalence**
     - **Validates: Requirements 1.5, 7.1, 7.2**
 
-  - [ ] 6.3 Implement batch processing with configurable sizes
+  - [x] 6.3 Implement batch processing with configurable sizes
     - Add streaming processing for large files
     - Add progress tracking
     - _Requirements: 4.1, 4.3, 4.4_
 
-  - [ ] 6.4 Write property test for batch processing
+  - [x] 6.4 Write property test for batch processing
     - **Property 5: Batch Size Respect**
     - **Validates: Requirements 4.3**
 
