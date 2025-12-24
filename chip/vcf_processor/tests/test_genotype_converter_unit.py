@@ -124,7 +124,7 @@ class TestGenotypeConverterUnit:
         assert result["sample2"] == "AT"  # 0/1
         assert result["sample3"] == "TT"  # 1/1
         assert result["sample4"] == "AG"  # 0/2
-        assert result["sample5"] == "NN"  # ./.
+        assert result["sample5"] == "./."  # ./.
         assert result["sample6"] == "TG"  # 1/2
     
     def test_batch_conversion(self):
@@ -160,7 +160,7 @@ class TestGenotypeConverterUnit:
         
         # Check second variant
         assert df.iloc[1]["sample1"] == "CC"
-        assert df.iloc[1]["sample2"] == "NN"
+        assert df.iloc[1]["sample2"] == "./."
     
     def test_dataframe_processing(self):
         """Test processing of existing DataFrame."""
@@ -182,7 +182,7 @@ class TestGenotypeConverterUnit:
         assert result_df.loc[0, 'sample1'] == "AA"
         assert result_df.loc[0, 'sample2'] == "AT"
         assert result_df.loc[1, 'sample1'] == "CC"
-        assert result_df.loc[1, 'sample2'] == "NN"
+        assert result_df.loc[1, 'sample2'] == "./."
         
         # Original DataFrame should be unchanged
         assert df.loc[0, 'sample1'] == "0/0"

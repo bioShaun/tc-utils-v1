@@ -106,16 +106,16 @@ class TestOutputWriterProperties:
             expected_paths = writer.get_output_paths()
             
             # Check naming pattern
-            gt_path = expected_paths["genotype"]
-            seq_path = expected_paths["sequence"]
+            gt_path = expected_paths["genotype_codes"]
+            seq_path = expected_paths["genotype_bases"]
             
             # Verify naming convention
             if config.compress_output:
-                assert gt_path.name.endswith(".gt.txt.gz"), f"GT file should end with .gt.txt.gz, got {gt_path.name}"
-                assert seq_path.name.endswith(".seq.txt.gz"), f"SEQ file should end with .seq.txt.gz, got {seq_path.name}"
+                assert gt_path.name.endswith(".genotype_codes.tsv.gz"), f"GT file should end with .genotype_codes.tsv.gz, got {gt_path.name}"
+                assert seq_path.name.endswith(".genotype_bases.tsv.gz"), f"SEQ file should end with .genotype_bases.tsv.gz, got {seq_path.name}"
             else:
-                assert gt_path.name.endswith(".gt.txt"), f"GT file should end with .gt.txt, got {gt_path.name}"
-                assert seq_path.name.endswith(".seq.txt"), f"SEQ file should end with .seq.txt, got {seq_path.name}"
+                assert gt_path.name.endswith(".genotype_codes.tsv"), f"GT file should end with .genotype_codes.tsv, got {gt_path.name}"
+                assert seq_path.name.endswith(".genotype_bases.tsv"), f"SEQ file should end with .genotype_bases.tsv, got {seq_path.name}"
             
             # Verify base name consistency
             base_name = config.output_file.name
@@ -155,8 +155,8 @@ class TestOutputWriterProperties:
             paths2 = writer2.get_output_paths()
             
             # Paths should be identical
-            assert paths1["genotype"] == paths2["genotype"]
-            assert paths1["sequence"] == paths2["sequence"]
+            assert paths1["genotype_codes"] == paths2["genotype_codes"]
+            assert paths1["genotype_bases"] == paths2["genotype_bases"]
             
         finally:
             # Cleanup
@@ -180,8 +180,8 @@ class TestOutputWriterProperties:
             paths2 = writer2.get_output_paths()
             
             # Paths should be identical
-            assert paths1["genotype"] == paths2["genotype"]
-            assert paths1["sequence"] == paths2["sequence"]
+            assert paths1["genotype_codes"] == paths2["genotype_codes"]
+            assert paths1["genotype_bases"] == paths2["genotype_bases"]
             
         finally:
             # Cleanup
@@ -208,19 +208,19 @@ class TestOutputWriterProperties:
                 writer.write_batch(batch_df, batch_df)  # Use same df for both gt and seq
                 
                 # Verify files exist and have expected names
-                gt_path = expected_paths["genotype"]
-                seq_path = expected_paths["sequence"]
+                gt_path = expected_paths["genotype_codes"]
+                seq_path = expected_paths["genotype_bases"]
                 
                 assert gt_path.exists(), f"GT file should exist after batch {i}"
                 assert seq_path.exists(), f"SEQ file should exist after batch {i}"
                 
                 # File names should remain consistent
                 if config.compress_output:
-                    assert gt_path.name.endswith(".gt.txt.gz")
-                    assert seq_path.name.endswith(".seq.txt.gz")
+                    assert gt_path.name.endswith(".genotype_codes.tsv.gz")
+                    assert seq_path.name.endswith(".genotype_bases.tsv.gz")
                 else:
-                    assert gt_path.name.endswith(".gt.txt")
-                    assert seq_path.name.endswith(".seq.txt")
+                    assert gt_path.name.endswith(".genotype_codes.tsv")
+                    assert seq_path.name.endswith(".genotype_bases.tsv")
             
             writer.finish_batch_processing()
             
@@ -270,8 +270,8 @@ class TestOutputWriterEdgeCases:
             paths = writer.get_output_paths()
             
             # Verify naming pattern is preserved
-            assert paths["genotype"].name == "test-output_file.with.dots.gt.txt.gz"
-            assert paths["sequence"].name == "test-output_file.with.dots.seq.txt.gz"
+            assert paths["genotype_codes"].name == "test-output_file.with.dots.genotype_codes.tsv.gz"
+            assert paths["genotype_bases"].name == "test-output_file.with.dots.genotype_bases.tsv.gz"
     
     def test_long_output_path(self):
         """Test handling of very long output paths."""
@@ -300,8 +300,8 @@ class TestOutputWriterEdgeCases:
             paths = writer.get_output_paths()
             
             # Verify naming pattern is preserved even with long names
-            assert paths["genotype"].name == f"{long_name}.gt.txt"
-            assert paths["sequence"].name == f"{long_name}.seq.txt"
+            assert paths["genotype_codes"].name == f"{long_name}.genotype_codes.tsv"
+            assert paths["genotype_bases"].name == f"{long_name}.genotype_bases.tsv"
 
 
 class TestCompressionSupport:
@@ -330,8 +330,8 @@ class TestCompressionSupport:
             
             # Get output paths
             paths = writer.get_output_paths()
-            gt_path = paths["genotype"]
-            seq_path = paths["sequence"]
+            gt_path = paths["genotype_codes"]
+            seq_path = paths["genotype_bases"]
             
             # Verify files exist
             assert gt_path.exists(), f"GT output file should exist: {gt_path}"
@@ -363,8 +363,8 @@ class TestCompressionSupport:
                     
             else:
                 # Files should be uncompressed (plain text)
-                assert gt_path.suffix == ".txt", f"GT file should be uncompressed: {gt_path}"
-                assert seq_path.suffix == ".txt", f"SEQ file should be uncompressed: {seq_path}"
+                assert gt_path.suffix == ".tsv", f"GT file should be uncompressed: {gt_path}"
+                assert seq_path.suffix == ".tsv", f"SEQ file should be uncompressed: {seq_path}"
                 
                 # Verify files can be read as plain text
                 try:
@@ -411,8 +411,8 @@ class TestCompressionSupport:
                 temp_writer.write_dataframes(gt_df, seq_df)
                 
                 temp_paths = temp_writer.get_output_paths()
-                temp_gt_size = temp_paths["genotype"].stat().st_size
-                temp_seq_size = temp_paths["sequence"].stat().st_size
+                temp_gt_size = temp_paths["genotype_codes"].stat().st_size
+                temp_seq_size = temp_paths["genotype_bases"].stat().st_size
                 
                 # Compressed should generally be smaller (allowing generous overhead for small files)
                 compression_ratio_gt = gt_size / temp_gt_size if temp_gt_size > 0 else 1
@@ -457,7 +457,7 @@ class TestCompressionSupport:
                     assert path.name.endswith(".gz"), f"Compressed file should end with .gz: {path}"
                 else:
                     assert not path.name.endswith(".gz"), f"Uncompressed file should not end with .gz: {path}"
-                    assert path.name.endswith(".txt"), f"Uncompressed file should end with .txt: {path}"
+                    assert path.name.endswith(".tsv"), f"Uncompressed file should end with .tsv: {path}"
             
         finally:
             # Cleanup
@@ -499,14 +499,14 @@ class TestCompressionSupport:
                 
                 # Read back the data
                 if compress:
-                    with gzip.open(paths["genotype"], 'rt') as f:
+                    with gzip.open(paths["genotype_codes"], 'rt') as f:
                         gt_content = f.read()
-                    with gzip.open(paths["sequence"], 'rt') as f:
+                    with gzip.open(paths["genotype_bases"], 'rt') as f:
                         seq_content = f.read()
                 else:
-                    with open(paths["genotype"], 'r') as f:
+                    with open(paths["genotype_codes"], 'r') as f:
                         gt_content = f.read()
-                    with open(paths["sequence"], 'r') as f:
+                    with open(paths["genotype_bases"], 'r') as f:
                         seq_content = f.read()
                 
                 # Content should be valid CSV/TSV
@@ -560,15 +560,15 @@ class TestCompressionEdgeCases:
                 paths = writer.get_output_paths()
                 
                 # Files should exist even if empty
-                assert paths["genotype"].exists()
-                assert paths["sequence"].exists()
+                assert paths["genotype_codes"].exists()
+                assert paths["genotype_bases"].exists()
                 
                 # Should contain at least headers
                 if compress:
-                    with gzip.open(paths["genotype"], 'rt') as f:
+                    with gzip.open(paths["genotype_codes"], 'rt') as f:
                         content = f.read()
                 else:
-                    with open(paths["genotype"], 'r') as f:
+                    with open(paths["genotype_codes"], 'r') as f:
                         content = f.read()
                 
                 assert "CHROM" in content, "Even empty files should have headers"
@@ -623,8 +623,8 @@ class TestCompressionEdgeCases:
             compressed_paths = writer_compressed.get_output_paths()
             uncompressed_paths = writer_uncompressed.get_output_paths()
             
-            compressed_size = compressed_paths["genotype"].stat().st_size
-            uncompressed_size = uncompressed_paths["genotype"].stat().st_size
+            compressed_size = compressed_paths["genotype_codes"].stat().st_size
+            uncompressed_size = uncompressed_paths["genotype_codes"].stat().st_size
             
             # Compressed should be significantly smaller for repetitive data
             compression_ratio = compressed_size / uncompressed_size
