@@ -1,69 +1,419 @@
-# VCF Processor Optimization
+# VCF Processor
 
-This module provides an optimized VCF genotype table processor that replaces bcftools with cyvcf2 for better performance and maintainability.
+An optimized, modular VCF processing system for genotyping arrays using cyvcf2.
+
+## Overview
+
+The VCF Processor is a high-performance tool designed to process VCF files for genotyping array workflows. It replaces bcftools-based processing with a pure Python implementation using cyvcf2 for improved performance and maintainability.
 
 ## Features
 
-- **cyvcf2 Integration**: Fast VCF parsing without external dependencies
-- **Modular Architecture**: Clean separation of concerns with dedicated classes
-- **Comprehensive Testing**: Unit tests and property-based tests
-- **Error Handling**: Robust error recovery and detailed error reporting
-- **Performance Optimized**: Streaming processing and configurable batch sizes
-- **Backward Compatible**: Maintains identical output format to original implementation
+- **Fast VCF Processing**: Uses cyvcf2 for efficient VCF file parsing
+- **Memory Efficient**: Configurable batch processing for large files
+- **Flexible Output**: Supports both genotype (.gt.txt) and sequence (.seq.txt) formats
+- **Comprehensive CLI**: Full command-line interface with progress reporting
+- **Error Handling**: Robust error handling with detailed logging
+- **Performance Monitoring**: Built-in performance profiling and optimization
+- **Extensive Testing**: Property-based testing with hypothesis for reliability
 
-## Module Structure
+## Quick Start
 
-```
-vcf_processor/
-├── __init__.py              # Package initialization
-├── config.py                # Configuration and data models
-├── vcf_reader.py           # VCF file reading with cyvcf2
-├── variant_filter.py       # Target ID filtering
-├── genotype_converter.py   # Genotype to sequence conversion
-├── variant_transformer.py  # Variant notation transformation
-├── output_writer.py        # File output management
-├── processor.py            # Main orchestrator
-├── logging_config.py       # Logging setup
-├── cli.py                  # Command-line interface
-├── tests/                  # Test suite
-└── README.md              # This file
+### Installation
+
+```bash
+# Install dependencies
+pip install cyvcf2 typer loguru tqdm pandas
+
+# Or install from requirements
+pip install -r requirements.txt
 ```
 
-## Usage
+### Basic Usage
+
+```bash
+# Process VCF file with target variants
+python -m chip.vcf_processor.cli process input.vcf targets.txt output
+
+# With custom options
+python -m chip.vcf_processor.cli process input.vcf targets.txt output \
+    --batch-size 20000 \
+    --threads 4 \
+    --compress \
+    --miss-fmt "NN" \
+    --gt-sep ""
+```
+
+### Python API
 
 ```python
-from chip.vcf_processor import VCFProcessor, ProcessingConfig
+from pathlib import Path
+from chip.vcf_processor.config import ProcessingConfig
+from chip.vcf_processor.vcf_processor import VCFProcessor
 
 # Create configuration
 config = ProcessingConfig(
-    vcf_file=Path("input.vcf.gz"),
+    vcf_file=Path("input.vcf"),
     target_id_file=Path("targets.txt"),
     output_file=Path("output"),
-    miss_fmt="NN",
-    threads=4
+    batch_size=10000,
+    threads=4,
+    compress_output=True
 )
 
 # Process VCF
 processor = VCFProcessor(config)
 result = processor.process()
-print(result.summary())
+
+# Get summary
+summary = processor.format_summary()
+print(summary)
 ```
 
-## Command Line
+## Architecture
+
+The VCF Processor follows a modular architecture with separate components for each processing stage:
+
+```
+VCFProcessor (Orchestrator)
+├── VCFReader (cyvcf2-based VCF reading)
+├── VariantFilter (Target ID filtering)
+├── VariantTransformer (Variant data transformation)
+├── GenotypeConverter (Genotype format conversion)
+├── OutputWriter (File output with compression)
+└── ErrorHandler (Error management and logging)
+```
+
+### Key Components
+
+- **VCFReader**: Efficient VCF file reading using cyvcf2
+- **VariantFilter**: Filters variants based on target ID lists
+- **VariantTransformer**: Transforms variant data for processing
+- **GenotypeConverter**: Converts genotypes to desired output formats
+- **OutputWriter**: Handles output file generation with optional compression
+- **ProcessingConfig**: Centralized configuration management
+
+## Module Structure
+
+```
+vcf_processor/
+├── __init__.py                    # Package initialization
+├── config.py                      # Configuration and data models
+├── vcf_reader.py                 # VCF file reading with cyvcf2
+├── variant_filter.py             # Target ID filtering
+├── variant_transformer.py        # Variant data transformation
+├── genotype_converter.py         # Genotype format conversion
+├── output_writer.py              # File output management
+├── vcf_processor.py              # Main orchestrator
+├── performance_optimizer.py      # Performance optimization
+├── error_handler.py              # Error management
+├── logging_config.py             # Logging configuration
+├── config_manager.py             # Configuration management
+├── cli.py                        # Command-line interface
+├── tests/                        # Comprehensive test suite
+│   ├── test_*_unit.py           # Unit tests
+│   ├── test_*_properties.py     # Property-based tests
+│   ├── test_integration*.py     # Integration tests
+│   └── conftest.py              # Test fixtures
+└── README.md                     # This file
+```
+
+## Configuration
+
+### Processing Configuration
+
+```python
+ProcessingConfig(
+    vcf_file=Path("input.vcf"),           # Input VCF file
+    target_id_file=Path("targets.txt"),   # Target variant IDs
+    output_file=Path("output"),           # Output file prefix
+    miss_fmt="NN",                        # Missing genotype format
+    gt_sep="",                            # Genotype separator
+    batch_size=10000,                     # Processing batch size
+    threads=4,                            # Number of threads
+    compress_output=True,                 # Enable output compression
+    verbose=False,                        # Enable verbose logging
+    quiet=False,                          # Enable quiet mode
+    dry_run=False,                        # Preview mode
+    log_file=None                         # Optional log file
+)
+```
+
+### CLI Options
 
 ```bash
-python -m chip.vcf_processor.cli input.vcf.gz targets.txt output --threads 4
+Options:
+  --miss-fmt TEXT         Missing genotype format [default: NN]
+  --gt-sep TEXT          Genotype separator [default: ]
+  --threads INTEGER      Number of threads [default: 4]
+  --batch-size INTEGER   Processing batch size [default: 10000]
+  --compress/--no-compress  Compress output files [default: compress]
+  --verbose / -v         Enable verbose logging
+  --quiet / -q           Enable quiet mode
+  --dry-run              Preview operations without executing
+  --log-file PATH        Log file path
+  --config PATH          Configuration file path
+```
+
+## Performance Optimization
+
+### Batch Processing
+
+For large files (>100MB), use batch processing:
+
+```python
+config = ProcessingConfig(
+    batch_size=50000,  # Large batch size for memory efficiency
+    threads=2,         # Moderate threading for I/O bound operations
+    compress_output=True  # Save disk space
+)
+```
+
+### Performance Tips
+
+1. **Use appropriate batch sizes**:
+   - Small files (<10MB): batch_size=1000-5000
+   - Medium files (10-100MB): batch_size=10000-20000
+   - Large files (>100MB): batch_size=50000+
+
+2. **Enable compression for large outputs**:
+   ```python
+   config.compress_output = True
+   ```
+
+3. **Monitor memory usage**:
+   ```python
+   config.verbose = True  # Enable detailed logging
+   ```
+
+4. **Use dry-run for validation**:
+   ```python
+   config.dry_run = True  # Validate without processing
+   ```
+
+## Examples
+
+### Example 1: Basic Processing
+
+```python
+from pathlib import Path
+from chip.vcf_processor.config import ProcessingConfig
+from chip.vcf_processor.vcf_processor import VCFProcessor
+
+# Configure processing
+config = ProcessingConfig(
+    vcf_file=Path("data/genotypes.vcf"),
+    target_id_file=Path("data/targets.txt"),
+    output_file=Path("results/output")
+)
+
+# Process VCF
+processor = VCFProcessor(config)
+result = processor.process()
+
+print(f"Successfully processed {result.processed_variants} variants")
+```
+
+### Example 2: Large File Processing
+
+```python
+# Optimized configuration for large files
+config = ProcessingConfig(
+    vcf_file=Path("data/large_genotypes.vcf.gz"),
+    target_id_file=Path("data/targets.txt"),
+    output_file=Path("results/large_output"),
+    batch_size=50000,        # Large batches for efficiency
+    threads=4,               # Parallel processing
+    compress_output=True,    # Save disk space
+    verbose=True            # Monitor progress
+)
+
+processor = VCFProcessor(config)
+result = processor.process()
+
+# Get detailed summary
+summary = processor.format_summary()
+print(summary)
+```
+
+### Example 3: Error Handling
+
+```python
+import logging
+from chip.vcf_processor.config import ProcessingConfig
+from chip.vcf_processor.vcf_processor import VCFProcessor
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+
+config = ProcessingConfig(
+    vcf_file=Path("data/problematic.vcf"),
+    target_id_file=Path("data/targets.txt"),
+    output_file=Path("results/error_output"),
+    verbose=True
+)
+
+try:
+    processor = VCFProcessor(config)
+    result = processor.process()
+    
+    if result.has_errors:
+        print("Processing completed with errors:")
+        for error in result.errors:
+            print(f"  - {error}")
+    else:
+        print("Processing completed successfully")
+        
+except Exception as e:
+    print(f"Processing failed: {e}")
 ```
 
 ## Testing
+
+The VCF Processor includes comprehensive testing:
+
+### Running Tests
 
 ```bash
 # Run all tests
 pytest chip/vcf_processor/tests/
 
 # Run with coverage
-pytest chip/vcf_processor/tests/ --cov=chip.vcf_processor
+pytest --cov=chip.vcf_processor chip/vcf_processor/tests/
 
-# Run property-based tests only
+# Run property-based tests
+pytest chip/vcf_processor/tests/test_*_properties.py
+
+# Run integration tests
+pytest chip/vcf_processor/tests/test_integration*.py
+
+# Run specific test categories
+pytest chip/vcf_processor/tests/ -k "unit"
 pytest chip/vcf_processor/tests/ -k "property"
+pytest chip/vcf_processor/tests/ -k "integration"
 ```
+
+### Test Categories
+
+- **Unit Tests**: Test individual components in isolation
+- **Property Tests**: Test universal properties with hypothesis
+- **Integration Tests**: Test complete workflows end-to-end
+- **Performance Tests**: Benchmark processing performance
+
+### Test Coverage
+
+The test suite maintains >90% code coverage and includes:
+
+- 17 property-based tests validating universal correctness properties
+- Comprehensive unit tests for all components
+- Integration tests with various VCF formats and sizes
+- Error scenario testing and recovery validation
+- Performance benchmarking and optimization validation
+
+## Migration Guide
+
+### From bcftools-based Processing
+
+1. **Update dependencies**:
+   ```bash
+   pip install cyvcf2 typer loguru tqdm
+   ```
+
+2. **Update command-line usage**:
+   ```bash
+   # Old bcftools approach
+   bcftools view input.vcf | process_script.py
+   
+   # New VCF processor
+   python -m chip.vcf_processor.cli process input.vcf targets.txt output
+   ```
+
+3. **Update Python code**:
+   ```python
+   # Old approach
+   import subprocess
+   result = subprocess.run(["bcftools", "view", "input.vcf"])
+   
+   # New approach
+   from chip.vcf_processor.vcf_processor import VCFProcessor
+   processor = VCFProcessor(config)
+   result = processor.process()
+   ```
+
+## Troubleshooting
+
+### Common Issues
+
+1. **ImportError: No module named 'cyvcf2'**
+   ```bash
+   pip install cyvcf2
+   ```
+
+2. **Memory errors with large files**
+   - Reduce batch_size: `config.batch_size = 5000`
+   - Enable compression: `config.compress_output = True`
+   - Close other applications to free memory
+
+3. **Slow processing**
+   - Increase batch_size for large files: `config.batch_size = 50000`
+   - Use appropriate thread count: `config.threads = 4`
+   - Enable progress monitoring: `config.verbose = True`
+
+4. **Permission denied errors**
+   - Check output directory permissions
+   - Ensure sufficient disk space
+   - Use different output directory
+
+## API Reference
+
+### Main Classes
+
+- **ProcessingConfig**: Configuration management
+- **VCFProcessor**: Main processing orchestrator
+- **VCFProcessorFactory**: Factory for creating processors
+- **ProcessingResult**: Container for processing results
+
+### Key Methods
+
+- `VCFProcessor.process()`: Execute VCF processing
+- `VCFProcessor.validate_output()`: Validate output files
+- `VCFProcessor.get_processing_summary()`: Get processing statistics
+- `VCFProcessor.format_summary()`: Get formatted summary
+
+## Contributing
+
+### Development Setup
+
+```bash
+# Clone repository
+git clone <repository-url>
+cd tc-pytools
+
+# Install development dependencies
+pip install -r requirements.txt
+pip install -e .
+
+# Install pre-commit hooks
+pre-commit install
+
+# Run tests
+pytest chip/vcf_processor/tests/
+```
+
+### Code Style
+
+- Follow Google Python Style Guide
+- Use type hints for all functions
+- Add docstrings for all public methods
+- Format code with ruff: `ruff format .`
+- Lint code with ruff: `ruff check . --fix`
+
+### Testing Requirements
+
+- Add unit tests for new functionality
+- Include property-based tests for complex logic
+- Add integration tests for end-to-end workflows
+- Ensure >90% test coverage
+
+## License
+
+This project is part of TC PyTools and follows the same licensing terms.

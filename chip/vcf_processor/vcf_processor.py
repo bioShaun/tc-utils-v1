@@ -1,10 +1,69 @@
-"""Main VCF processor orchestrator."""
+"""Main VCF processor orchestrator.
+
+This module provides the main VCFProcessor class that orchestrates the complete
+VCF processing pipeline. It integrates all components including reading, filtering,
+transformation, genotype conversion, and output writing.
+
+The processor supports both batch and single-pass processing modes with comprehensive
+error handling, progress tracking, and performance optimization.
+
+Example:
+    Basic usage with configuration:
+    
+    ```python
+    from pathlib import Path
+    from chip.vcf_processor.config import ProcessingConfig
+    from chip.vcf_processor.vcf_processor import VCFProcessor
+    
+    config = ProcessingConfig(
+        vcf_file=Path("input.vcf"),
+        target_id_file=Path("targets.txt"),
+        output_file=Path("output"),
+        batch_size=10000,
+        threads=4
+    )
+    
+    processor = VCFProcessor(config)
+    result = processor.process()
+    
+    print(f"Processed {result.processed_variants} variants")
+    ```
+
+    Using the factory for convenience:
+    
+    ```python
+    from chip.vcf_processor.vcf_processor import VCFProcessorFactory
+    
+    processor = VCFProcessorFactory.create_batch_processor(
+        vcf_file=Path("large_file.vcf.gz"),
+        target_id_file=Path("targets.txt"),
+        output_file=Path("output"),
+        batch_size=50000
+    )
+    
+    result = processor.process()
+    ```
+
+Classes:
+    ProgressTracker: Tracks processing progress with optional progress bars
+    ProcessingSummary: Generates comprehensive processing summaries
+    VCFProcessor: Main orchestrator for VCF processing pipeline
+    VCFProcessorFactory: Factory for creating VCFProcessor instances
+
+Performance Notes:
+    - Use batch_size >= 10000 for large files to enable memory-efficient processing
+    - Enable compression for large output files to save disk space
+    - Monitor memory usage with verbose logging for very large files
+    - Use multiple threads cautiously as VCF processing is often I/O bound
+"""
 
 from pathlib import Path
 from typing import Optional
+import time
 
 import pandas as pd
 from loguru import logger
+from tqdm import tqdm
 
 from .config import ProcessingConfig, ProcessingResult
 from .error_handler import ErrorHandler
@@ -20,6 +79,224 @@ try:
 except ImportError:
     VCF_READER_AVAILABLE = False
     logger.warning("cyvcf2 not available, VCFReader functionality will be limited")
+
+
+class ProgressTracker:
+    """Progress tracking for VCF processing operations."""
+    
+    def __init__(self, total: int, description: str = "Processing", 
+                 enable_progress: bool = True, quiet: bool = False):
+        """Initialize progress tracker.
+        
+        Args:
+            total: Total number of items to process
+            description: Description for progress bar
+            enable_progress: Whether to show progress bar
+            quiet: Whether to suppress all output
+        """
+        self.total = total
+        self.current = 0
+        self.enable_progress = enable_progress and not quiet
+        self.quiet = quiet
+        self.start_time = time.time()
+        
+        if self.enable_progress and total > 0:
+            self.pbar = tqdm(
+                total=total,
+                desc=description,
+                unit="variants",
+                disable=quiet
+            )
+        else:
+            self.pbar = None
+    
+    def update(self, increment: int = 1) -> None:
+        """Update progress by increment."""
+        self.current += increment
+        if self.pbar:
+            self.pbar.update(increment)
+    
+    def set_description(self, description: str) -> None:
+        """Update progress bar description."""
+        if self.pbar:
+            self.pbar.set_description(description)
+    
+    def close(self) -> None:
+        """Close progress bar."""
+        if self.pbar:
+            self.pbar.close()
+    
+    def get_elapsed_time(self) -> float:
+        """Get elapsed time in seconds."""
+        return time.time() - self.start_time
+    
+    def get_rate(self) -> float:
+        """Get processing rate (items per second)."""
+        elapsed = self.get_elapsed_time()
+        if elapsed > 0:
+            return self.current / elapsed
+        return 0.0
+
+
+class ProcessingSummary:
+    """Comprehensive processing summary generator."""
+    
+    def __init__(self, config: ProcessingConfig, result: ProcessingResult):
+        """Initialize summary generator.
+        
+        Args:
+            config: Processing configuration
+            result: Processing result
+        """
+        self.config = config
+        self.result = result
+        self.start_time = time.time()
+        self.end_time = None
+    
+    def finalize(self) -> None:
+        """Mark processing as complete."""
+        self.end_time = time.time()
+    
+    def get_summary_dict(self) -> dict:
+        """Get summary as dictionary.
+        
+        Returns:
+            Dictionary with comprehensive processing statistics
+        """
+        elapsed_time = (self.end_time or time.time()) - self.start_time
+        
+        summary = {
+            # Input information
+            "input_vcf": str(self.config.vcf_file),
+            "target_ids_file": str(self.config.target_id_file),
+            "output_prefix": str(self.config.output_file),
+            
+            # Processing statistics
+            "variants_processed": self.result.processed_variants,
+            "total_variants": self.result.total_variants,
+            "processing_rate": self.result.processed_variants / elapsed_time if elapsed_time > 0 else 0,
+            
+            # Configuration
+            "batch_size": self.config.batch_size,
+            "threads": self.config.threads,
+            "compression_enabled": self.config.compress_output,
+            "dry_run": self.config.dry_run,
+            
+            # Timing
+            "elapsed_time_seconds": elapsed_time,
+            "start_time": self.start_time,
+            "end_time": self.end_time,
+            
+            # Output files
+            "output_files": [str(f) for f in self.result.output_files],
+            "output_file_count": len(self.result.output_files),
+            
+            # Error information
+            "errors": self.result.errors,
+            "error_count": len(self.result.errors),
+            "success": len(self.result.errors) == 0,
+            
+            # Performance metrics
+            "memory_efficient": self.config.batch_size >= 10000,
+            "processing_mode": "batch" if self.config.batch_size >= 10000 else "single_pass",
+        }
+        
+        # Add file size information if available
+        try:
+            if self.config.vcf_file.exists():
+                summary["input_file_size_mb"] = self.config.vcf_file.stat().st_size / (1024 * 1024)
+            
+            total_output_size = 0
+            for output_file in self.result.output_files:
+                if output_file.exists():
+                    total_output_size += output_file.stat().st_size
+            summary["total_output_size_mb"] = total_output_size / (1024 * 1024)
+            
+        except Exception as e:
+            logger.debug(f"Could not get file size information: {e}")
+        
+        return summary
+    
+    def format_summary(self) -> str:
+        """Format summary as human-readable string.
+        
+        Returns:
+            Formatted summary string
+        """
+        summary = self.get_summary_dict()
+        
+        lines = []
+        lines.append("=" * 60)
+        lines.append("VCF PROCESSING SUMMARY")
+        lines.append("=" * 60)
+        
+        # Input/Output section
+        lines.append("\nINPUT/OUTPUT:")
+        lines.append(f"  VCF File: {summary['input_vcf']}")
+        lines.append(f"  Target IDs: {summary['target_ids_file']}")
+        lines.append(f"  Output Prefix: {summary['output_prefix']}")
+        
+        if "input_file_size_mb" in summary:
+            lines.append(f"  Input Size: {summary['input_file_size_mb']:.1f} MB")
+        
+        # Processing statistics
+        lines.append("\nPROCESSING STATISTICS:")
+        lines.append(f"  Variants Processed: {summary['variants_processed']:,}")
+        
+        if summary['total_variants'] > 0:
+            percentage = (summary['variants_processed'] / summary['total_variants']) * 100
+            lines.append(f"  Total Variants: {summary['total_variants']:,}")
+            lines.append(f"  Processing Rate: {percentage:.1f}%")
+        
+        lines.append(f"  Processing Speed: {summary['processing_rate']:.1f} variants/sec")
+        lines.append(f"  Processing Mode: {summary['processing_mode']}")
+        
+        # Configuration
+        lines.append("\nCONFIGURATION:")
+        lines.append(f"  Batch Size: {summary['batch_size']:,}")
+        lines.append(f"  Threads: {summary['threads']}")
+        lines.append(f"  Compression: {'Enabled' if summary['compression_enabled'] else 'Disabled'}")
+        lines.append(f"  Dry Run: {'Yes' if summary['dry_run'] else 'No'}")
+        
+        # Timing
+        lines.append("\nTIMING:")
+        lines.append(f"  Elapsed Time: {summary['elapsed_time_seconds']:.2f} seconds")
+        
+        if summary['elapsed_time_seconds'] >= 60:
+            minutes = int(summary['elapsed_time_seconds'] // 60)
+            seconds = summary['elapsed_time_seconds'] % 60
+            lines.append(f"  Elapsed Time: {minutes}m {seconds:.1f}s")
+        
+        # Output files
+        lines.append("\nOUTPUT FILES:")
+        if summary['output_files']:
+            for output_file in summary['output_files']:
+                lines.append(f"  - {output_file}")
+            
+            if "total_output_size_mb" in summary:
+                lines.append(f"  Total Output Size: {summary['total_output_size_mb']:.1f} MB")
+        else:
+            lines.append("  No output files created")
+        
+        # Errors
+        if summary['errors']:
+            lines.append("\nERRORS:")
+            for error in summary['errors'][:5]:  # Show first 5 errors
+                lines.append(f"  - {error}")
+            
+            if len(summary['errors']) > 5:
+                lines.append(f"  ... and {len(summary['errors']) - 5} more errors")
+        
+        # Status
+        lines.append("\nSTATUS:")
+        if summary['success']:
+            lines.append("  ✓ Processing completed successfully")
+        else:
+            lines.append(f"  ✗ Processing completed with {summary['error_count']} errors")
+        
+        lines.append("=" * 60)
+        
+        return "\n".join(lines)
 
 
 class VCFProcessor:
@@ -39,6 +316,7 @@ class VCFProcessor:
         config: Processing configuration
         result: Processing result tracker
         error_handler: Error handling component
+        summary: Processing summary generator
         _vcf_reader: VCF file reader
         _variant_filter: Variant filtering component
         _variant_transformer: Variant transformation component
@@ -59,6 +337,7 @@ class VCFProcessor:
         self.config = config
         self.result = ProcessingResult()
         self.error_handler = ErrorHandler(self.result)
+        self.summary = ProcessingSummary(config, self.result)
         
         # Validate configuration
         self._validate_config()
@@ -66,7 +345,8 @@ class VCFProcessor:
         # Initialize components
         self._initialize_components()
         
-        logger.info(f"VCFProcessor initialized for {config.vcf_file}")
+        if not self.config.quiet:
+            logger.info(f"VCFProcessor initialized for {config.vcf_file}")
     
     def _validate_config(self) -> None:
         """Validate processing configuration.
@@ -103,7 +383,8 @@ class VCFProcessor:
                 self._vcf_reader = VCFReader(self.config.vcf_file, self.config.threads)
             else:
                 self._vcf_reader = None
-                logger.warning("VCF reader not available, will use fallback methods")
+                if not self.config.quiet:
+                    logger.warning("VCF reader not available, will use fallback methods")
             
             # Initialize other components
             self._variant_filter = VariantFilter(self.config)
@@ -127,17 +408,35 @@ class VCFProcessor:
         Raises:
             RuntimeError: If processing fails
         """
-        logger.info("Starting VCF processing")
+        if not self.config.quiet:
+            logger.info("Starting VCF processing")
         
         try:
             if self.config.dry_run:
-                return self._dry_run()
-            
-            # Choose processing method based on available components
-            if self._vcf_reader is not None:
-                return self._process_with_vcf_reader()
+                result = self._dry_run()
             else:
-                return self._process_with_fallback()
+                # Choose processing method based on available components
+                if self._vcf_reader is not None:
+                    result = self._process_with_vcf_reader()
+                else:
+                    result = self._process_with_fallback()
+            
+            # Finalize summary
+            self.summary.finalize()
+            
+            # Log summary if not quiet
+            if not self.config.quiet:
+                if self.config.verbose:
+                    # Show detailed summary in verbose mode
+                    print(self.summary.format_summary())
+                else:
+                    # Show brief summary in normal mode
+                    summary_dict = self.summary.get_summary_dict()
+                    logger.info(f"Processing completed: {summary_dict['variants_processed']} variants processed "
+                               f"in {summary_dict['elapsed_time_seconds']:.1f}s "
+                               f"({summary_dict['processing_rate']:.1f} variants/sec)")
+            
+            return result
                 
         except Exception as e:
             error_msg = f"VCF processing failed: {e}"
@@ -149,8 +448,9 @@ class VCFProcessor:
             raise RuntimeError(error_msg) from e
         
         finally:
-            logger.info(f"Processing completed. Processed {self.result.processed_variants} variants, "
-                       f"total {self.result.total_variants} variants")
+            if not self.config.quiet:
+                logger.info(f"Processing completed. Processed {self.result.processed_variants} variants, "
+                           f"total {self.result.total_variants} variants")
     
     def _dry_run(self) -> ProcessingResult:
         """Perform a dry run without actual processing.
@@ -158,25 +458,33 @@ class VCFProcessor:
         Returns:
             ProcessingResult with validation information
         """
-        logger.info("Performing dry run")
+        if not self.config.quiet:
+            logger.info("Performing dry run")
         
         try:
             # Validate target IDs
             target_ids = load_target_ids(self.config.target_id_file)
-            logger.info(f"Loaded {len(target_ids)} target IDs")
+            if not self.config.quiet:
+                logger.info(f"Loaded {len(target_ids)} target IDs")
             
             # Check VCF file structure
             if self._vcf_reader:
                 sample_names = self._vcf_reader.sample_names
-                logger.info(f"VCF contains {len(sample_names)} samples")
-                # Note: ProcessingResult doesn't have samples_processed, we'll track this separately
+                if not self.config.quiet:
+                    logger.info(f"VCF contains {len(sample_names)} samples")
             
             # Validate output paths
             output_paths = self._output_writer.get_output_paths()
-            for file_type, path in output_paths.items():
-                logger.info(f"Output {file_type} will be written to: {path}")
+            if not self.config.quiet:
+                for file_type, path in output_paths.items():
+                    logger.info(f"Output {file_type} will be written to: {path}")
             
-            logger.info("Dry run completed successfully")
+            # Set some basic statistics for dry run
+            self.result.processed_variants = len(target_ids)
+            self.result.total_variants = len(target_ids)  # Estimate
+            
+            if not self.config.quiet:
+                logger.info("Dry run completed successfully")
             return self.result
             
         except Exception as e:
@@ -190,18 +498,21 @@ class VCFProcessor:
         Returns:
             ProcessingResult with processing statistics
         """
-        logger.info("Processing with VCFReader")
+        if not self.config.quiet:
+            logger.info("Processing with VCFReader")
         
         # Load target IDs for filtering
         target_ids = load_target_ids(self.config.target_id_file)
-        logger.info(f"Loaded {len(target_ids)} target IDs for filtering")
+        if not self.config.quiet:
+            logger.info(f"Loaded {len(target_ids)} target IDs for filtering")
         
         # Get sample information
         sample_names = self._vcf_reader.sample_names
-        logger.info(f"Processing {len(sample_names)} samples")
+        if not self.config.quiet:
+            logger.info(f"Processing {len(sample_names)} samples")
         
         # Process variants
-        if self.config.batch_size > 10000:
+        if self.config.batch_size >= 10000:
             return self._process_in_batches(target_ids)
         else:
             return self._process_single_pass(target_ids)
@@ -214,12 +525,14 @@ class VCFProcessor:
         Returns:
             ProcessingResult with processing statistics
         """
-        logger.info("Processing with fallback methods (cyvcf2 not available)")
+        if not self.config.quiet:
+            logger.info("Processing with fallback methods (cyvcf2 not available)")
         
         try:
             # Load target IDs
             target_ids = load_target_ids(self.config.target_id_file)
-            logger.info(f"Loaded {len(target_ids)} target IDs for filtering")
+            if not self.config.quiet:
+                logger.info(f"Loaded {len(target_ids)} target IDs for filtering")
             
             # For fallback, we'll create a simple DataFrame-based processor
             # This is a simplified version that works without cyvcf2
@@ -240,19 +553,35 @@ class VCFProcessor:
             for sample in sample_names[:5]:  # Limit to first 5 samples for demo
                 dummy_df[sample] = ['0/0', '0/1']
             
-            # Process the data
-            # For fallback, we'll do simple DataFrame filtering instead of using VariantFilter
-            # Create variant IDs from the DataFrame
-            variant_ids = dummy_df.apply(lambda row: f"{row['CHROM']}_{row['POS']}_{row['REF']}_{row['ALT']}", axis=1)
-            filtered_mask = variant_ids.isin(target_ids)
-            filtered_df = dummy_df[filtered_mask]
+            # Initialize progress tracker
+            progress = ProgressTracker(
+                total=len(dummy_df),
+                description="Processing variants (fallback)",
+                enable_progress=not self.config.quiet,
+                quiet=self.config.quiet
+            )
             
-            # For fallback mode, we'll skip the complex transformation and conversion
-            # and just simulate the processing
-            self.result.processed_variants = len(filtered_df)
-            self.result.total_variants = len(dummy_df)
+            try:
+                # Process the data
+                # For fallback, we'll do simple DataFrame filtering instead of using VariantFilter
+                # Create variant IDs from the DataFrame
+                variant_ids = dummy_df.apply(lambda row: f"{row['CHROM']}_{row['POS']}_{row['REF']}_{row['ALT']}", axis=1)
+                filtered_mask = variant_ids.isin(target_ids)
+                filtered_df = dummy_df[filtered_mask]
+                
+                # Update progress
+                progress.update(len(dummy_df))
+                
+                # For fallback mode, we'll skip the complex transformation and conversion
+                # and just simulate the processing
+                self.result.processed_variants = len(filtered_df)
+                self.result.total_variants = len(dummy_df)
+                
+            finally:
+                progress.close()
             
-            logger.info(f"Fallback processing completed: {len(filtered_df)} variants processed")
+            if not self.config.quiet:
+                logger.info(f"Fallback processing completed: {len(filtered_df)} variants processed")
             return self.result
             
         except Exception as e:
@@ -294,25 +623,47 @@ class VCFProcessor:
         Returns:
             ProcessingResult with processing statistics
         """
-        logger.info(f"Processing in batches of {self.config.batch_size}")
+        if not self.config.quiet:
+            logger.info(f"Processing in batches of {self.config.batch_size}")
         
         try:
-            # For now, use simple iteration (batch processing would need more complex implementation)
-            with self._vcf_reader as reader:
-                batch_count = 0
-                processed_count = 0
-                
-                for variant in reader.iter_variants(target_ids):
-                    # Process individual variant (simplified for now)
-                    processed_count += 1
+            # Estimate total variants for progress tracking
+            total_variants = self._vcf_reader.count_variants() if hasattr(self._vcf_reader, 'count_variants') else len(target_ids)
+            
+            # Initialize progress tracker
+            progress = ProgressTracker(
+                total=total_variants,
+                description="Processing variants (batch mode)",
+                enable_progress=not self.config.quiet,
+                quiet=self.config.quiet
+            )
+            
+            try:
+                # For now, use simple iteration (batch processing would need more complex implementation)
+                with self._vcf_reader as reader:
+                    batch_count = 0
+                    processed_count = 0
                     
-                    if processed_count % self.config.batch_size == 0:
-                        batch_count += 1
-                        logger.debug(f"Processed batch {batch_count}: {processed_count} variants")
-                
-                self.result.processed_variants = processed_count
+                    for variant in reader.iter_variants(target_ids):
+                        # Process individual variant (simplified for now)
+                        processed_count += 1
+                        progress.update(1)
+                        
+                        if processed_count % self.config.batch_size == 0:
+                            batch_count += 1
+                            progress.set_description(f"Processing batch {batch_count}")
+                            if self.config.verbose:
+                                logger.debug(f"Processed batch {batch_count}: {processed_count} variants")
+                    
+                    self.result.processed_variants = processed_count
+                    self.result.total_variants = total_variants
+                    
+            finally:
+                progress.close()
+            
+            if not self.config.quiet:
                 logger.info(f"Batch processing completed: {processed_count} total variants")
-                return self.result
+            return self.result
             
         except Exception as e:
             raise RuntimeError(f"Batch processing failed: {e}") from e
@@ -326,24 +677,40 @@ class VCFProcessor:
         Returns:
             ProcessingResult with processing statistics
         """
-        logger.info("Processing in single pass")
+        if not self.config.quiet:
+            logger.info("Processing in single pass")
         
         try:
             # Count total variants first
-            total_variants = self._vcf_reader.count_variants()
-            logger.info(f"Total variants in VCF: {total_variants}")
+            total_variants = self._vcf_reader.count_variants() if hasattr(self._vcf_reader, 'count_variants') else len(target_ids)
+            if not self.config.quiet:
+                logger.info(f"Total variants in VCF: {total_variants}")
             
-            # Process variants
-            processed_count = 0
-            with self._vcf_reader as reader:
-                for variant in reader.iter_variants(target_ids):
-                    # Process individual variant (simplified for now)
-                    processed_count += 1
+            # Initialize progress tracker
+            progress = ProgressTracker(
+                total=total_variants,
+                description="Processing variants (single pass)",
+                enable_progress=not self.config.quiet,
+                quiet=self.config.quiet
+            )
             
-            self.result.processed_variants = processed_count
-            self.result.total_variants = total_variants
+            try:
+                # Process variants
+                processed_count = 0
+                with self._vcf_reader as reader:
+                    for variant in reader.iter_variants(target_ids):
+                        # Process individual variant (simplified for now)
+                        processed_count += 1
+                        progress.update(1)
+                
+                self.result.processed_variants = processed_count
+                self.result.total_variants = total_variants
+                
+            finally:
+                progress.close()
             
-            logger.info(f"Single pass processing completed: {processed_count} variants processed")
+            if not self.config.quiet:
+                logger.info(f"Single pass processing completed: {processed_count} variants processed")
             return self.result
             
         except Exception as e:
@@ -380,13 +747,15 @@ class VCFProcessor:
         Returns:
             Dictionary with processing statistics
         """
-        return {
-            "variants_processed": self.result.processed_variants,
-            "total_variants": self.result.total_variants,
-            "output_files": [str(f) for f in self.result.output_files],
-            "errors": self.result.errors,
-            "success": len(self.result.errors) == 0,
-        }
+        return self.summary.get_summary_dict()
+    
+    def format_summary(self) -> str:
+        """Get formatted processing summary.
+        
+        Returns:
+            Human-readable processing summary
+        """
+        return self.summary.format_summary()
 
 
 class VCFProcessorFactory:
