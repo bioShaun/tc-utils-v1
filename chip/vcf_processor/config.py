@@ -76,7 +76,7 @@ class ProcessingConfig:
     vcf_file: Path
     output_file: Path
     target_id_file: Optional[Path] = None
-    miss_fmt: str = "NN"
+    miss_fmt: str = "./."
     gt_sep: str = ""
     threads: int = 4
     batch_size: int = 10000

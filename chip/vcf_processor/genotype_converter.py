@@ -14,15 +14,18 @@ class GenotypeConverter:
     to actual sequence representations using reference and alternative alleles.
     """
     
-    def __init__(self, miss_fmt: str = "NN", gt_sep: str = ""):
+    def __init__(self, miss_fmt: str = "./.", gt_sep: str = "", keep_original_gt: bool = False):
         """Initialize genotype converter.
         
         Args:
-            miss_fmt: Format for missing genotypes (default: "NN")
+            miss_fmt: Format for missing genotypes (default: "./.") 
             gt_sep: Separator for heterozygous genotypes (default: "")
+            keep_original_gt: If True, keep original VCF genotype format (0/0, 0/1, etc.)
+                             If False, convert to sequence format (AA, AT, etc.)
         """
         self.miss_fmt = miss_fmt
         self.gt_sep = gt_sep
+        self.keep_original_gt = keep_original_gt
         self._stats = {
             'total_genotypes': 0,
             'missing_genotypes': 0,
@@ -33,7 +36,7 @@ class GenotypeConverter:
         }
     
     def convert_genotype(self, genotype: str, ref: str, alt_alleles: List[str]) -> str:
-        """Convert a single genotype to sequence format.
+        """Convert a single genotype to sequence format or keep original format.
         
         Args:
             genotype: VCF genotype string (e.g., "0/1", "1/1", "./.")
@@ -41,7 +44,7 @@ class GenotypeConverter:
             alt_alleles: List of alternative alleles (can be empty)
             
         Returns:
-            Converted genotype sequence
+            Converted genotype sequence or original genotype format
         """
         self._stats['total_genotypes'] += 1
         
@@ -51,7 +54,14 @@ class GenotypeConverter:
                 self._stats['missing_genotypes'] += 1
                 return self.miss_fmt
             
-            # Parse genotype
+            # If keeping original format, just return the genotype as-is (with some cleanup)
+            if self.keep_original_gt:
+                # Normalize separator to "/" for consistency
+                if "|" in genotype:
+                    genotype = genotype.replace("|", "/")
+                return genotype
+            
+            # Parse genotype for sequence conversion
             if "/" in genotype:
                 allele1_str, allele2_str = genotype.split("/")
             elif "|" in genotype:

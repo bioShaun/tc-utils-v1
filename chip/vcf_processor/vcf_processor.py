@@ -390,10 +390,19 @@ class VCFProcessor:
             # Initialize other components
             self._variant_filter = VariantFilter()  # Will be configured with target IDs later
             self._variant_transformer = VariantTransformer(strict_mode=False)  # Use non-strict mode
-            self._genotype_converter = GenotypeConverter(
-                miss_fmt=self.config.miss_fmt,
-                gt_sep=self.config.gt_sep
+            
+            # Create two genotype converters: one for original format (.gt.txt), one for sequence format (.seq.txt)
+            self._genotype_converter_gt = GenotypeConverter(
+                miss_fmt="./.",  # Use VCF standard missing format for .gt.txt
+                gt_sep=self.config.gt_sep,
+                keep_original_gt=True  # Keep original VCF format for .gt.txt
             )
+            self._genotype_converter_seq = GenotypeConverter(
+                miss_fmt="NN",  # Use NN for sequence format missing genotypes
+                gt_sep=self.config.gt_sep,
+                keep_original_gt=False  # Convert to sequence format for .seq.txt
+            )
+            
             self._output_writer = OutputWriter(self.config, self.result)
             
             logger.debug("All components initialized successfully")
@@ -763,21 +772,16 @@ class VCFProcessor:
             # Get sample names
             sample_names = self._vcf_reader.sample_names
             
-            # Convert genotypes to DataFrame
-            converted_df = self._genotype_converter.convert_batch(transformed_variants, sample_names)
+            # Convert genotypes using both converters
+            # GT format: keep original VCF genotype format (0/0, 0/1, 1/1, etc.)
+            gt_df = self._genotype_converter_gt.convert_batch(transformed_variants, sample_names)
             
-            if converted_df.empty:
+            # SEQ format: convert to sequence format (AA, AT, TT, etc.)
+            seq_df = self._genotype_converter_seq.convert_batch(transformed_variants, sample_names)
+            
+            if gt_df.empty or seq_df.empty:
                 logger.debug("No genotypes to process after conversion")
                 return
-            
-            # Create genotype and sequence DataFrames
-            # For now, we'll create both from the same data
-            # The genotype table contains the raw converted genotypes
-            gt_df = converted_df.copy()
-            
-            # The sequence table is the same for this implementation
-            # In a more complex implementation, this might be different
-            seq_df = converted_df.copy()
             
             # Write output
             with self._output_writer as writer:

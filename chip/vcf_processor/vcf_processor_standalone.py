@@ -29,8 +29,8 @@ VCF Processor - Standalone Script
     - 详细的处理统计和进度显示
 
 输出文件:
-    output.gt.txt: 基因型表格（CHROM, POS, REF, ALT, sample1, sample2, ...）
-    output.seq.txt: 序列表格（与基因型表格格式相同）
+    output.genotype_codes.tsv: VCF格式基因型表格（CHROM, POS, REF, ALT, sample1, sample2, ...）包含 0/0, 0/1, 1/1, ./. 等编码
+    output.genotype_bases.tsv: 碱基序列基因型表格（与编码表格格式相同）包含 AA, AT, TT, NN 等碱基序列
 
 注意:
     此脚本需要相应的依赖库（cyvcf2, pandas, loguru等）。
@@ -53,7 +53,7 @@ if str(project_root) not in sys.path:
 
 
 def process_vcf(vcf_file: str, output_prefix: str, target_file: str = None,
-                miss_fmt: str = "NN", gt_sep: str = "", batch_size: int = 10000,
+                miss_fmt: str = "./.", gt_sep: str = "", batch_size: int = 10000,
                 compress_output: bool = False, verbose: bool = False, quiet: bool = False) -> Dict:
     """使用VCFProcessor处理VCF文件
     
@@ -110,7 +110,7 @@ def main(
     vcf_file: Annotated[Path, typer.Argument(help="输入VCF文件路径")],
     output_prefix: Annotated[Path, typer.Argument(help="输出文件前缀")],
     targets: Annotated[Optional[Path], typer.Option("--targets", help="目标变异ID文件路径 (可选，如果不指定则处理所有变异)")] = None,
-    miss_fmt: Annotated[str, typer.Option("--miss-fmt", help="缺失基因型格式")] = "NN",
+    miss_fmt: Annotated[str, typer.Option("--miss-fmt", help="缺失基因型格式")] = "./.",
     gt_sep: Annotated[str, typer.Option("--gt-sep", help="基因型分隔符")] = "",
     batch_size: Annotated[int, typer.Option("--batch-size", help="批处理大小")] = 10000,
     compress: Annotated[bool, typer.Option("--compress", help="压缩输出文件")] = False,
@@ -135,12 +135,14 @@ def main(
       目标文件: 每行一个变异ID，格式为 CHROM_POS_REF_ALT (可选)
 
     输出文件:
-      output.gt.txt: 基因型表格
-      output.seq.txt: 序列表格
+      output.genotype_codes.tsv: VCF格式基因型表格 (0/0, 0/1, 1/1, ./.)
+      output.genotype_bases.tsv: 碱基序列基因型表格 (AA, AT, TT, NN)
 
     注意:
       此脚本直接使用 vcf_processor.py 中的VCFProcessor类，需要相应的依赖库。
       如果不指定目标文件，将处理VCF文件中的所有变异。
+      输出文件使用TSV格式，便于后续数据分析和处理。
+      缺失基因型在codes文件中显示为 ./. ，在bases文件中显示为 NN 。
     """
     try:
         # 设置日志

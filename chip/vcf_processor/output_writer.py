@@ -38,9 +38,9 @@ class OutputWriter:
         self._seq_file: Optional[TextIO] = None
         self._is_first_batch = True
         
-        # Generate output file paths
-        self._gt_path = self._get_output_path("gt")
-        self._seq_path = self._get_output_path("seq")
+        # Generate output file paths with professional suffixes
+        self._gt_path = self._get_output_path("genotype_codes")  # .genotype_codes.tsv for VCF format genotypes (0/0, 0/1, etc.)
+        self._seq_path = self._get_output_path("genotype_bases")  # .genotype_bases.tsv for sequence format (ATCG)
         
         logger.debug(f"OutputWriter initialized with paths: {self._gt_path}, {self._seq_path}")
     
@@ -48,13 +48,13 @@ class OutputWriter:
         """Generate output file path with proper naming convention.
         
         Args:
-            suffix: File suffix (e.g., 'gt', 'seq')
+            suffix: File suffix (e.g., 'genotype_codes', 'genotype_bases')
             
         Returns:
             Path to output file with proper extension
         """
         base_path = self.config.output_file
-        extension = ".txt.gz" if self.config.compress_output else ".txt"
+        extension = ".tsv.gz" if self.config.compress_output else ".tsv"
         return Path(f"{base_path}.{suffix}{extension}")
     
     def __enter__(self) -> "OutputWriter":
@@ -170,8 +170,8 @@ class OutputWriter:
             Dictionary mapping file type to path
         """
         return {
-            "genotype": self._gt_path,
-            "sequence": self._seq_path,
+            "genotype_codes": self._gt_path,
+            "genotype_bases": self._seq_path,
         }
     
     def validate_output_files(self) -> bool:
