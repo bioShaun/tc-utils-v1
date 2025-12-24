@@ -96,18 +96,18 @@ This implementation plan converts the existing bcftools-based VCF processor to u
     - **Property 5: Batch Size Respect**
     - **Validates: Requirements 4.3**
 
-- [ ] 7. Implement output management
-  - [ ] 7.1 Create OutputWriter class with context manager support
+- [x] 7. Implement output management
+  - [x] 7.1 Create OutputWriter class with context manager support
     - Add support for compressed and uncompressed output
     - Implement proper file naming conventions
     - Add append mode for batch processing
     - _Requirements: 2.6, 7.3, 7.4_
 
-  - [ ] 7.2 Write property test for output formatting
+  - [x] 7.2 Write property test for output formatting
     - **Property 15: Output File Naming Consistency**
     - **Validates: Requirements 7.3**
 
-  - [ ] 7.3 Write property test for compression support
+  - [x] 7.3 Write property test for compression support
     - **Property 16: Output Format Support**
     - **Validates: Requirements 7.4**
 
