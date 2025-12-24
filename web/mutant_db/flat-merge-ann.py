@@ -7,16 +7,18 @@ import typer
 
 def flat_gt_table(gt_table: Path) -> Path:
     flat_gt_file = gt_table.with_suffix(".flat.tsv")
-    with open(flat_gt_file, "w") as flat_inf:
-        with open(gt_table) as gt_inf:
-            for line in gt_inf:
-                chrom, pos, refer, alt, *score_and_sample = line.strip().split("\t")
-                try:
-                    for sample_i in score_and_sample[1:]:
-                        flat_inf.write(f"{chrom}\t{pos}\t{refer}\t{alt}\t{sample_i}\n")
-                except ValueError:
-                    print(line)
-                    raise ValueError("sample list wrong type")
+    with (
+        open(flat_gt_file, "w") as flat_inf,
+        open(gt_table) as gt_inf
+        ):
+        for line in gt_inf:
+            chrom, pos, refer, alt, *score_and_sample = line.strip().split("\t")
+            try:
+                for sample_i in score_and_sample[1:]:
+                    flat_inf.write(f"{chrom}\t{pos}\t{refer}\t{alt}\t{sample_i}\n")
+            except ValueError:
+                print(line)
+                raise ValueError("sample list wrong type")
     return flat_gt_file
 
 
