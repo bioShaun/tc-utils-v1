@@ -141,11 +141,13 @@ class VariantTransformer:
         
         Args:
             ref: Reference allele
-            alt_alleles: List of alternative alleles
+            alt_alleles: List of alternative alleles (can be empty)
             
         Returns:
             List of transformed alternative alleles
         """
+        if not alt_alleles:
+            return []
         return [self.transform_one_alt(ref, alt) for alt in alt_alleles]
     
     def transform_alt_string(self, ref: str, alt_string: str) -> str:

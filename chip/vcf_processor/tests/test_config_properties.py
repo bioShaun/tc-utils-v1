@@ -93,16 +93,16 @@ class TestVariantInfoProperties:
                 genotypes=["0/1"],
             )
         
-        # Empty alt list should raise ValueError
-        with pytest.raises(ValueError, match="Alternative alleles cannot be empty"):
-            VariantInfo(
-                chrom="chr1",
-                pos=100,
-                ref="A",
-                alt=[],
-                variant_id="test",
-                genotypes=["0/1"],
-            )
+        # Empty alt list should now be allowed (for structural variants, etc.)
+        variant = VariantInfo(
+            chrom="chr1",
+            pos=100,
+            ref="A",
+            alt=[],
+            variant_id="test",
+            genotypes=["0/0"],
+        )
+        assert variant.alt == []
 
 
 class TestProcessingConfigProperties:

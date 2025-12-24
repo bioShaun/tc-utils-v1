@@ -33,7 +33,7 @@ class VariantInfo:
             "CHROM": self.chrom,
             "POS": self.pos,
             "REF": self.ref,
-            "ALT": ",".join(self.alt),
+            "ALT": ",".join(self.alt) if self.alt else ".",
             "ID": self.variant_id,
             "genotypes": self.genotypes,
         }
@@ -50,8 +50,9 @@ class VariantInfo:
             raise ValueError("Position must be positive")
         if not self.ref:
             raise ValueError("Reference allele cannot be empty")
-        if not self.alt:
-            raise ValueError("Alternative alleles cannot be empty")
+        # Allow empty alt list for special cases (e.g., structural variants)
+        if self.alt is None:
+            self.alt = []
 
 
 @dataclass

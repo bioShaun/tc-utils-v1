@@ -38,7 +38,7 @@ class GenotypeConverter:
         Args:
             genotype: VCF genotype string (e.g., "0/1", "1/1", "./.")
             ref: Reference allele
-            alt_alleles: List of alternative alleles
+            alt_alleles: List of alternative alleles (can be empty)
             
         Returns:
             Converted genotype sequence
@@ -61,11 +61,18 @@ class GenotypeConverter:
                 allele1_str = allele2_str = genotype
             
             # Build allele list (0=ref, 1=alt1, 2=alt2, etc.)
-            allele_list = [ref] + alt_alleles
+            # Handle empty alt_alleles gracefully
+            allele_list = [ref] + (alt_alleles if alt_alleles else [])
             
             # Convert allele indices to sequences
-            allele1_seq = "N" if allele1_str == "." else allele_list[int(allele1_str)]
-            allele2_seq = "N" if allele2_str == "." else allele_list[int(allele2_str)]
+            try:
+                allele1_seq = "N" if allele1_str == "." else allele_list[int(allele1_str)]
+                allele2_seq = "N" if allele2_str == "." else allele_list[int(allele2_str)]
+            except IndexError:
+                # Handle case where genotype refers to non-existent allele
+                logger.warning(f"Genotype {genotype} refers to non-existent allele, using missing format")
+                self._stats['errors'] += 1
+                return self.miss_fmt
             
             # Format output based on genotype type
             if allele1_str == allele2_str:
@@ -130,11 +137,17 @@ class GenotypeConverter:
             converted_gts = self.convert_variant_genotypes(variant, sample_names)
             
             # Create row with location info and genotypes
+            # Handle ALT field: use "." for empty ALT (VCF standard)
+            if isinstance(variant.alt, list):
+                alt_str = ','.join(variant.alt) if variant.alt else '.'
+            else:
+                alt_str = variant.alt if variant.alt else '.'
+            
             row = {
                 'CHROM': variant.chrom,
                 'POS': variant.pos,
                 'REF': variant.ref,
-                'ALT': ','.join(variant.alt) if isinstance(variant.alt, list) else variant.alt
+                'ALT': alt_str
             }
             row.update(converted_gts)
             rows.append(row)
