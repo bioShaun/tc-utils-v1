@@ -27,6 +27,7 @@ dependencies = [
 dev = [
     "pytest>=7.4.0",
     "pytest-cov>=4.1.0",
+    "hypothesis>=6.82.0",
     "ruff>=0.6.0",
     "pyright>=1.1.300",
     "pre-commit>=3.3.0",
@@ -100,6 +101,7 @@ testpaths = [
     "web/mutant_db/tests",
     "fq/tests",
     "chip/tests",
+    "chip/vcf_processor/tests",
     "gtf/tests",
     "primer/tests",
     "exome/tests",
