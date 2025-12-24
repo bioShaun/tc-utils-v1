@@ -60,8 +60,8 @@ class ProcessingConfig:
     
     Attributes:
         vcf_file: Path to input VCF file
-        target_id_file: Path to target IDs file
         output_file: Base path for output files
+        target_id_file: Path to target IDs file (optional, if None processes all variants)
         miss_fmt: Format for missing genotypes (default: "NN")
         gt_sep: Separator for genotype alleles (default: "")
         threads: Number of processing threads (default: 4)
@@ -73,8 +73,8 @@ class ProcessingConfig:
         log_file: Optional log file path
     """
     vcf_file: Path
-    target_id_file: Path
     output_file: Path
+    target_id_file: Optional[Path] = None
     miss_fmt: str = "NN"
     gt_sep: str = ""
     threads: int = 4
@@ -100,7 +100,7 @@ class ProcessingConfig:
         if not self.vcf_file.exists():
             raise FileNotFoundError(f"VCF file not found: {self.vcf_file}")
         
-        if not self.target_id_file.exists():
+        if self.target_id_file and not self.target_id_file.exists():
             raise FileNotFoundError(f"Target ID file not found: {self.target_id_file}")
         
         # Validate numeric parameters
@@ -127,7 +127,7 @@ class ProcessingConfig:
         """Convert configuration to dictionary."""
         return {
             "vcf_file": str(self.vcf_file),
-            "target_id_file": str(self.target_id_file),
+            "target_id_file": str(self.target_id_file) if self.target_id_file else None,
             "output_file": str(self.output_file),
             "miss_fmt": self.miss_fmt,
             "gt_sep": self.gt_sep,

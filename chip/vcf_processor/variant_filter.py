@@ -29,11 +29,11 @@ class VariantFilter:
         }
     
     @classmethod
-    def from_file(cls, target_file: Path) -> 'VariantFilter':
+    def from_file(cls, target_file: Optional[Path]) -> 'VariantFilter':
         """Create VariantFilter from target ID file.
         
         Args:
-            target_file: Path to file containing variant IDs (one per line)
+            target_file: Path to file containing variant IDs (one per line), or None to process all variants
             
         Returns:
             VariantFilter instance with loaded target IDs
@@ -171,19 +171,23 @@ class VariantFilter:
         return invalid_ids
 
 
-def load_target_ids(target_file: Path) -> Set[str]:
+def load_target_ids(target_file: Optional[Path]) -> Set[str]:
     """Load target variant IDs from file.
     
     Args:
-        target_file: Path to file containing variant IDs (one per line)
+        target_file: Path to file containing variant IDs (one per line), or None to process all variants
         
     Returns:
-        Set of variant IDs
+        Set of variant IDs, empty set if target_file is None
         
     Raises:
         FileNotFoundError: If target file doesn't exist
         ValueError: If target file is empty or malformed
     """
+    if target_file is None:
+        logger.info("No target file specified, will process all variants")
+        return set()
+        
     if not target_file.exists():
         raise FileNotFoundError(f"Target ID file not found: {target_file}")
     

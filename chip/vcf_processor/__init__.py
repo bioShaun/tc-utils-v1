@@ -12,7 +12,7 @@ from .variant_filter import VariantFilter
 from .genotype_converter import GenotypeConverter
 from .variant_transformer import VariantTransformer
 from .output_writer import OutputWriter
-from .processor import VCFProcessor
+from .vcf_processor import VCFProcessor
 
 __version__ = "1.0.0"
 __all__ = [

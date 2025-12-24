@@ -58,7 +58,7 @@ Performance Notes:
 """
 
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 import time
 
 import pandas as pd
@@ -359,7 +359,7 @@ class VCFProcessor:
         if not self.config.vcf_file.exists():
             raise FileNotFoundError(f"VCF file not found: {self.config.vcf_file}")
         
-        if not self.config.target_id_file.exists():
+        if self.config.target_id_file and not self.config.target_id_file.exists():
             raise FileNotFoundError(f"Target ID file not found: {self.config.target_id_file}")
         
         # Validate configuration parameters
@@ -502,9 +502,14 @@ class VCFProcessor:
             logger.info("Processing with VCFReader")
         
         # Load target IDs for filtering
-        target_ids = load_target_ids(self.config.target_id_file)
-        if not self.config.quiet:
-            logger.info(f"Loaded {len(target_ids)} target IDs for filtering")
+        if self.config.target_id_file:
+            target_ids = load_target_ids(self.config.target_id_file)
+            if not self.config.quiet:
+                logger.info(f"Loaded {len(target_ids)} target IDs for filtering")
+        else:
+            target_ids = None  # Process all variants
+            if not self.config.quiet:
+                logger.info("No target file specified, will process all variants")
         
         # Get sample information
         sample_names = self._vcf_reader.sample_names
@@ -614,7 +619,7 @@ class VCFProcessor:
             logger.warning(f"Failed to parse VCF header: {e}")
             return []
     
-    def _process_in_batches(self, target_ids: set[str]) -> ProcessingResult:
+    def _process_in_batches(self, target_ids: Optional[set[str]]) -> ProcessingResult:
         """Process VCF file in batches for memory efficiency.
         
         Args:
@@ -627,36 +632,38 @@ class VCFProcessor:
             logger.info(f"Processing in batches of {self.config.batch_size}")
         
         try:
-            # Estimate total variants for progress tracking
-            total_variants = self._vcf_reader.count_variants() if hasattr(self._vcf_reader, 'count_variants') else len(target_ids)
-            
-            # Initialize progress tracker
+            # Initialize progress tracker with estimated count
+            # We'll update the total as we process
             progress = ProgressTracker(
-                total=total_variants,
+                total=1000,  # Initial estimate, will be updated
                 description="Processing variants (batch mode)",
                 enable_progress=not self.config.quiet,
                 quiet=self.config.quiet
             )
             
             try:
-                # For now, use simple iteration (batch processing would need more complex implementation)
+                # Collect variants for processing
+                variants = []
+                processed_count = 0
+                
+                # Process variants using context manager
                 with self._vcf_reader as reader:
-                    batch_count = 0
-                    processed_count = 0
-                    
                     for variant in reader.iter_variants(target_ids):
-                        # Process individual variant (simplified for now)
+                        variants.append(variant)
                         processed_count += 1
                         progress.update(1)
                         
-                        if processed_count % self.config.batch_size == 0:
-                            batch_count += 1
-                            progress.set_description(f"Processing batch {batch_count}")
-                            if self.config.verbose:
-                                logger.debug(f"Processed batch {batch_count}: {processed_count} variants")
+                        # Process batch when it reaches batch size
+                        if len(variants) >= self.config.batch_size:
+                            self._process_variant_batch(variants)
+                            variants = []
+                    
+                    # Process remaining variants
+                    if variants:
+                        self._process_variant_batch(variants)
                     
                     self.result.processed_variants = processed_count
-                    self.result.total_variants = total_variants
+                    self.result.total_variants = processed_count
                     
             finally:
                 progress.close()
@@ -668,7 +675,7 @@ class VCFProcessor:
         except Exception as e:
             raise RuntimeError(f"Batch processing failed: {e}") from e
     
-    def _process_single_pass(self, target_ids: set[str]) -> ProcessingResult:
+    def _process_single_pass(self, target_ids: Optional[set[str]]) -> ProcessingResult:
         """Process entire VCF file in a single pass.
         
         Args:
@@ -681,30 +688,31 @@ class VCFProcessor:
             logger.info("Processing in single pass")
         
         try:
-            # Count total variants first
-            total_variants = self._vcf_reader.count_variants() if hasattr(self._vcf_reader, 'count_variants') else len(target_ids)
-            if not self.config.quiet:
-                logger.info(f"Total variants in VCF: {total_variants}")
-            
-            # Initialize progress tracker
+            # Initialize progress tracker with estimated count
             progress = ProgressTracker(
-                total=total_variants,
+                total=1000,  # Initial estimate, will be updated
                 description="Processing variants (single pass)",
                 enable_progress=not self.config.quiet,
                 quiet=self.config.quiet
             )
             
             try:
-                # Process variants
+                # Collect all variants for processing
+                variants = []
                 processed_count = 0
+                
                 with self._vcf_reader as reader:
                     for variant in reader.iter_variants(target_ids):
-                        # Process individual variant (simplified for now)
+                        variants.append(variant)
                         processed_count += 1
                         progress.update(1)
                 
+                # Process all variants in one batch
+                if variants:
+                    self._process_variant_batch(variants)
+                
                 self.result.processed_variants = processed_count
-                self.result.total_variants = total_variants
+                self.result.total_variants = processed_count
                 
             finally:
                 progress.close()
@@ -727,6 +735,56 @@ class VCFProcessor:
             
         except Exception as e:
             logger.warning(f"Error during cleanup: {e}")
+    
+    def _process_variant_batch(self, variants: List) -> None:
+        """Process a batch of variants through the complete pipeline.
+        
+        Args:
+            variants: List of VariantInfo objects to process
+        """
+        if not variants:
+            return
+        
+        try:
+            # Transform variants
+            transformed_variants = []
+            for variant in variants:
+                transformed_variant = self._variant_transformer.transform_variant(variant)
+                transformed_variants.append(transformed_variant)
+            
+            if not transformed_variants:
+                logger.debug("No variants to process after transformation")
+                return
+            
+            # Get sample names
+            sample_names = self._vcf_reader.sample_names
+            
+            # Convert genotypes to DataFrame
+            converted_df = self._genotype_converter.convert_batch(transformed_variants, sample_names)
+            
+            if converted_df.empty:
+                logger.debug("No genotypes to process after conversion")
+                return
+            
+            # Create genotype and sequence DataFrames
+            # For now, we'll create both from the same data
+            # The genotype table contains the raw converted genotypes
+            gt_df = converted_df.copy()
+            
+            # The sequence table is the same for this implementation
+            # In a more complex implementation, this might be different
+            seq_df = converted_df.copy()
+            
+            # Write output
+            with self._output_writer as writer:
+                writer.write_batch(gt_df, seq_df)
+            
+            logger.debug(f"Processed batch of {len(variants)} variants")
+            
+        except Exception as e:
+            error_msg = f"Failed to process variant batch: {e}"
+            self.result.add_error(error_msg)
+            raise RuntimeError(error_msg) from e
     
     def validate_output(self) -> bool:
         """Validate that output files were created successfully.

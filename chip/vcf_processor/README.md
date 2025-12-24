@@ -2,6 +2,35 @@
 
 An optimized, modular VCF processing system for genotyping arrays using cyvcf2.
 
+## Two Usage Options
+
+### Option 1: Standalone Script (Smart Hybrid)
+```bash
+# Process all variants in VCF file
+python vcf_processor_standalone.py input.vcf output
+
+# Process only specific target variants
+python vcf_processor_standalone.py input.vcf output --targets targets.txt
+```
+- ✅ **Smart selection** - automatically uses high-performance modules if available, falls back to pure Python
+- ✅ **Zero dependencies** - works with Python standard library only as fallback
+- ✅ **No installation** - download and run immediately
+- ✅ **Perfect for**: Quick processing, any environment, maximum compatibility
+
+### Option 2: Full Module (High Performance)
+```bash
+# Process all variants in VCF file
+python -m chip.vcf_processor.cli process input.vcf output
+
+# Process only specific target variants
+python -m chip.vcf_processor.cli process input.vcf output --targets targets.txt
+```
+- 🚀 **High performance** - uses cyvcf2 C extensions
+- 🚀 **Full features** - configuration files, multi-threading, advanced options
+- 🚀 **Perfect for**: Production environments, large-scale processing
+
+**Both options use identical command-line arguments and produce identical outputs.**
+
 ## Overview
 
 The VCF Processor is a high-performance tool designed to process VCF files for genotyping array workflows. It replaces bcftools-based processing with a pure Python implementation using cyvcf2 for improved performance and maintainability.
@@ -18,7 +47,28 @@ The VCF Processor is a high-performance tool designed to process VCF files for g
 
 ## Quick Start
 
-### Installation
+### Option 1: Standalone Script (Recommended for Quick Start)
+
+```bash
+# Process all variants (no target file needed)
+python vcf_processor_standalone.py input.vcf output
+
+# Process specific target variants
+python vcf_processor_standalone.py input.vcf output --targets targets.txt
+
+# With custom options (same as modular version)
+python vcf_processor_standalone.py input.vcf output --targets targets.txt \
+    --batch-size 20000 \
+    --compress \
+    --miss-fmt "NN" \
+    --gt-sep ""
+```
+
+**See [STANDALONE_USAGE.md](STANDALONE_USAGE.md) for detailed standalone usage guide.**
+
+### Option 2: Full Module (Recommended for Production)
+
+#### Installation
 
 ```bash
 # Install dependencies
@@ -28,14 +78,17 @@ pip install cyvcf2 typer loguru tqdm pandas
 pip install -r requirements.txt
 ```
 
-### Basic Usage
+#### Usage
 
 ```bash
-# Process VCF file with target variants
-python -m chip.vcf_processor.cli process input.vcf targets.txt output
+# Process all variants
+python -m chip.vcf_processor.cli process input.vcf output
 
-# With custom options
-python -m chip.vcf_processor.cli process input.vcf targets.txt output \
+# Process specific target variants
+python -m chip.vcf_processor.cli process input.vcf output --targets targets.txt
+
+# With custom options (identical to standalone version)
+python -m chip.vcf_processor.cli process input.vcf output --targets targets.txt \
     --batch-size 20000 \
     --threads 4 \
     --compress \
@@ -68,6 +121,22 @@ result = processor.process()
 summary = processor.format_summary()
 print(summary)
 ```
+
+## Choosing the Right Option
+
+| Feature | Standalone Script | Full Module |
+|---------|------------------|-------------|
+| **Installation** | None required | `pip install` required |
+| **Dependencies** | Auto-detects, falls back to stdlib | cyvcf2, typer, loguru, etc. |
+| **Performance** | Good→Excellent (adaptive) | Excellent (C extensions) |
+| **Memory Usage** | Efficient→More efficient | More efficient |
+| **Multi-threading** | No | Yes (`--threads` option) |
+| **Configuration Files** | No | Yes (JSON config support) |
+| **Command Compatibility** | ✅ Identical arguments | ✅ Identical arguments |
+| **Output Format** | ✅ Identical | ✅ Identical |
+| **Best For** | Any environment, maximum compatibility | Production, large files |
+
+**Recommendation**: The standalone script now intelligently adapts to your environment - it will use high-performance modules if available, or fall back to pure Python if needed. This gives you the best of both worlds!
 
 ## Architecture
 

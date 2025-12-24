@@ -158,7 +158,7 @@ class ConfigManager:
         errors = {}
         
         # Required fields
-        required_fields = ["vcf_file", "target_id_file", "output_file"]
+        required_fields = ["vcf_file", "output_file"]
         for field in required_fields:
             if field not in config_dict or not config_dict[field]:
                 errors[field] = f"{field} is required"
@@ -243,8 +243,8 @@ def create_cli_app() -> typer.Typer:
     @app.command()
     def process(
         vcf_file: Path = typer.Argument(..., help="Input VCF file path"),
-        target_id_file: Path = typer.Argument(..., help="Target IDs file path"),
         output_file: Path = typer.Argument(..., help="Output file base path"),
+        targets: Optional[Path] = typer.Option(None, "--targets", help="Target IDs file path (optional, if not specified processes all variants)"),
         miss_fmt: str = typer.Option("NN", "--miss-fmt", help="Missing genotype format"),
         gt_sep: str = typer.Option("", "--gt-sep", help="Genotype separator"),
         threads: int = typer.Option(4, "--threads", "-t", help="Number of threads"),
@@ -258,7 +258,7 @@ def create_cli_app() -> typer.Typer:
     ) -> None:
         """Process VCF files to generate genotype tables."""
         from .logging_config import setup_logging
-        from .processor import VCFProcessor
+        from .vcf_processor import VCFProcessor
         
         # Load configuration
         if config_file:
@@ -267,14 +267,14 @@ def create_cli_app() -> typer.Typer:
             # This is a simplified version - in practice you'd check which args were explicitly set
             if vcf_file != Path(""):
                 config.vcf_file = vcf_file
-            if target_id_file != Path(""):
-                config.target_id_file = target_id_file
+            if targets is not None:
+                config.target_id_file = targets
             if output_file != Path(""):
                 config.output_file = output_file
         else:
             config = ProcessingConfig(
                 vcf_file=vcf_file,
-                target_id_file=target_id_file,
+                target_id_file=targets,
                 output_file=output_file,
                 miss_fmt=miss_fmt,
                 gt_sep=gt_sep,
