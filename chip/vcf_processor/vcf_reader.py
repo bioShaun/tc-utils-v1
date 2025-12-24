@@ -52,8 +52,9 @@ class VCFReader:
         if self._sample_names is None:
             if self._vcf is None:
                 # Temporarily open VCF to get sample names
-                with VCF(str(self.vcf_path)) as vcf:
-                    self._sample_names = list(vcf.samples)
+                vcf = VCF(str(self.vcf_path))
+                self._sample_names = list(vcf.samples)
+                vcf.close()
             else:
                 self._sample_names = list(self._vcf.samples)
         return self._sample_names
