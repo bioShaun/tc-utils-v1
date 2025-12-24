@@ -51,14 +51,10 @@ project_root = current_dir.parent.parent  # 从 chip/vcf_processor 到项目根�
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
-# 导入VCF处理器相关模块
-from chip.vcf_processor.config import ProcessingConfig
-from chip.vcf_processor.vcf_processor import VCFProcessor
-
 
 def process_vcf(vcf_file: str, output_prefix: str, target_file: str = None,
                 miss_fmt: str = "NN", gt_sep: str = "", batch_size: int = 10000,
-                compress_output: bool = False, verbose: bool = False) -> Dict:
+                compress_output: bool = False, verbose: bool = False, quiet: bool = False) -> Dict:
     """使用VCFProcessor处理VCF文件
     
     Args:
@@ -70,10 +66,15 @@ def process_vcf(vcf_file: str, output_prefix: str, target_file: str = None,
         batch_size: 批处理大小
         compress_output: 是否压缩输出
         verbose: 是否详细输出
+        quiet: 是否静默模式
         
     Returns:
         处理结果字典
     """
+    # 导入VCF处理器相关模块（在函数内部导入以确保日志已配置）
+    from chip.vcf_processor.config import ProcessingConfig
+    from chip.vcf_processor.vcf_processor import VCFProcessor
+    
     # 创建配置
     config = ProcessingConfig(
         vcf_file=Path(vcf_file),
@@ -84,7 +85,7 @@ def process_vcf(vcf_file: str, output_prefix: str, target_file: str = None,
         batch_size=batch_size,
         compress_output=compress_output,
         verbose=verbose,
-        quiet=not verbose,
+        quiet=quiet,  # 正确传递静默模式参数
         threads=1  # 独立脚本使用单线程
     )
     
@@ -142,6 +143,14 @@ def main(
       如果不指定目标文件，将处理VCF文件中的所有变异。
     """
     try:
+        # 设置日志
+        from chip.vcf_processor.logging_config import setup_logging
+        setup_logging(
+            verbose=verbose and not quiet,
+            quiet=quiet,
+            log_file=None
+        )
+        
         # 使用VCFProcessor处理
         result = process_vcf(
             vcf_file=str(vcf_file),
@@ -151,7 +160,8 @@ def main(
             gt_sep=gt_sep,
             batch_size=batch_size,
             compress_output=compress,
-            verbose=verbose and not quiet
+            verbose=verbose and not quiet,
+            quiet=quiet
         )
         
         # 输出结果摘要

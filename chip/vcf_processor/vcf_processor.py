@@ -100,15 +100,16 @@ class ProgressTracker:
         self.quiet = quiet
         self.start_time = time.time()
         
-        if self.enable_progress and total > 0:
+        # In quiet mode, don't create any progress bar at all
+        if quiet or not self.enable_progress or total <= 0:
+            self.pbar = None
+        else:
             self.pbar = tqdm(
                 total=total,
                 desc=description,
                 unit="variants",
-                disable=quiet
+                disable=False
             )
-        else:
-            self.pbar = None
     
     def update(self, increment: int = 1) -> None:
         """Update progress by increment."""
@@ -428,7 +429,7 @@ class VCFProcessor:
             if not self.config.quiet:
                 if self.config.verbose:
                     # Show detailed summary in verbose mode
-                    print(self.summary.format_summary())
+                    logger.info(f"Processing summary:\n{self.summary.format_summary()}")
                 else:
                     # Show brief summary in normal mode
                     summary_dict = self.summary.get_summary_dict()
