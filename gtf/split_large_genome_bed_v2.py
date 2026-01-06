@@ -45,19 +45,17 @@ def transform_coordinates(
     bed_df = bed_df.sort(["chrom", "start"])
     split_df = split_df.sort(["chrom", "split_start"])
 
-    # Explicitly mark columns as sorted to avoid Polars warning
-    # This tells Polars the data is sorted within each 'chrom' group
-    bed_df = bed_df.set_sorted("start")
-    split_df = split_df.set_sorted("split_start")
-
     # join_asof finds the split where split_start <= start
     # Using backward strategy to match each region to its containing split
+    # check_sortedness=False: We disable sortedness check because we explicitly sort above,
+    # and Polars cannot verify sortedness within 'by' groups.
     result = bed_df.join_asof(
         split_df,
         left_on="start",
         right_on="split_start",
         by="chrom",
         strategy="backward",
+        check_sortedness=False,
     )
 
     # Filter regions that actually fall within the split boundaries
