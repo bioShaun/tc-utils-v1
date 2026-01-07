@@ -33,6 +33,88 @@ CRITICAL: When working on this project, use lazy loading for reference files:
 - **Terminal Output:** `rich.console.Console` for user-facing messages
 - **Data Processing:** `polars` (preferred) or `pandas` (legacy/small data only)
 - **Paths:** `pathlib.Path` (NEVER use `os.path`)
+- **Bioinformatics:** `cyvcf2` (VCF), `pyfaidx` (FASTA), `pysam` (BAM/SAM)
+
+### Bioinformatics Libraries
+
+Use modern, actively maintained packages for bioinformatics data processing:
+
+| Data Type | Primary Package | When to Use | Alternative/Fallback |
+|-----------|----------------|-------------|---------------------|
+| **VCF files** | `cyvcf2` | All VCF parsing/reading tasks | `pysam.VariantFile` (when cyvcf2 lacks specific functionality) |
+| **FASTA files** | `pyfaidx` | Large genomes, random access | `Biopython SeqIO` (small files, format conversion, sequence manipulation) |
+| **BAM/SAM files** | `pysam` | All alignment file operations | None |
+| **BED/GTF files** | `polars` / `pandas` | Tabular genomic coordinates | Custom parsers (avoid) |
+
+**Version requirements:** See `pyproject.toml` for minimum supported versions.
+
+**VCF Processing:**
+```python
+# Preferred: cyvcf2 for high-performance reading
+from cyvcf2 import VCF
+
+for variant in VCF('variants.vcf.gz'):
+    chrom, pos = variant.CHROM, variant.POS
+    ref, alt = variant.REF, variant.ALT[0]
+    
+    # Access genotypes efficiently
+    gts = variant.gt_types  # 0=HOM_REF, 1=HET, 2=HOM_ALT, 3=UNKNOWN
+    
+# Fallback: pysam.VariantFile when cyvcf2 lacks features
+from pysam import VariantFile
+
+with VariantFile('output.vcf', 'w', header=custom_header) as vcf_out:
+    vcf_out.write(record)
+```
+
+**FASTA Processing:**
+```python
+# Preferred: pyfaidx for large genomes (memory-efficient, indexed access)
+from pyfaidx import Fasta
+
+genome = Fasta('genome.fa')
+sequence = genome['chr1'][1000:2000]  # O(1) random access
+reverse_comp = genome['chr1'][1000:2000].reverse.complement
+
+# Acceptable: Biopython for specific use cases
+from Bio import SeqIO
+from Bio.Seq import Seq
+
+# ✓ Good: Small files, format conversion
+records = list(SeqIO.parse('small.fasta', 'fasta'))
+SeqIO.convert('input.fasta', 'fasta', 'output.gb', 'genbank')
+
+# ✓ Good: Sequence manipulation
+protein = Seq('ATGGCCATTGTAATG').translate()
+
+# ✗ Avoid: Large genome parsing (use pyfaidx instead)
+genome = {rec.id: rec.seq for rec in SeqIO.parse('genome.fa', 'fasta')}  # Memory inefficient!
+```
+
+**BAM/SAM Processing:**
+```python
+import pysam
+
+# Region-based fetching (memory-efficient)
+with pysam.AlignmentFile('input.bam', 'rb') as bam:
+    for read in bam.fetch('chr1', 1000, 2000):
+        if read.mapping_quality >= 30:
+            print(f"{read.query_name}: {read.reference_start}")
+            
+# Index operations
+pysam.index('input.bam')
+```
+
+**Performance Guidelines:**
+- **cyvcf2** is 5-10× faster than PyVCF for large VCF files
+- **pyfaidx** uses minimal memory regardless of genome size (via FAIDX indexing)
+- **pysam** handles BAM/CRAM efficiently with built-in decompression
+
+**When Biopython is appropriate:**
+- File size < 100MB
+- Format conversions (FASTA ↔ GenBank, etc.)
+- Sequence manipulation (translation, reverse complement, motif finding)
+- Phylogenetics and alignment tasks (Phylo, AlignIO modules)
 
 ### Type Hints (Mandatory)
 ```python
@@ -160,3 +242,6 @@ When encountering scripts using `argparse`, `os.path`, or `print`:
 | Processing >1GB files is slow | Switch from `pandas` to `polars` |
 | Type hints not working | Ensure Python 3.10+ and proper imports |
 | Rich colors not showing | Check terminal supports ANSI colors |
+| Biopython SeqIO is slow on large FASTA | Use `pyfaidx` for indexed random access |
+| VCF parsing memory errors | Switch to `cyvcf2` with streaming iteration |
+| BAM file crashes or hangs | Use `pysam` with region-based `fetch()` instead of iterating all reads |
