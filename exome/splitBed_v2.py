@@ -8,7 +8,7 @@ index (.fai) files into multiple smaller files for parallel processing.
 import math
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, cast
 
 import polars as pl
 import typer
@@ -121,13 +121,20 @@ def split_bed_file(
     bed_df = bed_df.with_columns((pl.col("end") - pl.col("start")).alias("region_length"))
 
     total_length = bed_df["region_length"].sum()
+    if total_length is None or total_length == 0:
+        logger.warning("Empty BED file")
+        return
+
     length_per_file = total_length // split_number
     max_position = bed_df["end"].max()
-    pad_num = calculate_padding(max_position)
+    pad_num = calculate_padding(cast(int, max_position)) if max_position is not None else 1
     prefix_pad_num = calculate_padding(split_number) + 1
 
     output_dir = out_dir / bed_file.stem
-    output_dir.mkdir(parents=True, exist_ok=True)
+    if output_dir.exists():
+        logger.error(f"Output directory already exists: {output_dir}")
+        raise typer.Exit(1)
+    output_dir.mkdir(parents=True)
 
     logger.info(f"Splitting into ~{split_number} files, ~{length_per_file:,} bp per file")
 
@@ -189,13 +196,20 @@ def split_fai_file(
     )
 
     genome_length = fai_df["chrom_length"].sum()
-    split_length = get_optimal_split_length(genome_length, split_number)
+    if genome_length is None or genome_length == 0:
+        logger.warning("Empty FAI file")
+        return
+
+    split_length = get_optimal_split_length(cast(int, genome_length), split_number)
     max_chrom_length = fai_df["chrom_length"].max()
-    pad_num = calculate_padding(max_chrom_length)
+    pad_num = calculate_padding(cast(int, max_chrom_length)) if max_chrom_length is not None else 1
     prefix_pad_num = calculate_padding(split_number) + 1
 
     output_dir = out_dir / "genome"
-    output_dir.mkdir(parents=True, exist_ok=True)
+    if output_dir.exists():
+        logger.error(f"Output directory already exists: {output_dir}")
+        raise typer.Exit(1)
+    output_dir.mkdir(parents=True)
 
     logger.info(f"Splitting genome (~{genome_length:,} bp) into ~{split_number} files, ~{split_length:,} bp per file")
 
@@ -280,10 +294,6 @@ def main(
     """
     if not input_file.exists():
         logger.error(f"Input file not found: {input_file}")
-        raise typer.Exit(1)
-
-    if output_dir.exists():
-        logger.error(f"Output directory already exists: {output_dir}")
         raise typer.Exit(1)
 
     try:
