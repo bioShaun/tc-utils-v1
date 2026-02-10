@@ -3,6 +3,11 @@ from pathlib import Path
 import pandas as pd
 import typer
 
+DISCLAIMER = (
+    "本表基于当前已知的核心功能位点及基因单倍型信息，对相关性状进行注释。"
+    "结果反映材料的遗传潜能，仅供分子辅助育种参考，实际田间表现受环境等多因素影响。"
+)
+
 
 def filter_by_allele(pheno_alleles, gt_alleles):
     for gt_allele in gt_alleles:
@@ -75,7 +80,11 @@ def main(gt_file: Path, pheno_file: Path, out_file: Path):
             axis=1,
         )
     out_df = format_output(pheno_df)
-    out_df.to_excel(out_file)
+    with pd.ExcelWriter(out_file) as writer:
+        pd.DataFrame([[DISCLAIMER]]).to_excel(
+            writer, sheet_name="Sheet1", index=False, header=False
+        )
+        out_df.to_excel(writer, sheet_name="Sheet1", startrow=1)
 
 
 if __name__ == "__main__":
