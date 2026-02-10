@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import typer
 
@@ -44,6 +45,64 @@ def gene_add_label(row):
     return row["gene"]
 
 
+def compute_gt_consistent(gt_allele_df: pd.DataFrame) -> pd.Series:
+    ref = gt_allele_df["REF"].astype(str)
+    alt = gt_allele_df["ALT"].astype(str)
+    pheno_allele1 = gt_allele_df["ref_allele1"].astype(str)
+    pheno_allele2 = gt_allele_df["ref_allele2"].astype(str)
+
+    pheno_has_del = pheno_allele1.str.contains("del", na=False) | pheno_allele2.str.contains(
+        "del", na=False
+    )
+    pheno_has_ins = pheno_allele1.str.contains("ins", na=False) | pheno_allele2.str.contains(
+        "ins", na=False
+    )
+
+    ref_has_del = ref.str.contains("del", na=False)
+    ref_has_ins = ref.str.contains("ins", na=False)
+    alt_has_del = alt.str.contains("del", na=False)
+    alt_has_ins = alt.str.contains("ins", na=False)
+
+    ref_ok = ref.eq(".") | ref.eq(pheno_allele1) | ref.eq(pheno_allele2)
+    alt_ok = alt.eq(".") | alt.eq(pheno_allele1) | alt.eq(pheno_allele2)
+    result = ref_ok & alt_ok
+
+    # Keep the original short-circuit order in filter_by_allele:
+    # REF(del/ins) -> ALT(del/ins) -> fallback match check
+    ref_del_mask = ref_has_del
+    result = result.where(~ref_del_mask, pheno_has_del)
+
+    ref_ins_mask = ~ref_del_mask & ref_has_ins
+    result = result.where(~ref_ins_mask, pheno_has_ins)
+
+    alt_del_mask = ~ref_del_mask & ~ref_ins_mask & alt_has_del
+    result = result.where(~alt_del_mask, pheno_has_del)
+
+    alt_ins_mask = ~ref_del_mask & ~ref_ins_mask & ~alt_del_mask & alt_has_ins
+    result = result.where(~alt_ins_mask, pheno_has_ins)
+    return result
+
+
+def build_sample_phenotype_df(
+    consistant_df: pd.DataFrame, sample_list: list[str]
+) -> pd.DataFrame:
+    sample_values = consistant_df[sample_list].to_numpy(dtype=object, copy=False)
+    ref_allele1 = consistant_df["ref_allele1"].to_numpy()
+    ref_allele2 = consistant_df["ref_allele2"].to_numpy()
+    phenotype1 = consistant_df["phenotype1"].to_numpy()
+    phenotype2 = consistant_df["phenotype2"].to_numpy()
+
+    out = np.empty(sample_values.shape, dtype=object)
+    for row_idx in range(sample_values.shape[0]):
+        alleles = (ref_allele1[row_idx], ref_allele2[row_idx])
+        phenos = (phenotype1[row_idx], phenotype2[row_idx])
+        row_gts = sample_values[row_idx]
+        unique_gts = pd.unique(row_gts)
+        gt_map = {gt: get_gt_pheno(alleles, phenos, gt) for gt in unique_gts}
+        out[row_idx] = [gt_map[gt] for gt in row_gts]
+    return pd.DataFrame(out, columns=sample_list, index=consistant_df.index)
+
+
 def format_output(df: pd.DataFrame) -> pd.DataFrame:
     out_df = df.copy()
     out_df["gene"] = out_df.apply(gene_add_label, axis=1)
@@ -59,26 +118,14 @@ def main(gt_file: Path, pheno_file: Path, out_file: Path):
     gt_allele_df = pheno_df.rename(columns={"chrom": "CHROM", "pos": "POS"}).merge(
         gt_df
     )
-    gt_allele_df["gt_consistent"] = gt_allele_df.apply(
-        lambda row: filter_by_allele(
-            (row["ref_allele1"], row["ref_allele2"]), (row["REF"], row["ALT"])
-        ),
-        axis=1,
-    )
+    gt_allele_df["gt_consistent"] = compute_gt_consistent(gt_allele_df)
     consistant_df = gt_allele_df[gt_allele_df["gt_consistent"]].copy()
     sample_list = gt_df.columns[4:].to_list()
     pheno_df = consistant_df[
         ["location_status", "CHROM", "POS", "category", "trait", "gene"]
     ].copy()
-    for sample in sample_list:
-        pheno_df[sample] = consistant_df.apply(
-            lambda row: get_gt_pheno(
-                (row["ref_allele1"], row["ref_allele2"]),
-                (row["phenotype1"], row["phenotype2"]),
-                row[sample],
-            ),
-            axis=1,
-        )
+    sample_pheno_df = build_sample_phenotype_df(consistant_df, sample_list)
+    pheno_df = pd.concat([pheno_df, sample_pheno_df], axis=1)
     out_df = format_output(pheno_df)
     with pd.ExcelWriter(out_file) as writer:
         pd.DataFrame([[DISCLAIMER]]).to_excel(
