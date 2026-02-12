@@ -1,22 +1,81 @@
 from pathlib import Path
+from typing import Annotated
 
 import pandas as pd
 import typer
 from loguru import logger
 from pyfaidx import Fasta
+from rich.console import Console
 from tqdm import tqdm
 
+console = Console()
 
-def main(vcf_file: Path, ref: Path, out_file: Path, flank_size: int = 200) -> None:
+
+def validate_file(path: Path, name: str) -> None:
+    """Validate that a path exists and is a file."""
+    if not path.exists():
+        logger.error(f"{name} file not found: {path}")
+        console.print(f"[red]Error:[/red] {name} file not found: {path}")
+        raise typer.Exit(code=1)
+
+    if not path.is_file():
+        logger.error(f"{name} path is not a file: {path}")
+        console.print(f"[red]Error:[/red] {name} path is not a file: {path}")
+        raise typer.Exit(code=1)
+
+
+def load_id_set(id_file: Path) -> set[str]:
+    """Load IDs from a text file, one ID per line."""
+    validate_file(id_file, "ID list")
+    id_set = {line.strip() for line in id_file.read_text(encoding="utf-8").splitlines() if line.strip()}
+
+    if not id_set:
+        logger.error(f"ID list file is empty: {id_file}")
+        console.print(f"[red]Error:[/red] ID list file is empty: {id_file}")
+        raise typer.Exit(code=1)
+
+    logger.info(f"Loaded {len(id_set)} IDs from {id_file}")
+    return id_set
+
+
+def main(
+    vcf_file: Annotated[Path, typer.Argument(help="Input VCF file path")],
+    ref: Annotated[Path, typer.Argument(help="Reference FASTA file path")],
+    out_file: Annotated[Path, typer.Argument(help="Output TSV file path")],
+    flank_size: Annotated[int, typer.Option("--flank-size", help="Flanking sequence size")] = 200,
+    id_file: Annotated[
+        Path | None,
+        typer.Option("--id", help="Optional ID list file path; one ID per line"),
+    ] = None,
+) -> None:
     """Generate primer sequences from VCF and reference files."""
+    validate_file(vcf_file, "VCF")
+    validate_file(ref, "Reference")
+    id_set: set[str] | None = load_id_set(id_file) if id_file else None
+
     logger.info("Reading VCF file...")
     vcf_df = pd.read_table(
         vcf_file,
         comment="#",
-        usecols=[0, 1, 3, 4],
-        names=["chrom", "pos", "ref", "alt"],
+        usecols=[0, 1, 2, 3, 4],
+        names=["chrom", "pos", "id", "ref", "alt"],
     )
     vcf_df["chrom"] = vcf_df["chrom"].astype("str")
+    vcf_df["id"] = vcf_df["id"].astype("str")
+
+    if (vcf_df["id"] == ".").all():
+        vcf_df["effective_id"] = vcf_df["chrom"] + "_" + vcf_df["pos"].astype("str")
+    else:
+        vcf_df["effective_id"] = vcf_df["id"]
+
+    if id_set is not None:
+        vcf_df = vcf_df[vcf_df["effective_id"].isin(id_set)]
+        logger.info(f"Filtered variants by ID list, {len(vcf_df)} variants remain")
+        if vcf_df.empty:
+            logger.error("No variants matched the IDs from the ID list file")
+            console.print("[red]Error:[/red] No variants matched the IDs from the ID list file")
+            raise typer.Exit(code=1)
+
     logger.info(f"Loaded {len(vcf_df)} variants from VCF")
 
     logger.info("Loading reference genome...")
@@ -61,7 +120,7 @@ def main(vcf_file: Path, ref: Path, out_file: Path, flank_size: int = 200) -> No
             # 构建引物序列
             primer_seq = f"{left_seq}[{row.ref}/{row.alt}]{right_seq}"
 
-            out_list.append({"name": f"{row.chrom}_{row.pos}", "sequence": primer_seq})
+            out_list.append({"name": row.effective_id, "sequence": primer_seq})
 
     logger.info(f"Generated {len(out_list)} primer sequences")
 
