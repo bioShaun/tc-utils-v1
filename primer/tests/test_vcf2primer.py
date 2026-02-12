@@ -146,3 +146,43 @@ def test_main_raises_when_id_file_not_found(tmp_path: Path) -> None:
         main(vcf, ref, out, flank_size=2, id_file=missing_id_file)
 
     assert exc_info.value.exit_code == 1
+
+
+def test_main_extracts_insertion_and_deletion_sequences_correctly(tmp_path: Path) -> None:
+    """Insertion/deletion sites should produce correct flanking sequences."""
+    ref = write_fasta(tmp_path)
+    vcf = write_vcf(
+        tmp_path,
+        [
+            ("chr1", 4, ".", "T", "TA"),   # insertion
+            ("chr1", 3, ".", "GTA", "G"),  # deletion
+        ],
+    )
+    out = tmp_path / "out.tsv"
+
+    main(vcf, ref, out, flank_size=2)
+
+    result = pd.read_table(out)
+    sequence_by_name = dict(zip(result["name"], result["sequence"], strict=True))
+    assert sequence_by_name["chr1_4"] == "CG[T/TA]AC"
+    assert sequence_by_name["chr1_3"] == "AC[GTA/G]CG"
+
+
+def test_main_filters_indel_by_id_file(tmp_path: Path) -> None:
+    """ID filtering should work for indel records."""
+    ref = write_fasta(tmp_path)
+    vcf = write_vcf(
+        tmp_path,
+        [
+            ("chr1", 4, ".", "T", "TA"),
+            ("chr1", 3, ".", "GTA", "G"),
+        ],
+    )
+    id_file = write_id_file(tmp_path, ["chr1_4"])
+    out = tmp_path / "out.tsv"
+
+    main(vcf, ref, out, flank_size=2, id_file=id_file)
+
+    result = pd.read_table(out)
+    assert list(result["name"]) == ["chr1_4"]
+    assert list(result["sequence"]) == ["CG[T/TA]AC"]
