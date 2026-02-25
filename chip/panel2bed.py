@@ -5,8 +5,8 @@
     # 默认输出
     python chip/panel2bed.py design.tsv genome.fa.fai panel_v1 out_dir
 
-    # 输出 split 版本 BED
-    python chip/panel2bed.py design.tsv genome.fa.fai panel_v1 out_dir --split-bed split.bed
+    # 输出 split 版本 BED（按 split.genome.fa.fai 排序）
+    python chip/panel2bed.py design.tsv genome.fa.fai panel_v1 out_dir --split-bed split.bed --split-genome-fai split.genome.fa.fai
 
 输出格式:
     - <probe_id>.id: 1 列，pos_id（chrom_pos）
@@ -39,13 +39,14 @@ MODULE_HELP = cleandoc(
         out_dir
 
     \b
-      2) 输出 split 版本 BED
+      2) 输出 split 版本 BED（按 split.genome.fa.fai 排序）
       python chip/panel2bed.py \\
         design.tsv \\
         genome.fa.fai \\
         panel_v1 \\
         out_dir \\
-        --split-bed split.bed
+        --split-bed split.bed \\
+        --split-genome-fai split.genome.fa.fai
 
     \b
     输出格式:
@@ -238,6 +239,25 @@ def load_split_bed(split_bed: Path) -> pd.DataFrame:
     return split_bed_df
 
 
+def load_split_chrom_order(split_genome_fai: Path) -> list[str]:
+    """
+    读取 split 基因组染色体顺序（来自 split.genome.fa.fai）。
+    """
+    if not split_genome_fai.exists():
+        raise FileNotFoundError(f"找不到 split genome fai: {split_genome_fai}")
+
+    chrom_df = pd.read_table(
+        split_genome_fai,
+        header=None,
+        names=["chrom"],
+        usecols=[0],
+    )
+    chrom_order = chrom_df["chrom"].astype(str).tolist()
+    if not chrom_order:
+        raise ValueError(f"split genome fai 为空: {split_genome_fai}")
+    return chrom_order
+
+
 def split_bed_dataframe(
     bed_df: pd.DataFrame,
     split_bed_df: pd.DataFrame,
@@ -260,6 +280,37 @@ def split_bed_dataframe(
     merge_df["new_start"] = (merge_df["start"] - merge_df["split_start"]).astype(int)
     merge_df["new_end"] = (merge_df["end"] - merge_df["split_start"]).astype(int)
     return merge_df[["new_chrom", "new_start", "new_end"]]
+
+
+def sort_split_output_by_fai(
+    split_df: pd.DataFrame,
+    split_chrom_order: list[str],
+) -> pd.DataFrame:
+    """
+    按 split.genome.fa.fai 的染色体顺序排序 split 输出。
+    """
+    if split_df.empty:
+        return split_df
+
+    ordered_df = split_df.copy()
+    ordered_df["new_chrom"] = ordered_df["new_chrom"].astype(str)
+    missing = sorted(set(ordered_df["new_chrom"].unique()) - set(split_chrom_order))
+    if missing:
+        raise ValueError(
+            f"split 输出中存在不在 split genome fai 的染色体: {', '.join(missing)}"
+        )
+
+    ordered_df["new_chrom"] = pd.Categorical(
+        ordered_df["new_chrom"],
+        categories=split_chrom_order,
+        ordered=True,
+    )
+    ordered_df = ordered_df.sort_values(
+        by=["new_chrom", "new_start", "new_end"],
+        kind="mergesort",
+    ).reset_index(drop=True)
+    ordered_df["new_chrom"] = ordered_df["new_chrom"].astype(str)
+    return ordered_df
 
 
 def build_flank_intervals(
@@ -312,6 +363,13 @@ def main(
         Path | None,
         typer.Option(help="split.bed 文件路径；提供后仅输出拆分后的 *.split.bed"),
     ] = None,
+    split_genome_fai: Annotated[
+        Path | None,
+        typer.Option(
+            help="split 基因组 fai（.fai），用于按染色体顺序排序 split 输出；"
+            "未提供时会尝试使用 split.bed 同目录下的 split.genome.fa.fai"
+        ),
+    ] = None,
 ) -> None:
     """
     根据设计表生成 panel 目标位点 bed / id 文件，并扩展 flanking 区域。
@@ -337,17 +395,34 @@ def main(
         return
 
     split_bed_df = load_split_bed(split_bed)
+    resolved_split_genome_fai = split_genome_fai
+    if resolved_split_genome_fai is None:
+        inferred_fai = split_bed.parent / "split.genome.fa.fai"
+        if inferred_fai.exists():
+            resolved_split_genome_fai = inferred_fai
+        else:
+            raise ValueError(
+                "启用 --split-bed 时需要 --split-genome-fai，"
+                "或在 split.bed 同目录提供 split.genome.fa.fai"
+            )
+    split_chrom_order = load_split_chrom_order(resolved_split_genome_fai)
+
     split_target_df = split_bed_dataframe(
         unique_df,
         split_bed_df,
         start_col="pos_0",
         end_col="pos",
     )
+    split_target_df = sort_split_output_by_fai(split_target_df, split_chrom_order)
     split_snpcalling_df = split_bed_dataframe(
         flank_df,
         split_bed_df,
         start_col="flank_start",
         end_col="flank_end",
+    )
+    split_snpcalling_df = sort_split_output_by_fai(
+        split_snpcalling_df,
+        split_chrom_order,
     )
     write_bed(
         split_target_df,

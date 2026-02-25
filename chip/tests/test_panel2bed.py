@@ -66,6 +66,12 @@ def test_panel2bed_with_split_bed_outputs_split_files_only(tmp_path: Path) -> No
         "chr1\t300\t600\tchr1_part2\n",
         encoding="utf-8",
     )
+    # 不显式传 --split-genome-fai，使用同目录默认文件
+    (tmp_path / "split.genome.fa.fai").write_text(
+        "chr1_part1\t300\t0\t0\t0\n"
+        "chr1_part2\t300\t0\t0\t0\n",
+        encoding="utf-8",
+    )
 
     main(
         design_table=design_table,
@@ -130,3 +136,74 @@ def test_split_bed_missing_or_invalid_raises_error(tmp_path: Path) -> None:
     invalid_split_bed.write_text("chr1\t0\t100\n", encoding="utf-8")
     with pytest.raises(ValueError):
         load_split_bed(invalid_split_bed)
+
+
+def test_split_output_sorted_by_split_genome_fai(tmp_path: Path) -> None:
+    design_table = tmp_path / "design.tsv"
+    design_df = pd.DataFrame(
+        {
+            "chrom": ["chr1", "chr2"],
+            "pos": [100, 100],
+            "probe_start": [80, 80],
+            "probe_end": [120, 120],
+        }
+    )
+    design_df.to_csv(design_table, sep="\t", index=False)
+
+    genome_fai = tmp_path / "genome.fa.fai"
+    genome_fai.write_text(
+        "chr1\t1000\t0\t0\t0\n"
+        "chr2\t1000\t0\t0\t0\n",
+        encoding="utf-8",
+    )
+
+    split_bed = tmp_path / "split.bed"
+    split_bed.write_text(
+        "chr1\t0\t300\tchr1_part2\n"
+        "chr2\t0\t300\tchr2_part1\n",
+        encoding="utf-8",
+    )
+    split_genome_fai = tmp_path / "custom.split.genome.fa.fai"
+    split_genome_fai.write_text(
+        "chr2_part1\t300\t0\t0\t0\n"
+        "chr1_part2\t300\t0\t0\t0\n",
+        encoding="utf-8",
+    )
+
+    out_dir = tmp_path / "out"
+    main(
+        design_table=design_table,
+        genome_fai=genome_fai,
+        probe_id="panel_v1",
+        out_path=out_dir,
+        flank_size=200,
+        split_bed=split_bed,
+        split_genome_fai=split_genome_fai,
+    )
+
+    assert read_lines(out_dir / "panel_v1.split.bed") == [
+        "chr2_part1\t99\t100",
+        "chr1_part2\t99\t100",
+    ]
+
+
+def test_split_bed_without_split_genome_fai_raises_error(tmp_path: Path) -> None:
+    design_table, genome_fai = write_basic_inputs(tmp_path)
+    split_bed = tmp_path / "split.bed"
+    split_bed.write_text(
+        "chr1\t0\t300\tchr1_part1\n"
+        "chr1\t300\t600\tchr1_part2\n",
+        encoding="utf-8",
+    )
+    out_dir = tmp_path / "out"
+
+    with pytest.raises(ValueError, match="split.genome.fa.fai"):
+        main(
+            design_table=design_table,
+            genome_fai=genome_fai,
+            probe_id="panel_v1",
+            out_path=out_dir,
+            flank_size=200,
+            split_bed=split_bed,
+            split_genome_fai=None,
+        )
