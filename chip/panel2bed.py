@@ -17,12 +17,46 @@
 """
 
 from pathlib import Path
+from inspect import cleandoc
 from typing import Annotated, Iterable, Tuple
 
 import pandas as pd
 import typer
 
 REQUIRED_COLUMNS = ("chrom", "pos")
+MODULE_HELP = cleandoc(
+    """
+    根据设计表生成 panel BED 文件，并可按 split.bed 拆分坐标。
+
+    \b
+    使用示例:
+    \b
+      1) 默认输出
+      python chip/panel2bed.py \\
+        design.tsv \\
+        genome.fa.fai \\
+        panel_v1 \\
+        out_dir
+
+    \b
+      2) 输出 split 版本 BED
+      python chip/panel2bed.py \\
+        design.tsv \\
+        genome.fa.fai \\
+        panel_v1 \\
+        out_dir \\
+        --split-bed split.bed
+
+    \b
+    输出格式:
+      - <probe_id>.id: 1 列，pos_id（chrom_pos）
+      - <probe_id>.bed: 3 列（chrom, start, end），未启用 split 时输出
+      - <probe_id>.snpcalling.bed: 3 列（chrom, start, end），未启用 split 时输出
+      - <probe_id>.split.bed: 3 列（new_chrom, new_start, new_end），启用 split 时输出
+      - <probe_id>.snpcalling.split.bed: 3 列（new_chrom, new_start, new_end），启用 split 时输出
+    """
+)
+app = typer.Typer(help=MODULE_HELP, no_args_is_help=True)
 
 
 def merge_intervals(group: pd.DataFrame, start_col: str, end_col: str) -> pd.DataFrame:
@@ -267,12 +301,13 @@ def build_flank_intervals(
     return result
 
 
+@app.command(help=MODULE_HELP)
 def main(
-    design_table: Path,
-    genome_fai: Path,
-    probe_id: str,
-    out_path: Path,
-    flank_size: int = 200,
+    design_table: Annotated[Path, typer.Argument(help="设计表路径（.tsv/.xlsx/.xls）")],
+    genome_fai: Annotated[Path, typer.Argument(help="基因组 FASTA 索引（.fai）")],
+    probe_id: Annotated[str, typer.Argument(help="输出文件名前缀")],
+    out_path: Annotated[Path, typer.Argument(help="输出目录")],
+    flank_size: Annotated[int, typer.Option(help="flanking 区域目标长度")] = 200,
     split_bed: Annotated[
         Path | None,
         typer.Option(help="split.bed 文件路径；提供后仅输出拆分后的 *.split.bed"),
@@ -280,14 +315,6 @@ def main(
 ) -> None:
     """
     根据设计表生成 panel 目标位点 bed / id 文件，并扩展 flanking 区域。
-
-    参数:
-        design_table: 设计表（tsv/xlsx）
-        genome_fai: genome fasta index，用于获取染色体大小
-        probe_id: 输出文件名前缀
-        out_path: 输出目录
-        flank_size: flanking 区域目标长度
-        split_bed: split.bed 文件路径，提供后会输出 split 版本 BED
     """
     out_path.mkdir(parents=True, exist_ok=True)
     chrom_df = load_chrom_sizes(genome_fai)
@@ -335,4 +362,4 @@ def main(
 
 
 if __name__ == "__main__":
-    typer.run(main)
+    app()

@@ -80,6 +80,69 @@ def process_data(input_path: Path, threshold: float = 0.5) -> pl.DataFrame:
     """
 ```
 
+### Typer `--help` 文档规范（以 `chip/panel2bed.py` 为基线）
+
+脚本必须在 `--help` 中展示“模块级说明 + 使用示例 + 输出格式”，并采用以下方案：
+
+1. 使用 `Typer()` 应用模式，**禁止**仅用 `typer.run(main)`。
+2. 顶层帮助文案放在 `MODULE_HELP`，并使用 `inspect.cleandoc()` 清理缩进。
+3. 在示例/列表段前使用 `\b`（Click literal block）保留换行格式。
+4. `@app.command(help=MODULE_HELP)` 显式绑定命令帮助，确保单命令脚本也显示完整顶部文档。
+5. 参数说明写在 `Annotated[..., typer.Argument/Option(help=...)]`，**不要**把参数列表塞进 `main()` docstring（会被折叠排版）。
+6. “使用示例”必须使用多行续行命令（`\\`），并按编号分块（如 `1)`、`2)`），避免窄终端把注释和命令折叠到同一行。
+
+参考模板：
+
+```python
+from inspect import cleandoc
+from typing import Annotated
+from pathlib import Path
+import typer
+
+MODULE_HELP = cleandoc(
+    """
+    脚本功能简述。
+
+    \b
+    使用示例:
+    \b
+      1) 默认输出
+      python script.py \\
+        in.tsv \\
+        out.tsv
+
+    \b
+      2) 启用 split
+      python script.py \\
+        in.tsv \\
+        out.tsv \\
+        --split-bed split.bed
+
+    \b
+    输出格式:
+      - out.tsv: 列说明
+      - out.split.tsv: 列说明
+    """
+)
+
+app = typer.Typer(help=MODULE_HELP, no_args_is_help=True)
+
+@app.command(help=MODULE_HELP)
+def main(
+    input_file: Annotated[Path, typer.Argument(help="输入文件")],
+    output_file: Annotated[Path, typer.Argument(help="输出文件")],
+    split_bed: Annotated[Path | None, typer.Option(help="split.bed 路径")] = None,
+) -> None:
+    """命令入口。"""
+    ...
+
+if __name__ == "__main__":
+    app()
+```
+
+说明：
+- 长行仍可能受终端宽度影响自动换行，这是终端渲染行为，不是文档格式丢失。
+
 ### 生物信息学库
 
 使用现代、活跃维护的包处理生物信息学数据：
