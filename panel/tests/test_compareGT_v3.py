@@ -1,28 +1,32 @@
 """
-compareGT-v3.py 的单元测试。
+compareGT_v3.py 的单元测试。
 
 测试覆盖：
-- classify_genotype: 基因型分类逻辑
-- compare_samples: 样本比较统计计算
+- compute_all_pairs_stats: numpy 向量化统计计算
+- format_results: 结果格式化
 - validate_file: 文件验证
-- load_vcf_genotypes: VCF 加载（集成测试）
+- load_vcf_as_matrix: VCF 分块加载
+- get_vcf_samples: 获取样本列表
 - main: CLI 端到端测试
 """
 
 from pathlib import Path
-from unittest.mock import patch
 
-import polars as pl
+import numpy as np
 import pytest
 from click.exceptions import Exit as ClickExit
 
 from panel.compareGT_v3 import (
-    classify_genotype,
-    compare_samples,
-    load_vcf_genotypes,
+    GT_HET,
+    GT_HOM_ALT,
+    GT_HOM_REF,
+    GT_UNKNOWN,
+    compute_all_pairs_stats,
+    format_results,
+    get_vcf_samples,
+    load_vcf_as_matrix,
     validate_file,
 )
-
 
 # ============== Fixtures ==============
 
@@ -51,19 +55,23 @@ def sample_vcf_file(tmp_path: Path, sample_vcf_content: str) -> Path:
 
 
 @pytest.fixture
-def sample_genotype_df() -> pl.DataFrame:
-    """创建测试用基因型 DataFrame。"""
-    return pl.DataFrame(
-        {
-            "CHROM": ["chr1", "chr1", "chr1", "chr1"],
-            "POS": [100, 200, 300, 400],
-            "REF": ["A", "T", "C", "G"],
-            "ALT": ["G", "C", "G", "A"],
-            "Sample1": ["A/A", "T/T", "C/G", "A/A"],
-            "Sample2": ["A/G", "./.", "C/G", "A/A"],
-            "Sample3": ["G/G", "C/C", "C/G", "A/A"],
-        }
-    )
+def multi_allelic_vcf_content() -> str:
+    """包含 multi-allelic 位点的 VCF 内容。"""
+    return """##fileformat=VCFv4.2
+##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tS1\tS2
+chr1\t100\t.\tA\tG\t100\tPASS\t.\tGT\t0/0\t0/1
+chr1\t200\t.\tT\tC,G\t100\tPASS\t.\tGT\t0/1\t0/2
+chr1\t300\t.\tC\tG\t100\tPASS\t.\tGT\t1/1\t1/1
+"""
+
+
+@pytest.fixture
+def multi_allelic_vcf_file(tmp_path: Path, multi_allelic_vcf_content: str) -> Path:
+    """创建包含 multi-allelic 位点的测试 VCF 文件。"""
+    vcf_path = tmp_path / "multi.vcf"
+    vcf_path.write_text(multi_allelic_vcf_content)
+    return vcf_path
 
 
 @pytest.fixture
@@ -74,149 +82,150 @@ def compare_list_file(tmp_path: Path) -> Path:
     return compare_path
 
 
-# ============== classify_genotype 测试 ==============
+# ============== compute_all_pairs_stats 测试 ==============
 
 
-class TestClassifyGenotype:
-    """测试 classify_genotype 函数。"""
+class TestComputeAllPairsStats:
+    """测试 compute_all_pairs_stats 函数。"""
 
-    def test_homozygous_genotype(self) -> None:
-        """测试纯合基因型分类。"""
-        df = pl.DataFrame({"gt": ["A/A", "G/G", "T/T"]})
-        result = df.select(classify_genotype("gt").alias("class"))
-        assert result["class"].to_list() == ["HOM", "HOM", "HOM"]
+    def test_basic_comparison(self) -> None:
+        """测试基本统计计算。"""
+        # 创建测试矩阵: 4 variants × 3 samples
+        # gt_types: 0=HOM_REF, 1=HET, 2=UNKNOWN, 3=HOM_ALT
+        gt_matrix = np.array(
+            [
+                [GT_HOM_REF, GT_HET, GT_HOM_ALT],  # pos 100: 0/0, 0/1, 1/1
+                [GT_HOM_REF, GT_UNKNOWN, GT_HOM_ALT],  # pos 200: 0/0, ./., 1/1
+                [GT_HET, GT_HET, GT_HET],  # pos 300: 0/1, 0/1, 0/1
+                [GT_HOM_ALT, GT_HOM_ALT, GT_HOM_ALT],  # pos 400: 1/1, 1/1, 1/1
+            ],
+            dtype=np.int8,
+        )
 
-    def test_heterozygous_genotype(self) -> None:
-        """测试杂合基因型分类。"""
-        df = pl.DataFrame({"gt": ["A/G", "C/T", "G/A"]})
-        result = df.select(classify_genotype("gt").alias("class"))
-        assert result["class"].to_list() == ["HET", "HET", "HET"]
+        # 比较 Sample1(idx=0) vs Sample2(idx=1)
+        pair_indices = np.array([[0, 1]], dtype=np.int32)
+        stats = compute_all_pairs_stats(gt_matrix, pair_indices)
 
-    def test_missing_genotype(self) -> None:
-        """测试缺失基因型分类。"""
-        df = pl.DataFrame({"gt": ["./.", ".", None]})
-        result = df.select(classify_genotype("gt").alias("class"))
-        assert result["class"].to_list() == ["MISS", "MISS", "MISS"]
-
-    def test_phased_genotype(self) -> None:
-        """测试 phased 基因型（应在加载时已转换为 unphased）。"""
-        # 注意：实际使用中 phased 基因型在 load_vcf_genotypes 中已转换
-        # 这里测试转换后的结果
-        df = pl.DataFrame({"gt": ["A/A", "A/G"]})
-        result = df.select(classify_genotype("gt").alias("class"))
-        assert result["class"].to_list() == ["HOM", "HET"]
-
-
-# ============== compare_samples 测试 ==============
-
-
-class TestCompareSamples:
-    """测试 compare_samples 函数。"""
-
-    def test_basic_comparison(self, sample_genotype_df: pl.DataFrame) -> None:
-        """测试基本样本比较。"""
-        result = compare_samples(sample_genotype_df, "Sample1", "Sample3")
-
-        assert result[0] == "Sample1"  # 样本 A
-        assert result[1] == "Sample3"  # 样本 B
-        assert result[2] == 4  # 总位点数
-        assert result[3] == 4  # 有效位点（Sample3 无缺失）
-
-    def test_with_missing_data(self, sample_genotype_df: pl.DataFrame) -> None:
-        """测试含缺失数据的比较。"""
-        result = compare_samples(sample_genotype_df, "Sample1", "Sample2")
-
-        assert result[2] == 4  # 总位点数
-        assert result[3] == 3  # 有效位点（Sample2 在 pos 200 缺失）
+        # Sample1 vs Sample2:
+        # pos 100: HOM_REF vs HET -> valid, not equal
+        # pos 200: HOM_REF vs UNKNOWN -> invalid (skip)
+        # pos 300: HET vs HET -> valid, equal
+        # pos 400: HOM_ALT vs HOM_ALT -> valid, equal
+        assert stats["non_miss"][0] == 3  # 3 个有效位点
+        assert stats["a_hom"][0] == 2  # Sample1 有 2 个纯合
+        assert stats["a_het"][0] == 1  # Sample1 有 1 个杂合
 
     def test_identical_samples(self) -> None:
         """测试完全相同的样本。"""
-        df = pl.DataFrame(
-            {
-                "CHROM": ["chr1", "chr1"],
-                "POS": [100, 200],
-                "REF": ["A", "T"],
-                "ALT": ["G", "C"],
-                "S1": ["A/A", "T/C"],
-                "S2": ["A/A", "T/C"],
-            }
+        gt_matrix = np.array(
+            [
+                [GT_HOM_REF, GT_HOM_REF],
+                [GT_HET, GT_HET],
+                [GT_HOM_ALT, GT_HOM_ALT],
+            ],
+            dtype=np.int8,
         )
-        result = compare_samples(df, "S1", "S2")
 
-        assert result[8] == 2  # 整体相似度 = 2
-        assert result[9] == 100.0  # 整体相似度% = 100%
+        pair_indices = np.array([[0, 1]], dtype=np.int32)
+        stats = compute_all_pairs_stats(gt_matrix, pair_indices)
+
+        assert stats["non_miss"][0] == 3
+        assert stats["homo_equal"][0] == 2  # 2 个纯合相等
+        assert stats["het_equal"][0] == 1  # 1 个杂合相等
 
     def test_completely_different_samples(self) -> None:
         """测试完全不同的样本。"""
-        df = pl.DataFrame(
-            {
-                "CHROM": ["chr1", "chr1"],
-                "POS": [100, 200],
-                "REF": ["A", "T"],
-                "ALT": ["G", "C"],
-                "S1": ["A/A", "T/T"],
-                "S2": ["G/G", "C/C"],
-            }
+        gt_matrix = np.array(
+            [
+                [GT_HOM_REF, GT_HOM_ALT],
+                [GT_HOM_ALT, GT_HOM_REF],
+            ],
+            dtype=np.int8,
         )
-        result = compare_samples(df, "S1", "S2")
 
-        assert result[8] == 0  # 整体相似度 = 0
-        assert result[14] == 2  # 差异位点数 = 2
+        pair_indices = np.array([[0, 1]], dtype=np.int32)
+        stats = compute_all_pairs_stats(gt_matrix, pair_indices)
 
-    def test_all_missing_returns_zeros(self) -> None:
-        """测试全部缺失时返回零值。"""
-        df = pl.DataFrame(
-            {
-                "CHROM": ["chr1"],
-                "POS": [100],
-                "REF": ["A"],
-                "ALT": ["G"],
-                "S1": ["./."],
-                "S2": ["./."],
-            }
+        assert stats["non_miss"][0] == 2
+        assert stats["homo_equal"][0] == 0  # 无相等的纯合
+        assert stats["het_equal"][0] == 0  # 无杂合
+
+    def test_all_missing(self) -> None:
+        """测试全部缺失的情况。"""
+        gt_matrix = np.array(
+            [
+                [GT_UNKNOWN, GT_UNKNOWN],
+                [GT_UNKNOWN, GT_UNKNOWN],
+            ],
+            dtype=np.int8,
         )
-        result = compare_samples(df, "S1", "S2")
 
-        assert result[3] == 0  # 有效位点 = 0
-        assert result[8] == 0  # 整体相似度 = 0
-        assert result[9] == 0.0  # 整体相似度% = 0
+        pair_indices = np.array([[0, 1]], dtype=np.int32)
+        stats = compute_all_pairs_stats(gt_matrix, pair_indices)
 
-    def test_homozygous_similarity(self) -> None:
-        """测试纯合位点相似度计算。"""
-        df = pl.DataFrame(
-            {
-                "CHROM": ["chr1", "chr1", "chr1"],
-                "POS": [100, 200, 300],
-                "REF": ["A", "T", "C"],
-                "ALT": ["G", "C", "G"],
-                "S1": ["A/A", "T/T", "C/C"],  # 全纯合
-                "S2": ["A/A", "C/C", "C/C"],  # 全纯合，pos 200 不同
-            }
+        assert stats["non_miss"][0] == 0
+        assert stats["homo_equal"][0] == 0
+        assert stats["het_equal"][0] == 0
+
+    def test_multiple_pairs(self) -> None:
+        """测试多个样本对同时计算。"""
+        gt_matrix = np.array(
+            [
+                [GT_HOM_REF, GT_HET, GT_HOM_ALT],
+                [GT_HET, GT_HET, GT_HET],
+            ],
+            dtype=np.int8,
         )
-        result = compare_samples(df, "S1", "S2")
 
-        assert result[4] == 3  # A_纯合 = 3
-        assert result[6] == 3  # B_纯合 = 3
-        assert result[10] == 2  # 纯合相似度 = 2（pos 100, 300 相同）
-        assert round(result[11], 1) == 66.7  # 纯合相似度% ≈ 66.7%
+        # 比较 (0,1), (0,2), (1,2)
+        pair_indices = np.array([[0, 1], [0, 2], [1, 2]], dtype=np.int32)
+        stats = compute_all_pairs_stats(gt_matrix, pair_indices)
 
-    def test_heterozygous_similarity(self) -> None:
-        """测试杂合位点相似度计算。"""
-        df = pl.DataFrame(
-            {
-                "CHROM": ["chr1", "chr1"],
-                "POS": [100, 200],
-                "REF": ["A", "T"],
-                "ALT": ["G", "C"],
-                "S1": ["A/G", "T/C"],  # 全杂合
-                "S2": ["A/G", "T/T"],  # pos 100 杂合，pos 200 纯合
-            }
-        )
-        result = compare_samples(df, "S1", "S2")
+        assert len(stats["non_miss"]) == 3
+        assert stats["non_miss"].tolist() == [2, 2, 2]
 
-        assert result[5] == 2  # A_杂合 = 2
-        assert result[7] == 1  # B_杂合 = 1
-        assert result[12] == 1  # 杂合相似度 = 1（pos 100 相同）
+
+# ============== format_results 测试 ==============
+
+
+class TestFormatResults:
+    """测试 format_results 函数。"""
+
+    def test_basic_format(self) -> None:
+        """测试基本结果格式化。"""
+        pairs = [("S1", "S2")]
+        # 列: total, non_miss, a_hom, a_het, b_hom, b_het, both_hom, homo_equal, het_sites, het_equal
+        accumulators = np.array([[100, 80, 60, 20, 50, 30, 40, 35, 40, 30]], dtype=np.int64)
+
+        results = format_results(pairs, accumulators)
+
+        assert len(results) == 1
+        assert results[0][0] == "S1"
+        assert results[0][1] == "S2"
+        assert results[0][2] == 100  # total_sites
+        assert results[0][3] == 80  # non_miss
+        assert results[0][8] == 65  # total_equal = homo_equal + het_equal = 35 + 30
+
+    def test_zero_non_miss(self) -> None:
+        """测试无有效位点时返回零值。"""
+        pairs = [("S1", "S2")]
+        accumulators = np.array([[100, 0, 0, 0, 0, 0, 0, 0, 0, 0]], dtype=np.int64)
+
+        results = format_results(pairs, accumulators)
+
+        assert results[0][3] == 0  # non_miss
+        assert results[0][8] == 0  # total_equal
+        assert results[0][9] == 0.0  # total_equal_pct
+
+    def test_percentage_calculation(self) -> None:
+        """测试百分比计算。"""
+        pairs = [("S1", "S2")]
+        # 10 个有效位点，8 个相等（5 纯合 + 3 杂合）
+        accumulators = np.array([[10, 10, 6, 4, 6, 4, 6, 5, 4, 3]], dtype=np.int64)
+
+        results = format_results(pairs, accumulators)
+
+        assert results[0][9] == 80.0  # 整体相似度% = 8/10 * 100
 
 
 # ============== validate_file 测试 ==============
@@ -227,7 +236,6 @@ class TestValidateFile:
 
     def test_valid_file(self, sample_vcf_file: Path) -> None:
         """测试有效文件通过验证。"""
-        # 不应抛出异常
         validate_file(sample_vcf_file, "测试文件")
 
     def test_nonexistent_file(self, tmp_path: Path) -> None:
@@ -242,41 +250,61 @@ class TestValidateFile:
             validate_file(tmp_path, "测试文件")
 
 
-# ============== load_vcf_genotypes 测试 ==============
+# ============== get_vcf_samples 测试 ==============
 
 
-class TestLoadVcfGenotypes:
-    """测试 load_vcf_genotypes 函数。"""
+class TestGetVcfSamples:
+    """测试 get_vcf_samples 函数。"""
+
+    def test_get_samples(self, sample_vcf_file: Path) -> None:
+        """测试获取样本列表。"""
+        samples = get_vcf_samples(sample_vcf_file)
+        assert samples == ["Sample1", "Sample2", "Sample3"]
+
+
+# ============== load_vcf_as_matrix 测试 ==============
+
+
+class TestLoadVcfAsMatrix:
+    """测试 load_vcf_as_matrix 函数。"""
 
     def test_load_basic_vcf(self, sample_vcf_file: Path) -> None:
         """测试加载基本 VCF 文件。"""
-        # 使用 patch 禁用 Progress 输出
-        with patch("panel.compareGT_v3.Progress"):
-            df, samples = load_vcf_genotypes(sample_vcf_file)
+        chunks = list(load_vcf_as_matrix(sample_vcf_file, chunk_size=100))
 
-        assert samples == ["Sample1", "Sample2", "Sample3"]
-        assert df.height == 4  # 4 个变异位点
-        assert "CHROM" in df.columns
-        assert "POS" in df.columns
-        assert "Sample1" in df.columns
+        assert len(chunks) == 1  # 只有 4 个变异，一个块
+        assert chunks[0].shape == (4, 3)  # 4 variants × 3 samples
+        assert chunks[0].dtype == np.int8
 
-    def test_phased_genotypes_converted(self, tmp_path: Path) -> None:
-        """测试 phased 基因型被转换为 unphased。"""
-        vcf_content = """##fileformat=VCFv4.2
-##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
-#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tS1
-chr1\t100\t.\tA\tG\t100\tPASS\t.\tGT\t0|1
-"""
-        vcf_path = tmp_path / "phased.vcf"
-        vcf_path.write_text(vcf_content)
+    def test_chunk_size(self, sample_vcf_file: Path) -> None:
+        """测试分块大小控制。"""
+        chunks = list(load_vcf_as_matrix(sample_vcf_file, chunk_size=2))
 
-        with patch("panel.compareGT_v3.Progress"):
-            df, _ = load_vcf_genotypes(vcf_path)
+        assert len(chunks) == 2  # 4 个变异分成 2 块
+        assert chunks[0].shape[0] == 2
+        assert chunks[1].shape[0] == 2
 
-        # 确认 | 被转换为 /
-        gt_value = df.filter(pl.col("POS") == 100)["S1"][0]
-        assert "|" not in gt_value
-        assert "/" in gt_value
+    def test_gt_types_encoding(self, sample_vcf_file: Path) -> None:
+        """测试 gt_types 编码正确性。"""
+        chunks = list(load_vcf_as_matrix(sample_vcf_file, chunk_size=100))
+        gt_matrix = chunks[0]
+
+        # pos 100: Sample1=0/0, Sample2=0/1, Sample3=1/1
+        assert gt_matrix[0, 0] == GT_HOM_REF  # 0/0
+        assert gt_matrix[0, 1] == GT_HET  # 0/1
+        assert gt_matrix[0, 2] == GT_HOM_ALT  # 1/1
+
+        # pos 200: Sample1=0/0, Sample2=./., Sample3=1/1
+        assert gt_matrix[1, 1] == GT_UNKNOWN  # ./.
+
+    def test_multi_allelic_marked_as_unknown(self, multi_allelic_vcf_file: Path) -> None:
+        """测试 multi-allelic 位点被标记为 UNKNOWN。"""
+        chunks = list(load_vcf_as_matrix(multi_allelic_vcf_file, chunk_size=100))
+        gt_matrix = chunks[0]
+
+        # pos 200 是 multi-allelic (ALT=C,G)，应该被标记为 UNKNOWN
+        assert gt_matrix[1, 0] == GT_UNKNOWN
+        assert gt_matrix[1, 1] == GT_UNKNOWN
 
 
 # ============== CLI 端到端测试 ==============
@@ -299,15 +327,12 @@ class TestCLI:
         assert result.exit_code == 0
         assert output_file.exists()
 
-        # 验证输出内容
         content = output_file.read_text()
         lines = content.strip().split("\n")
         assert len(lines) == 4  # 1 header + 3 pairs (C(3,2) = 3)
         assert "Sample1,Sample2" in content or "Sample2,Sample1" in content
 
-    def test_main_with_compare_list(
-        self, sample_vcf_file: Path, compare_list_file: Path, tmp_path: Path
-    ) -> None:
+    def test_main_with_compare_list(self, sample_vcf_file: Path, compare_list_file: Path, tmp_path: Path) -> None:
         """测试使用比较列表。"""
         from typer.testing import CliRunner
 
@@ -316,15 +341,27 @@ class TestCLI:
         runner = CliRunner()
         output_file = tmp_path / "output.csv"
 
-        result = runner.invoke(
-            app, [str(sample_vcf_file), str(output_file), "-c", str(compare_list_file)]
-        )
+        result = runner.invoke(app, [str(sample_vcf_file), str(output_file), "-c", str(compare_list_file)])
 
         assert result.exit_code == 0
 
         content = output_file.read_text()
         lines = content.strip().split("\n")
-        assert len(lines) == 3  # 1 header + 2 pairs from compare list
+        assert len(lines) == 3  # 1 header + 2 pairs
+
+    def test_main_with_chunk_size(self, sample_vcf_file: Path, tmp_path: Path) -> None:
+        """测试自定义分块大小。"""
+        from typer.testing import CliRunner
+
+        from panel.compareGT_v3 import app
+
+        runner = CliRunner()
+        output_file = tmp_path / "output.csv"
+
+        result = runner.invoke(app, [str(sample_vcf_file), str(output_file), "--chunk-size", "2"])
+
+        assert result.exit_code == 0
+        assert output_file.exists()
 
     def test_main_nonexistent_vcf(self, tmp_path: Path) -> None:
         """测试不存在的 VCF 文件。"""
@@ -352,3 +389,26 @@ class TestCLI:
         result = runner.invoke(app, [str(sample_vcf_file), str(output_file), "-v"])
 
         assert result.exit_code == 0
+
+    def test_multi_allelic_excluded(self, multi_allelic_vcf_file: Path, tmp_path: Path) -> None:
+        """测试 multi-allelic 位点被排除出有效位点。"""
+        from typer.testing import CliRunner
+
+        from panel.compareGT_v3 import app
+
+        runner = CliRunner()
+        output_file = tmp_path / "output.csv"
+
+        result = runner.invoke(app, [str(multi_allelic_vcf_file), str(output_file)])
+
+        assert result.exit_code == 0
+
+        content = output_file.read_text()
+        lines = content.strip().split("\n")
+        # 解析结果行
+        data_line = lines[1].split(",")
+        total_sites = int(data_line[2])
+        valid_sites = int(data_line[3])
+
+        assert total_sites == 3  # 总位点数保持 3
+        assert valid_sites == 2  # 有效位点 = 2（排除 1 个 multi-allelic）
