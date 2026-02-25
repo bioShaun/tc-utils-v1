@@ -1,9 +1,23 @@
 """
-设计表生成 panel 目标位点 bed / id 文件，并扩展 flanking 区域。
+根据设计表生成 panel BED 文件，并可按 split.bed 拆分坐标。
+
+使用示例:
+    # 默认输出
+    python chip/panel2bed.py design.tsv genome.fa.fai panel_v1 out_dir
+
+    # 输出 split 版本 BED
+    python chip/panel2bed.py design.tsv genome.fa.fai panel_v1 out_dir --split-bed split.bed
+
+输出格式:
+    - <probe_id>.id: 1 列，pos_id（chrom_pos）
+    - <probe_id>.bed: 3 列（chrom, start, end），未启用 split 时输出
+    - <probe_id>.snpcalling.bed: 3 列（chrom, start, end），未启用 split 时输出
+    - <probe_id>.split.bed: 3 列（new_chrom, new_start, new_end），启用 split 时输出
+    - <probe_id>.snpcalling.split.bed: 3 列（new_chrom, new_start, new_end），启用 split 时输出
 """
 
 from pathlib import Path
-from typing import Iterable, Tuple
+from typing import Annotated, Iterable, Tuple
 
 import pandas as pd
 import typer
@@ -130,13 +144,12 @@ def prepare_probe_dataframe(df: pd.DataFrame, chrom_df: pd.DataFrame) -> pd.Data
     return df.sort_values(by=["chrom", "pos"]).drop(columns=["chrom_size"])
 
 
-def write_probe_targets(df: pd.DataFrame, out_path: Path, probe_id: str) -> None:
+def write_probe_id_file(df: pd.DataFrame, out_path: Path, probe_id: str) -> pd.DataFrame:
     """
-    Write probe targets to a bed file and an id file.
+    写入 probe id 文件，并返回去重后的目标位点数据。
     """
     out_path.mkdir(parents=True, exist_ok=True)
     id_file = out_path / f"{probe_id}.id"
-    target_bed_file = out_path / f"{probe_id}.bed"
     unique_df = df.drop_duplicates(subset="pos_id")
     unique_df.to_csv(
         id_file,
@@ -145,13 +158,74 @@ def write_probe_targets(df: pd.DataFrame, out_path: Path, probe_id: str) -> None
         header=False,
         columns=["pos_id"],
     )
-    unique_df.to_csv(
-        target_bed_file,
+    return unique_df
+
+
+def write_bed(df: pd.DataFrame, out_bed: Path, columns: list[str]) -> None:
+    """
+    按 BED 三列格式写入文件。
+    """
+    df.to_csv(
+        out_bed,
         sep="\t",
         index=False,
         header=False,
-        columns=["chrom", "pos_0", "pos"],
+        columns=columns,
     )
+
+
+def load_split_bed(split_bed: Path) -> pd.DataFrame:
+    """
+    读取并校验 split.bed 文件。
+    """
+    if not split_bed.exists():
+        raise FileNotFoundError(f"找不到 split.bed: {split_bed}")
+
+    try:
+        split_bed_df = pd.read_table(
+            split_bed,
+            header=None,
+            names=["chrom", "split_start", "split_end", "new_chrom"],
+            usecols=[0, 1, 2, 3],
+        )
+    except Exception as exc:  # pragma: no cover - pandas 内部异常类型会随版本变化
+        raise ValueError(
+            "split.bed 格式错误，必须包含 4 列: chrom, split_start, split_end, new_chrom"
+        ) from exc
+
+    split_bed_df["chrom"] = split_bed_df["chrom"].astype(str)
+    split_bed_df["new_chrom"] = split_bed_df["new_chrom"].astype(str)
+    split_bed_df["split_start"] = pd.to_numeric(
+        split_bed_df["split_start"], errors="raise"
+    ).astype(int)
+    split_bed_df["split_end"] = pd.to_numeric(
+        split_bed_df["split_end"], errors="raise"
+    ).astype(int)
+    return split_bed_df
+
+
+def split_bed_dataframe(
+    bed_df: pd.DataFrame,
+    split_bed_df: pd.DataFrame,
+    start_col: str,
+    end_col: str,
+) -> pd.DataFrame:
+    """
+    参考 gtf/split_bed.py，将 BED 坐标映射到 split 基因组坐标。
+    """
+    source_df = bed_df.copy()
+    source_df["chrom"] = source_df["chrom"].astype(str)
+    source_df["start"] = pd.to_numeric(source_df[start_col], errors="raise").astype(int)
+    source_df["end"] = pd.to_numeric(source_df[end_col], errors="raise").astype(int)
+
+    merge_df = source_df[["chrom", "start", "end"]].merge(split_bed_df, on="chrom")
+    merge_df = merge_df[
+        (merge_df["start"] >= merge_df["split_start"])
+        & (merge_df["start"] < merge_df["split_end"])
+    ].copy()
+    merge_df["new_start"] = (merge_df["start"] - merge_df["split_start"]).astype(int)
+    merge_df["new_end"] = (merge_df["end"] - merge_df["split_start"]).astype(int)
+    return merge_df[["new_chrom", "new_start", "new_end"]]
 
 
 def build_flank_intervals(
@@ -199,6 +273,10 @@ def main(
     probe_id: str,
     out_path: Path,
     flank_size: int = 200,
+    split_bed: Annotated[
+        Path | None,
+        typer.Option(help="split.bed 文件路径；提供后仅输出拆分后的 *.split.bed"),
+    ] = None,
 ) -> None:
     """
     根据设计表生成 panel 目标位点 bed / id 文件，并扩展 flanking 区域。
@@ -209,14 +287,50 @@ def main(
         probe_id: 输出文件名前缀
         out_path: 输出目录
         flank_size: flanking 区域目标长度
+        split_bed: split.bed 文件路径，提供后会输出 split 版本 BED
     """
+    out_path.mkdir(parents=True, exist_ok=True)
     chrom_df = load_chrom_sizes(genome_fai)
     design_df = load_design_table(design_table)
     prepared_df = prepare_probe_dataframe(design_df, chrom_df)
-    write_probe_targets(prepared_df, out_path, probe_id)
+    unique_df = write_probe_id_file(prepared_df, out_path, probe_id)
     flank_df = build_flank_intervals(prepared_df, chrom_df, flank_size)
-    flank_df.to_csv(
-        out_path / f"{probe_id}.snpcalling.bed", sep="\t", index=False, header=False
+
+    if split_bed is None:
+        write_bed(
+            unique_df,
+            out_path / f"{probe_id}.bed",
+            columns=["chrom", "pos_0", "pos"],
+        )
+        write_bed(
+            flank_df,
+            out_path / f"{probe_id}.snpcalling.bed",
+            columns=["chrom", "flank_start", "flank_end"],
+        )
+        return
+
+    split_bed_df = load_split_bed(split_bed)
+    split_target_df = split_bed_dataframe(
+        unique_df,
+        split_bed_df,
+        start_col="pos_0",
+        end_col="pos",
+    )
+    split_snpcalling_df = split_bed_dataframe(
+        flank_df,
+        split_bed_df,
+        start_col="flank_start",
+        end_col="flank_end",
+    )
+    write_bed(
+        split_target_df,
+        out_path / f"{probe_id}.split.bed",
+        columns=["new_chrom", "new_start", "new_end"],
+    )
+    write_bed(
+        split_snpcalling_df,
+        out_path / f"{probe_id}.snpcalling.split.bed",
+        columns=["new_chrom", "new_start", "new_end"],
     )
 
 
