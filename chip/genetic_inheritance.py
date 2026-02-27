@@ -7,14 +7,26 @@ import typer
 from cyvcf2 import VCF
 from tqdm import tqdm
 
+VALID_MODES = {"f1", "f2"}
+MAX_INCONSISTENT_DETAILS = 100
+
+
+def normalize_mode(mode: str) -> str:
+    """规范化并校验遗传模式参数。"""
+    normalized_mode = mode.strip().lower()
+    if normalized_mode not in VALID_MODES:
+        raise ValueError(f"无效模式: {mode}，仅支持: {', '.join(sorted(VALID_MODES))}")
+    return normalized_mode
+
 
 class VCFGeneticAnalyzer:
-    def __init__(self):
+    def __init__(self, mode: str = "f1"):
         self.vcf_data = None
         self.family_combinations = None
         self.results = None
         self.sample_names = None
         self.variant_info = None
+        self.mode = normalize_mode(mode)
 
     def parse_vcf_header(self, file_path: str) -> List[str]:
         """解析VCF文件头部，获取样品名称"""
@@ -253,7 +265,7 @@ class VCFGeneticAnalyzer:
     def check_variant_consistency(
         self, variant_id: str, father_gt: str, mother_gt: str, child_gt: str
     ) -> Tuple[bool, str]:
-        """更严格地检查单个位点孟德尔遗传一致性"""
+        """检查单个位点遗传一致性，支持F1和F2两种模式"""
         try:
             # 解析基因型为等位基因索引
             father_indices = self.parse_vcf_genotype(father_gt)
@@ -277,23 +289,38 @@ class VCFGeneticAnalyzer:
             ):
                 return False, "不是二倍体基因型"
 
-            # 构建所有可能父母等位基因组合
-            possible_children = set()
-            for f in father_alleles:
-                for m in mother_alleles:
-                    # 不考虑等位基因顺序（纯合、杂合都允许），用frozenset或排序tuple统一表达
-                    possible_children.add(tuple(sorted([f, m])))
+            if self.mode == "f1":
+                # F1模式: 子代必须从父、母各继承一个等位基因
+                possible_children = set()
+                for f in father_alleles:
+                    for m in mother_alleles:
+                        # 不考虑等位基因顺序（纯合、杂合都允许），用frozenset或排序tuple统一表达
+                        possible_children.add(tuple(sorted([f, m])))
 
-            # 实际子代基因型
-            child_tuple = tuple(sorted(child_alleles))
+                # 实际子代基因型
+                child_tuple = tuple(sorted(child_alleles))
 
-            if child_tuple in possible_children:
-                return True, "遗传一致"
+                if child_tuple in possible_children:
+                    return True, "遗传一致"
+                else:
+                    return (
+                        False,
+                        f"子代({child_alleles})不可能由父({father_alleles})母({mother_alleles})组合得到",
+                    )
             else:
-                return (
-                    False,
-                    f"子代({child_alleles})不可能由父({father_alleles})母({mother_alleles})组合得到",
-                )
+                # F2模式: 子代两个等位基因只需存在于基因池(父∪母)中
+                gene_pool = set(father_alleles) | set(mother_alleles)
+
+                child_in_pool = [allele in gene_pool for allele in child_alleles]
+
+                if all(child_in_pool):
+                    return True, "遗传一致"
+                else:
+                    missing_alleles = [a for a, in_pool in zip(child_alleles, child_in_pool) if not in_pool]
+                    return (
+                        False,
+                        f"子代等位基因{missing_alleles}不在基因池({list(gene_pool)})中"
+                    )
         except Exception as e:
             return False, f"分析错误: {str(e)}"
 
@@ -372,34 +399,20 @@ class VCFGeneticAnalyzer:
                         consistent_count += 1
                     else:
                         inconsistent_count += 1
-                        # 只保存前100个不一致的详情
-                        # if len(inconsistent_details) < 100:
-                        #     inconsistent_details.append(
-                        #         {
-                        #             "variant_id": variant_id,
-                        #             "chrom": self.variant_info.loc[variant_id, "CHROM"],
-                        #             "pos": self.variant_info.loc[variant_id, "POS"],
-                        #             "ref": self.variant_info.loc[variant_id, "REF"],
-                        #             "alt": self.variant_info.loc[variant_id, "ALT"],
-                        #             "father_gt": father_gt,
-                        #             "mother_gt": mother_gt,
-                        #             "child_gt": child_gt,
-                        #             "issue": explanation,
-                        #         }
-                        #     )
-                    inconsistent_details.append(
-                        {
-                            "variant_id": variant_id,
-                            "chrom": self.variant_info.loc[variant_id, "CHROM"],
-                            "pos": self.variant_info.loc[variant_id, "POS"],
-                            "ref": self.variant_info.loc[variant_id, "REF"],
-                            "alt": self.variant_info.loc[variant_id, "ALT"],
-                            "father_gt": father_gt,
-                            "mother_gt": mother_gt,
-                            "child_gt": child_gt,
-                            "issue": explanation,
-                        }
-                    )
+                        if len(inconsistent_details) < MAX_INCONSISTENT_DETAILS:
+                            inconsistent_details.append(
+                                {
+                                    "variant_id": variant_id,
+                                    "chrom": self.variant_info.loc[variant_id, "CHROM"],
+                                    "pos": self.variant_info.loc[variant_id, "POS"],
+                                    "ref": self.variant_info.loc[variant_id, "REF"],
+                                    "alt": self.variant_info.loc[variant_id, "ALT"],
+                                    "father_gt": father_gt,
+                                    "mother_gt": mother_gt,
+                                    "child_gt": child_gt,
+                                    "issue": explanation,
+                                }
+                            )
             # 计算一致性比例
             valid_variants = total_variants - missing_count
             consistency_rate = (
@@ -543,11 +556,22 @@ def main(
     output_file: Path,
     max_variants: Optional[int] = None,
     max_alleles: int = 2,
+    mode: str = typer.Option(
+        "f1",
+        "--mode",
+        help="遗传一致性检查模式: f1=直接亲子(F1代), f2=原始亲本到F2代",
+    ),
 ):
     """主程序"""
-    analyzer = VCFGeneticAnalyzer()
+    try:
+        normalized_mode = normalize_mode(mode)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc), param_hint="--mode") from exc
+
+    analyzer = VCFGeneticAnalyzer(mode=normalized_mode)
 
     print("VCF文件家系遗传一致性分析工具")
+    print(f"模式: {'F1(直接亲子)' if normalized_mode == 'f1' else 'F2(原始亲本到F2代)'}")
     print("=" * 60)
 
     # 输入文件路径
@@ -555,7 +579,7 @@ def main(
     if max_variants:
         try:
             max_variants = int(max_variants)
-        except:
+        except ValueError:
             max_variants = None
     else:
         max_variants = None
