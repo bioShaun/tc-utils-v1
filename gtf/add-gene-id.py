@@ -21,18 +21,16 @@ def main(gtf: Path) -> None:
                 tr_dict[tr_id]["exon"] = []
                 tr_dict[tr_id]["CDS"] = []
                 tr_dict[tr_id]["transcript"] = []
-            new_out_inf = "\t".join(line_inf)
+            new_out_inf = "\t".join(line_inf) + '\n'
             if "gene_id" not in line:
                 gene_id = line.strip().split()[-1]
                 new_out_inf = f"{line.strip()} gene_id {gene_id}\n"
-            tr_dict[tr_id][line_inf[2]].append(new_out_inf + "\n")
+            tr_dict[tr_id][line_inf[2]].append(new_out_inf)
     with out_gtf.open("w") as out:
         for transcript in tr_dict:
             for feature in ["transcript", "exon", "CDS"]:
                 feature_lines = tr_dict[transcript][feature]
-                print(feature_lines)
                 if len(feature_lines) == 0:
-                    print(transcript, feature)
                     if feature == "exon":
                         feature_lines = tr_dict[transcript]["CDS"]
                     else:

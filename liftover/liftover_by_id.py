@@ -65,7 +65,7 @@ def make_chain(
         compression="gzip",
     )
     lift_bed["start"] = lift_bed["pos"] - 1
-    lift_bed["id"] = lift_bed["chrom"] + "_" + lift_bed["pos"].astype(str)
+    lift_bed["id"] = lift_bed["chrom"].astype(str) + "_" + lift_bed["pos"].astype(str)
     lift_bed.drop_duplicates(inplace=True)
     outdir.mkdir(exist_ok=True, parents=True)
     raw_bed = outdir / f"raw.{id_file.stem}.bed"
@@ -89,7 +89,7 @@ def make_chain(
         names=["chrom", "start", "end"],
     )
     sorted_lift_bed["id"] = (
-        sorted_lift_bed["chrom"] + "_" + sorted_lift_bed["end"].astype(str)
+        sorted_lift_bed["chrom"].astype(str) + "_" + sorted_lift_bed["end"].astype(str)
     )
     sorted_lift_bed.to_csv(
         probe_id_file, sep="\t", index=False, header=False, columns=["id"]

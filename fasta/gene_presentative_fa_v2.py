@@ -91,7 +91,7 @@ def load_transcript_gene_map(
             )
             
             # Filter for exons and select necessary columns
-            df = df.filter(pl.col("feature") == "exon").select("attribute")
+            df = df.filter(pl.col("feature") == "CDS").select("attribute")
             
             # Extract transcript_id and gene_id
             # We use map_elements for regex extraction as it's robust for complex GTF attributes
