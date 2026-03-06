@@ -39,7 +39,7 @@ def test_cli_merge_help():
     """Test that --help displays help message."""
     result = runner.invoke(app, ["merge", "--help"])
     assert result.exit_code == 0
-    assert "Merge genome contigs" in result.stdout
+    assert "contig" in result.stdout
 
 
 def test_cli_merge_basic(sample_files):

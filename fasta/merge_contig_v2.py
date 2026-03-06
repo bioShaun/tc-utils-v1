@@ -6,6 +6,7 @@ super contig (scaffold), separated by N bases. It also updates associated
 GTF/GFF coordinates.
 """
 
+from inspect import cleandoc
 from pathlib import Path
 from typing import Annotated, TextIO
 
@@ -17,7 +18,58 @@ from rich.console import Console
 
 # Configure console
 console = Console()
-app = typer.Typer(help="Merge genome contigs into a super contig.")
+
+_APP_HELP = cleandoc(
+    """
+    将基因组散布的 contig 合并成超级 contig（scaffold），并可同步更新 GTF 坐标。
+
+    \b
+    使用示例:
+      python merge_contig_v2.py merge genome.fa contig_list.txt
+      python merge_contig_v2.py merge genome.fa contig_list.txt --gtf genes.gtf
+      python merge_contig_v2.py gtf genes.gtf genome.ctg.offset.txt
+
+    \b
+    输出格式:
+      - genome.merge_ctg.fa       合并后的基因组 FASTA
+      - genome.ctg.offset.txt     contig 偏移量表（TSV，含 contig_id/offset 列）
+      - genes.merge_ctg.gtf       坐标更新后的 GTF（仅 merge --gtf 时生成）
+    """
+)
+
+_MERGE_HELP = cleandoc(
+    """
+    合并基因组 contig 并可选更新 GTF 坐标。
+
+    \b
+    使用示例:
+      python merge_contig_v2.py merge genome.fa contig_list.txt
+      python merge_contig_v2.py merge genome.fa contig_list.txt --gtf genes.gtf --name chrUn --n-sep 200
+
+    \b
+    输出格式:
+      - genome.merge_ctg.fa       合并后的基因组 FASTA
+      - genome.ctg.offset.txt     contig 偏移量表（TSV，含 contig_id/offset 列）
+      - genes.merge_ctg.gtf       坐标更新后的 GTF（提供 --gtf 时生成）
+    """
+)
+
+_GTF_HELP = cleandoc(
+    """
+    使用已有偏移量表更新 GTF 坐标。
+
+    \b
+    使用示例:
+      python merge_contig_v2.py gtf genes.gtf genome.ctg.offset.txt
+      python merge_contig_v2.py gtf genes.gtf genome.ctg.offset.txt --name chrM
+
+    \b
+    输出格式:
+      - genes.merge_ctg.gtf       坐标更新后的 GTF
+    """
+)
+
+app = typer.Typer(help=_APP_HELP, no_args_is_help=True)
 
 # Type alias
 PathLike = str | Path
@@ -236,12 +288,7 @@ def merge_contig_gtf(
                 start = int(parts[3])
                 end = int(parts[4])
             except IndexError:
-                # Task 7: Explain why print is used
-                # Original code printed the line to stdout and then crashed on 'end' access
-                # We replicate this specifically for the test 'test_merge_contig_gtf_short_line'
-                # which captures stdout to verify this behavior.
-                print(line.strip())
-                raise
+                raise IndexError(f"GTF 行列数不足，无法解析坐标: {line.strip()!r}")
 
             # Update coordinates if chrom is in offset table
             if chrom in ctg_offset_df.index:
@@ -289,16 +336,16 @@ def merge_contig(
         logger.info("No GTF file provided, skipping GTF update")
 
 
-@app.command("merge")
+@app.command("merge", help=_MERGE_HELP)
 def cli_merge(
-    genome_fa: Annotated[Path, typer.Argument(help="Input genome FASTA file")],
-    contig_list: Annotated[Path, typer.Argument(help="File with contig IDs to merge")],
-    n_sep: Annotated[int, typer.Option("--n-sep", "-n", help="N bases between contigs")] = 100,
-    merge_name: Annotated[str, typer.Option("--name", help="Merged contig name")] = "chrUn",
-    gtf_file: Annotated[Path | None, typer.Option("--gtf", "-g", help="GTF file to transform")] = None,
-    verbose: Annotated[bool, typer.Option("--verbose", "-v", help="Enable verbose logging")] = False,
+    genome_fa: Annotated[Path, typer.Argument(help="输入基因组 FASTA 文件")],
+    contig_list: Annotated[Path, typer.Argument(help="待合并 contig ID 列表文件，每行一个 ID")],
+    n_sep: Annotated[int, typer.Option("--n-sep", "-n", help="contig 间填充的 N 碱基数")] = 100,
+    merge_name: Annotated[str, typer.Option("--name", help="合并后超级 contig 的名称")] = "chrUn",
+    gtf_file: Annotated[Path | None, typer.Option("--gtf", "-g", help="需同步更新坐标的 GTF/GFF 文件")] = None,
+    verbose: Annotated[bool, typer.Option("--verbose", "-v", help="输出调试级别日志")] = False,
 ) -> None:
-    """Merge genome contigs and optionally transform GTF coordinates."""
+    """合并基因组 contig 并可选更新 GTF 坐标。"""
     # Task 3: Use shared logging config
     configure_logging(verbose)
 
@@ -311,14 +358,14 @@ def cli_merge(
     )
 
 
-@app.command("gtf")
+@app.command("gtf", help=_GTF_HELP)
 def cli_gtf(
-    gtf_file: Annotated[Path, typer.Argument(help="Input GTF file")],
-    offset_file: Annotated[Path, typer.Argument(help="Contig offset table")],
-    new_name: Annotated[str, typer.Option("--name", help="New chromosome name")] = "chrUn",
-    verbose: Annotated[bool, typer.Option("--verbose", "-v", help="Enable verbose logging")] = False,
+    gtf_file: Annotated[Path, typer.Argument(help="输入 GTF/GFF 文件")],
+    offset_file: Annotated[Path, typer.Argument(help="contig 偏移量表（merge 命令生成的 .ctg.offset.txt）")],
+    new_name: Annotated[str, typer.Option("--name", help="合并后 contig 的新染色体名称")] = "chrUn",
+    verbose: Annotated[bool, typer.Option("--verbose", "-v", help="输出调试级别日志")] = False,
 ) -> None:
-    """Transform GTF coordinates using existing offset table."""
+    """使用已有偏移量表更新 GTF 坐标。"""
     # Task 3: Use shared logging config
     configure_logging(verbose)
 

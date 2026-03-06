@@ -158,18 +158,13 @@ def test_merge_contig_gtf_missing_contig(sample_gtf, tmp_path):
     assert 'ctg2\ttest\tgene\t3\t4\t.\t+\t.\tgene_id "G2";' in lines
 
 
-def test_merge_contig_gtf_short_line(tmp_path, capsys):
-    """Test GTF update with a short line (trigger IndexError)."""
+def test_merge_contig_gtf_short_line(tmp_path):
+    """Test GTF update with a short line raises IndexError with context."""
     gtf_path = tmp_path / "short.gtf"
     gtf_path.write_text("short\tline\n")
 
     offset_file = tmp_path / "offset.txt"
     offset_file.write_text("contig_id\toffset\nctg1\t0\n")
 
-    # This will likely fail with IndexError at line 28 in merge_contig_gtf
-    # because only line 25 is protected.
-    with pytest.raises(IndexError):
+    with pytest.raises(IndexError, match="GTF 行列数不足"):
         merge_contig_gtf(str(gtf_path), str(offset_file))
-
-    captured = capsys.readouterr()
-    assert "short\tline" in captured.out
