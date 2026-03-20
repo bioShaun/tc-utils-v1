@@ -44,8 +44,6 @@ def test_panel2bed_without_split_bed_outputs_original_files(tmp_path: Path) -> N
     assert (out_dir / "panel_v1.id").exists()
     assert (out_dir / "panel_v1.bed").exists()
     assert (out_dir / "panel_v1.snpcalling.bed").exists()
-    assert not (out_dir / "panel_v1.split.bed").exists()
-    assert not (out_dir / "panel_v1.snpcalling.split.bed").exists()
 
     assert read_lines(out_dir / "panel_v1.bed") == [
         "chr1\t99\t100",
@@ -57,19 +55,19 @@ def test_panel2bed_without_split_bed_outputs_original_files(tmp_path: Path) -> N
     ]
 
 
-def test_panel2bed_with_split_bed_outputs_split_files_only(tmp_path: Path) -> None:
+def test_panel2bed_with_split_bed_outputs_split_content_in_original_filenames(
+    tmp_path: Path,
+) -> None:
     design_table, genome_fai = write_basic_inputs(tmp_path)
     split_bed = tmp_path / "split.bed"
     out_dir = tmp_path / "out"
     split_bed.write_text(
-        "chr1\t0\t300\tchr1_part1\n"
-        "chr1\t300\t600\tchr1_part2\n",
+        "chr1\t0\t300\tchr1_part1\n" "chr1\t300\t600\tchr1_part2\n",
         encoding="utf-8",
     )
     # 不显式传 --split-genome-fai，使用同目录默认文件
     (tmp_path / "split.genome.fa.fai").write_text(
-        "chr1_part1\t300\t0\t0\t0\n"
-        "chr1_part2\t300\t0\t0\t0\n",
+        "chr1_part1\t300\t0\t0\t0\n" "chr1_part2\t300\t0\t0\t0\n",
         encoding="utf-8",
     )
 
@@ -83,16 +81,14 @@ def test_panel2bed_with_split_bed_outputs_split_files_only(tmp_path: Path) -> No
     )
 
     assert (out_dir / "panel_v1.id").exists()
-    assert (out_dir / "panel_v1.split.bed").exists()
-    assert (out_dir / "panel_v1.snpcalling.split.bed").exists()
-    assert not (out_dir / "panel_v1.bed").exists()
-    assert not (out_dir / "panel_v1.snpcalling.bed").exists()
+    assert (out_dir / "panel_v1.bed").exists()
+    assert (out_dir / "panel_v1.snpcalling.bed").exists()
 
-    assert read_lines(out_dir / "panel_v1.split.bed") == [
+    assert read_lines(out_dir / "panel_v1.bed") == [
         "chr1_part1\t99\t100",
         "chr1_part2\t99\t100",
     ]
-    assert read_lines(out_dir / "panel_v1.snpcalling.split.bed") == [
+    assert read_lines(out_dir / "panel_v1.snpcalling.bed") == [
         "chr1_part1\t0\t200",
         "chr1_part2\t0\t200",
     ]
@@ -152,21 +148,18 @@ def test_split_output_sorted_by_split_genome_fai(tmp_path: Path) -> None:
 
     genome_fai = tmp_path / "genome.fa.fai"
     genome_fai.write_text(
-        "chr1\t1000\t0\t0\t0\n"
-        "chr2\t1000\t0\t0\t0\n",
+        "chr1\t1000\t0\t0\t0\n" "chr2\t1000\t0\t0\t0\n",
         encoding="utf-8",
     )
 
     split_bed = tmp_path / "split.bed"
     split_bed.write_text(
-        "chr1\t0\t300\tchr1_part2\n"
-        "chr2\t0\t300\tchr2_part1\n",
+        "chr1\t0\t300\tchr1_part2\n" "chr2\t0\t300\tchr2_part1\n",
         encoding="utf-8",
     )
     split_genome_fai = tmp_path / "custom.split.genome.fa.fai"
     split_genome_fai.write_text(
-        "chr2_part1\t300\t0\t0\t0\n"
-        "chr1_part2\t300\t0\t0\t0\n",
+        "chr2_part1\t300\t0\t0\t0\n" "chr1_part2\t300\t0\t0\t0\n",
         encoding="utf-8",
     )
 
@@ -181,7 +174,7 @@ def test_split_output_sorted_by_split_genome_fai(tmp_path: Path) -> None:
         split_genome_fai=split_genome_fai,
     )
 
-    assert read_lines(out_dir / "panel_v1.split.bed") == [
+    assert read_lines(out_dir / "panel_v1.bed") == [
         "chr2_part1\t99\t100",
         "chr1_part2\t99\t100",
     ]
@@ -191,8 +184,7 @@ def test_split_bed_without_split_genome_fai_raises_error(tmp_path: Path) -> None
     design_table, genome_fai = write_basic_inputs(tmp_path)
     split_bed = tmp_path / "split.bed"
     split_bed.write_text(
-        "chr1\t0\t300\tchr1_part1\n"
-        "chr1\t300\t600\tchr1_part2\n",
+        "chr1\t0\t300\tchr1_part1\n" "chr1\t300\t600\tchr1_part2\n",
         encoding="utf-8",
     )
     out_dir = tmp_path / "out"

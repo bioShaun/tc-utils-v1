@@ -7,18 +7,11 @@
 
     # 输出 split 版本 BED（按 split.genome.fa.fai 排序）
     python chip/panel2bed.py design.tsv genome.fa.fai panel_v1 out_dir --split-bed split.bed --split-genome-fai split.genome.fa.fai
-
-输出格式:
-    - <probe_id>.id: 1 列，pos_id（chrom_pos）
-    - <probe_id>.bed: 3 列（chrom, start, end），未启用 split 时输出
-    - <probe_id>.snpcalling.bed: 3 列（chrom, start, end），未启用 split 时输出
-    - <probe_id>.split.bed: 3 列（new_chrom, new_start, new_end），启用 split 时输出
-    - <probe_id>.snpcalling.split.bed: 3 列（new_chrom, new_start, new_end），启用 split 时输出
 """
 
 from pathlib import Path
 from inspect import cleandoc
-from typing import Annotated, Iterable, Tuple
+from typing import Annotated, Iterable, Sequence, Tuple
 
 import pandas as pd
 import typer
@@ -53,8 +46,8 @@ MODULE_HELP = cleandoc(
       - <probe_id>.id: 1 列，pos_id（chrom_pos）
       - <probe_id>.bed: 3 列（chrom, start, end），未启用 split 时输出
       - <probe_id>.snpcalling.bed: 3 列（chrom, start, end），未启用 split 时输出
-      - <probe_id>.split.bed: 3 列（new_chrom, new_start, new_end），启用 split 时输出
-      - <probe_id>.snpcalling.split.bed: 3 列（new_chrom, new_start, new_end），启用 split 时输出
+      - <probe_id>.bed: 3 列（new_chrom, new_start, new_end），启用 split 时输出
+      - <probe_id>.snpcalling.bed: 3 列（new_chrom, new_start, new_end），启用 split 时输出
     """
 )
 app = typer.Typer(help=MODULE_HELP, no_args_is_help=True)
@@ -179,7 +172,9 @@ def prepare_probe_dataframe(df: pd.DataFrame, chrom_df: pd.DataFrame) -> pd.Data
     return df.sort_values(by=["chrom", "pos"]).drop(columns=["chrom_size"])
 
 
-def write_probe_id_file(df: pd.DataFrame, out_path: Path, probe_id: str) -> pd.DataFrame:
+def write_probe_id_file(
+    df: pd.DataFrame, out_path: Path, probe_id: str
+) -> pd.DataFrame:
     """
     写入 probe id 文件，并返回去重后的目标位点数据。
     """
@@ -196,7 +191,7 @@ def write_probe_id_file(df: pd.DataFrame, out_path: Path, probe_id: str) -> pd.D
     return unique_df
 
 
-def write_bed(df: pd.DataFrame, out_bed: Path, columns: list[str]) -> None:
+def write_bed(df: pd.DataFrame, out_bed: Path, columns: Sequence[str]) -> None:
     """
     按 BED 三列格式写入文件。
     """
@@ -358,10 +353,12 @@ def main(
     genome_fai: Annotated[Path, typer.Argument(help="基因组 FASTA 索引（.fai）")],
     probe_id: Annotated[str, typer.Argument(help="输出文件名前缀")],
     out_path: Annotated[Path, typer.Argument(help="输出目录")],
-    flank_size: Annotated[int, typer.Option(help="flanking 区域目标长度")] = 200,
+    flank_size: Annotated[
+        int, typer.Option(help="flanking 区域目标长度（必须大于 0）")
+    ] = 200,
     split_bed: Annotated[
         Path | None,
-        typer.Option(help="split.bed 文件路径；提供后仅输出拆分后的 *.split.bed"),
+        typer.Option(help="split.bed 文件路径；提供后仅输出拆分后的 *.bed"),
     ] = None,
     split_genome_fai: Annotated[
         Path | None,
@@ -374,6 +371,8 @@ def main(
     """
     根据设计表生成 panel 目标位点 bed / id 文件，并扩展 flanking 区域。
     """
+    if flank_size <= 0:
+        raise typer.BadParameter(f"flank_size 必须大于 0，当前值: {flank_size}")
     out_path.mkdir(parents=True, exist_ok=True)
     chrom_df = load_chrom_sizes(genome_fai)
     design_df = load_design_table(design_table)
@@ -426,12 +425,12 @@ def main(
     )
     write_bed(
         split_target_df,
-        out_path / f"{probe_id}.split.bed",
+        out_path / f"{probe_id}.bed",
         columns=["new_chrom", "new_start", "new_end"],
     )
     write_bed(
         split_snpcalling_df,
-        out_path / f"{probe_id}.snpcalling.split.bed",
+        out_path / f"{probe_id}.snpcalling.bed",
         columns=["new_chrom", "new_start", "new_end"],
     )
 
