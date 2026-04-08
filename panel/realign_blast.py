@@ -25,12 +25,13 @@ from typing import Annotated
 import pandas as pd
 import typer
 from loguru import logger
+from pandas.errors import EmptyDataError
 
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
 
-BLAST_COLUMNS = [
+LEGACY_BLAST_COLUMNS = [
     "qseqid",
     "sseqid",
     "pident",
@@ -45,7 +46,52 @@ BLAST_COLUMNS = [
     "bitscore",
     "qlen",
 ]
+BLAST_COLUMNS = [*LEGACY_BLAST_COLUMNS, "btop"]
 BLAST_OUTFMT = f"6 {' '.join(BLAST_COLUMNS)}"
+ALIGNMENT_COLUMNS = [
+    "id",
+    "query_len",
+    "query_start",
+    "strand",
+    "chrom",
+    "hit_start",
+    "align_len",
+    "bitscore",
+    "mismatches",
+    "gap_opens",
+    "qstart",
+    "qend",
+    "sstart",
+    "send",
+    "btop",
+]
+MAPPING_COLUMNS = [
+    *ALIGNMENT_COLUMNS,
+    "match_ratio",
+    "offset_fwd",
+    "offset_rev",
+    "alleles",
+    "pos",
+    "new_id",
+    "pos_0",
+]
+IUPAC_BASES = {
+    "A": ("A",),
+    "C": ("C",),
+    "G": ("G",),
+    "T": ("T",),
+    "R": ("A", "G"),
+    "Y": ("C", "T"),
+    "S": ("C", "G"),
+    "W": ("A", "T"),
+    "K": ("G", "T"),
+    "M": ("A", "C"),
+    "B": ("C", "G", "T"),
+    "D": ("A", "G", "T"),
+    "H": ("A", "C", "T"),
+    "V": ("A", "C", "G"),
+    "N": ("A", "T", "C", "G"),
+}
 
 # ---------------------------------------------------------------------------
 # CLI
@@ -197,9 +243,27 @@ def parse_blast_results(blast_tsv: Path) -> pd.DataFrame:
     读取 BLAST tabular 输出，标准化正负链坐标。
 
     返回列: id, query_len, query_start(0-based), strand, chrom,
-            hit_start(0-based), align_len, bitscore, mismatches, gap_opens
+            hit_start(0-based), align_len, bitscore, mismatches, gap_opens,
+            qstart, qend, sstart, send, btop
     """
-    df = pd.read_table(blast_tsv, header=None, names=BLAST_COLUMNS)
+    try:
+        df = pd.read_table(blast_tsv, header=None)
+    except EmptyDataError:
+        return pd.DataFrame(columns=ALIGNMENT_COLUMNS)
+
+    if df.empty:
+        return pd.DataFrame(columns=ALIGNMENT_COLUMNS)
+
+    if df.shape[1] == len(LEGACY_BLAST_COLUMNS):
+        df.columns = LEGACY_BLAST_COLUMNS
+        df["btop"] = pd.NA
+    elif df.shape[1] == len(BLAST_COLUMNS):
+        df.columns = BLAST_COLUMNS
+    else:
+        raise ValueError(
+            f"BLAST 输出列数不符合预期: {blast_tsv}，实际 {df.shape[1]} 列，"
+            f"预期 {len(LEGACY_BLAST_COLUMNS)} 或 {len(BLAST_COLUMNS)} 列"
+        )
 
     # 判断链方向：sstart < send 为正链
     is_positive = df["sstart"] < df["send"]
@@ -216,27 +280,16 @@ def parse_blast_results(blast_tsv: Path) -> pd.DataFrame:
     df.loc[~is_positive, "query_start"] = df.loc[~is_positive, "qlen"] - df.loc[~is_positive, "qend"]
     df.loc[~is_positive, "hit_start"] = df.loc[~is_positive, "send"] - 1
 
-    return df.rename(columns={
-        "qseqid": "id",
-        "qlen": "query_len",
-        "sseqid": "chrom",
-        "length": "align_len",
-        "mismatch": "mismatches",
-        "gapopen": "gap_opens",
-    })[
-        [
-            "id",
-            "query_len",
-            "query_start",
-            "strand",
-            "chrom",
-            "hit_start",
-            "align_len",
-            "bitscore",
-            "mismatches",
-            "gap_opens",
-        ]
-    ].copy()
+    return df.rename(
+        columns={
+            "qseqid": "id",
+            "qlen": "query_len",
+            "sseqid": "chrom",
+            "length": "align_len",
+            "mismatch": "mismatches",
+            "gapopen": "gap_opens",
+        }
+    )[ALIGNMENT_COLUMNS].copy()
 
 
 # ---------------------------------------------------------------------------
@@ -244,7 +297,7 @@ def parse_blast_results(blast_tsv: Path) -> pd.DataFrame:
 # ---------------------------------------------------------------------------
 
 
-def _infer_position(row: pd.Series) -> int | None:
+def _infer_position_without_gaps(row: pd.Series) -> int | None:
     """
     根据比对位置和偏移量推算目标位点在新基因组的 1-based 坐标。
 
@@ -267,25 +320,194 @@ def _infer_position(row: pd.Series) -> int | None:
     return row["hit_start"] + (offset - row["query_start"]) + 1
 
 
+def _has_btop(value: object) -> bool:
+    """判断 BLAST 结果是否包含可解析的 BTOP。"""
+    return not pd.isna(value) and str(value).strip() != ""
+
+
+def _tokenize_btop(btop: str) -> list[int | tuple[str, str]]:
+    """解析 BLAST BTOP 字符串，返回 match 长度和 mismatch/gap pair。"""
+    tokens: list[int | tuple[str, str]] = []
+    index = 0
+    while index < len(btop):
+        if btop[index].isdigit():
+            start = index
+            while index < len(btop) and btop[index].isdigit():
+                index += 1
+            tokens.append(int(btop[start:index]))
+            continue
+
+        if index + 1 >= len(btop):
+            raise ValueError(f"BTOP 格式错误，缺少成对碱基: {btop!r}")
+        tokens.append((btop[index], btop[index + 1]))
+        index += 2
+    return tokens
+
+
+def _offset_in_match_run(
+    *,
+    offset: int,
+    q_current: int,
+    q_step: int,
+    run_length: int,
+) -> bool:
+    """判断 query offset 是否落在连续 match 区间内。"""
+    if q_step > 0:
+        return q_current <= offset < q_current + run_length
+    return q_current >= offset > q_current - run_length
+
+
+def _infer_position_from_btop(row: pd.Series) -> int | None:
+    """
+    根据 BTOP 精确推算目标位点坐标。
+
+    BTOP 中 gap 位于目标位点之前时会校正 subject 坐标；目标位点本身
+    落在 subject gap 上时返回 None，避免输出不可靠坐标。
+    """
+    btop = str(row["btop"]).strip()
+    offset = int(row["offset_fwd"])
+    qstart = int(row["qstart"]) - 1
+    qend = int(row["qend"]) - 1
+    sstart = int(row["sstart"]) - 1
+    send = int(row["send"]) - 1
+
+    q_step = 1 if qstart <= qend else -1
+    s_step = 1 if sstart <= send else -1
+    q_current = qstart
+    s_current = sstart
+
+    for token in _tokenize_btop(btop):
+        if isinstance(token, int):
+            if _offset_in_match_run(
+                offset=offset,
+                q_current=q_current,
+                q_step=q_step,
+                run_length=token,
+            ):
+                distance = (offset - q_current) * q_step
+                return s_current + (distance * s_step) + 1
+            q_current += token * q_step
+            s_current += token * s_step
+            continue
+
+        query_base, subject_base = token
+        consumes_query = query_base != "-"
+        consumes_subject = subject_base != "-"
+
+        if consumes_query and q_current == offset:
+            if not consumes_subject:
+                return None
+            return s_current + 1
+
+        if consumes_query:
+            q_current += q_step
+        if consumes_subject:
+            s_current += s_step
+
+    return None
+
+
+def _infer_position(row: pd.Series) -> int | None:
+    """推算目标位点在新基因组中的 1-based 坐标。"""
+    if int(row["gap_opens"]) == 0 and not _has_btop(row.get("btop")):
+        return _infer_position_without_gaps(row)
+    if not _has_btop(row.get("btop")):
+        raise ValueError("含 gap 的 BLAST 结果缺少 BTOP，无法精确推算坐标")
+    return _infer_position_from_btop(row)
+
+
 # ---------------------------------------------------------------------------
 # Step 6b: Probe table parsing
 # ---------------------------------------------------------------------------
 
 
+def _probe_context(*, probe_table: Path | None, probe_id: object, flank: object) -> str:
+    """生成探针表解析错误上下文。"""
+    table = f"probe_table={probe_table}" if probe_table is not None else "probe_table=<unknown>"
+    return f"{table}, id={probe_id!r}, Flank={flank!r}"
+
+
+def _iupac_to_representative(sequence: str, *, context: str) -> str:
+    """将 IUPAC 序列转换为代表性 ATGC 序列。"""
+    converted: list[str] = []
+    for base in sequence.upper():
+        try:
+            converted.append(IUPAC_BASES[base][0])
+        except KeyError as exc:
+            raise ValueError(f"不支持的 IUPAC 碱基 {base!r}: {context}") from exc
+    return "".join(converted)
+
+
+def _validate_allele(allele: str, *, context: str) -> None:
+    """验证等位基因仅包含 IUPAC 碱基或缺失标记。"""
+    if allele == "":
+        raise ValueError(f"等位基因不能为空: {context}")
+    for base in allele.upper():
+        if base != "-" and base not in IUPAC_BASES:
+            raise ValueError(f"不支持的等位基因碱基 {base!r}: {context}")
+
+
+def _representative_allele(alleles: list[str], *, context: str) -> str:
+    """选择用于 BLAST query 的代表等位基因。"""
+    for allele in alleles:
+        if allele != "-":
+            return _iupac_to_representative(allele, context=context)
+    raise ValueError(f"等位基因不能全部为缺失标记: {context}")
+
+
+def _parse_probe_flank(
+    flank: object,
+    *,
+    probe_id: object = "<unknown>",
+    probe_table: Path | None = None,
+) -> tuple[str, int, str]:
+    """
+    从 Flank 字符串提取 query 序列、目标 offset 和 alleles。
+
+    支持 ``ACGT[A/G]TGCA`` 和 ``CGGCAA[Y]GACGCATTCG`` 两类标记。
+    """
+    context = _probe_context(probe_table=probe_table, probe_id=probe_id, flank=flank)
+    if pd.isna(flank):
+        raise ValueError(f"Flank 不能为空: {context}")
+
+    flank_str = str(flank).strip()
+    marker_matches = list(re.finditer(r"\[([^\[\]]+)\]", flank_str))
+    if len(marker_matches) != 1:
+        raise ValueError(f"Flank 必须且只能包含一个 [] 标记: {context}")
+
+    marker = marker_matches[0]
+    left = flank_str[: marker.start()]
+    marker_text = marker.group(1).upper()
+    right = flank_str[marker.end() :]
+
+    left_sequence = _iupac_to_representative(left, context=context)
+    right_sequence = _iupac_to_representative(right, context=context)
+
+    if "/" in marker_text:
+        alleles = marker_text.split("/")
+        if len(alleles) != 2:
+            raise ValueError(f"Flank 中 / 标记格式错误: {context}")
+        for allele in alleles:
+            _validate_allele(allele, context=context)
+        center_sequence = _representative_allele(alleles, context=context)
+        allele_text = "/".join(alleles)
+    else:
+        if len(marker_text) != 1 or marker_text not in IUPAC_BASES:
+            raise ValueError(f"单碱基标记必须是一个有效 IUPAC 码: {context}")
+        center_sequence = IUPAC_BASES[marker_text][0]
+        allele_text = "/".join(IUPAC_BASES[marker_text])
+
+    return f"{left_sequence}{center_sequence}{right_sequence}", len(left_sequence), allele_text
+
+
 def _parse_probe_sequence(flank: str) -> str:
     """从 Flank 字符串提取纯序列（如 ``ACGT[A/G]TGCA`` → ``ACGTATGCA``）。"""
-    left = flank.split("[")[0]
-    center = flank.split("[")[1][0]
-    right = flank.split("]")[1]
-    return f"{left}{center}{right}"
+    return _parse_probe_flank(flank)[0]
 
 
 def _parse_alleles(flank: str) -> str:
-    """从 Flank 字符串提取 alleles（如 ``[A/G]`` → ``A/G``）。"""
-    match = re.search(r"\[([ACGT\-]+)/([ACGT\-]+)\]", flank)
-    if match:
-        return f"{match.group(1)}/{match.group(2)}"
-    return "-/-"
+    """从 Flank 字符串提取 alleles（如 ``[A/G]`` → ``A/G``，``[Y]`` → ``C/T``）。"""
+    return _parse_probe_flank(flank)[2]
 
 
 def fasta_and_offsets_from_probe_table(
@@ -301,7 +523,17 @@ def fasta_and_offsets_from_probe_table(
       - probe FASTA 文件路径
     """
     df = pd.read_table(probe_table)
-    df["sequence"] = df["Flank"].map(_parse_probe_sequence)
+    missing_columns = {"id", "Flank"} - set(df.columns)
+    if missing_columns:
+        raise ValueError(f"探针设计表缺少必需列 {sorted(missing_columns)}: {probe_table}")
+
+    parsed_rows = [
+        _parse_probe_flank(row.Flank, probe_id=row.id, probe_table=probe_table)
+        for row in df.itertuples()
+    ]
+    df["sequence"] = [row[0] for row in parsed_rows]
+    df["offset_fwd"] = [row[1] for row in parsed_rows]
+    df["alleles"] = [row[2] for row in parsed_rows]
 
     probe_fasta = probe_table.with_suffix(".fa")
     with open(probe_fasta, "w", encoding="utf-8") as f:
@@ -309,9 +541,7 @@ def fasta_and_offsets_from_probe_table(
             f.write(f">{row.id}\n{row.sequence}\n")
 
     seq_len = df["sequence"].str.len()
-    df["offset_fwd"] = df["Flank"].map(lambda x: x.index("["))
     df["offset_rev"] = seq_len - df["offset_fwd"] - 1
-    df["alleles"] = df["Flank"].map(_parse_alleles)
 
     return df[["id", "offset_fwd", "offset_rev", "alleles"]].copy(), probe_fasta
 
@@ -332,11 +562,69 @@ def load_chr_map(chr_map_file: Path) -> dict[str, set[str]]:
     return df.groupby("source")["target"].apply(set).to_dict()
 
 
+def load_id_chrom_map(id_chrom_map_file: Path) -> dict[str, set[str]]:
+    """
+    读取 ID 到目标染色体映射文件（2 列，无 header：id → 目标染色体）。
+
+    返回 {id: {allowed_target_chrom, ...}} 字典。
+    """
+    try:
+        df = pd.read_table(id_chrom_map_file, header=None, dtype=str)
+    except EmptyDataError as exc:
+        raise ValueError(f"ID 到染色体映射文件为空: {id_chrom_map_file}") from exc
+
+    if df.empty:
+        raise ValueError(f"ID 到染色体映射文件为空: {id_chrom_map_file}")
+    if df.shape[1] != 2:
+        raise ValueError(
+            f"ID 到染色体映射文件必须为 2 列: {id_chrom_map_file}，实际 {df.shape[1]} 列"
+        )
+
+    df.columns = ["id", "chrom"]
+    df["id"] = df["id"].str.strip()
+    df["chrom"] = df["chrom"].str.strip()
+    invalid_rows = df["id"].isna() | df["chrom"].isna() | (df["id"] == "") | (df["chrom"] == "")
+    if invalid_rows.any():
+        row_numbers = ", ".join(str(index + 1) for index in df.index[invalid_rows].tolist())
+        raise ValueError(f"ID 到染色体映射文件存在空 id/chrom: {id_chrom_map_file}，行: {row_numbers}")
+
+    return df.groupby("id")["chrom"].apply(set).to_dict()
+
+
 def load_source_chroms(target_bed: Path) -> pd.DataFrame:
     """从 target BED 读取每个 id 的源染色体。"""
     return pd.read_table(
         target_bed, header=None, names=["source_chrom", "id"], usecols=[0, 3]
     )
+
+
+def _empty_mapping_df() -> pd.DataFrame:
+    """返回带输出所需列的空映射表。"""
+    return pd.DataFrame(columns=MAPPING_COLUMNS)
+
+
+def _filter_by_id_chrom_map(
+    df: pd.DataFrame,
+    id_chrom_map: dict[str, set[str]],
+) -> pd.DataFrame:
+    """按 id -> 目标染色体映射严格过滤 BLAST hit。"""
+    has_allowed_chrom = df.apply(
+        lambda row: str(row["chrom"]) in id_chrom_map.get(str(row["id"]), set()),
+        axis=1,
+    )
+    return df[has_allowed_chrom].copy()
+
+
+def _ensure_btop_for_gaps(df: pd.DataFrame, *, max_gap_opens: int) -> None:
+    """允许 gap 时，确保含 gap 的 hit 都有 BTOP 可用于精确坐标推断。"""
+    if max_gap_opens <= 0 or df.empty:
+        return
+    gap_rows = df["gap_opens"] > 0
+    if gap_rows.any() and "btop" not in df.columns:
+        raise ValueError("允许 gap 时需要 BLAST BTOP 列；请使用 --force 重新生成 BLAST 结果")
+    missing_btop = gap_rows & ~df["btop"].map(_has_btop)
+    if missing_btop.any():
+        raise ValueError("允许 gap 时需要 BLAST BTOP 列；请使用 --force 重新生成 BLAST 结果")
 
 
 def build_id_mapping(
@@ -347,26 +635,38 @@ def build_id_mapping(
     max_hits: int = 1,
     chr_map: dict[str, set[str]] | None = None,
     source_chroms: pd.DataFrame | None = None,
+    id_chrom_map: dict[str, set[str]] | None = None,
+    max_gap_opens: int = 0,
 ) -> pd.DataFrame:
     """
     筛选最佳比对、计算新坐标、生成 ID 映射表。
 
     筛选策略：
-      1. 过滤含 gap 的比对（gap_opens > 0）
+      1. 过滤 gap_open 数量超过 max_gap_opens 的比对
       2. 过滤 align_len / query_len <= match_ratio_cutoff 的比对
-      3. 若提供 chr_map，优先保留目标染色体匹配的 hit；无匹配时回退到最佳 hit
+      3. 若提供 id_chrom_map，严格保留 id 对应目标染色体上的 hit
+      4. 若提供 chr_map，优先保留目标染色体匹配的 hit；无匹配时回退到最佳 hit
       4. 每个 id 按 bitscore 降序 → mismatches 升序排列
       5. 每个 id 最多保留 max_hits 条
     """
+    if max_gap_opens < 0:
+        raise ValueError(f"max_gap_opens 不能小于 0: {max_gap_opens}")
+
     df = alignments.copy()
 
-    # 先过滤：仅保留无 gap 且比对比率达标的 hit
-    df = df[df["gap_opens"] == 0].copy()
+    # 先过滤：仅保留 gap 数量与比对比率达标的 hit
+    df = df[df["gap_opens"] <= max_gap_opens].copy()
+    _ensure_btop_for_gaps(df, max_gap_opens=max_gap_opens)
     df["match_ratio"] = df["align_len"] / df["query_len"]
     df = df[df["match_ratio"] > match_ratio_cutoff].copy()
 
     if df.empty:
-        return df
+        return _empty_mapping_df()
+
+    if id_chrom_map is not None:
+        df = _filter_by_id_chrom_map(df, id_chrom_map)
+        if df.empty:
+            return _empty_mapping_df()
 
     # chr_map 优先排序：匹配的 hit 排在前面
     if chr_map is not None and source_chroms is not None:
@@ -392,6 +692,8 @@ def build_id_mapping(
     df = df.merge(offsets, on="id")
     df["pos"] = df.apply(_infer_position, axis=1)
     df = df.dropna(subset=["pos"])
+    if df.empty:
+        return _empty_mapping_df()
     df["pos"] = df["pos"].astype(int)
     df["new_id"] = df["chrom"].astype(str) + "_" + df["pos"].astype(str)
     df["pos_0"] = df["pos"] - 1
@@ -545,7 +847,8 @@ FROM_PROBE_TABLE_HELP = cleandoc(
       python panel/realign_blast.py from-probe-table probe.tsv blast_db
 
       python panel/realign_blast.py from-probe-table probe.tsv blast_db \\
-          --max-hits 1 --match-ratio-cutoff 0.95
+          --max-hits 1 --match-ratio-cutoff 0.95 \\
+          --id-chrom-map id_chrom.tsv --max-gap-opens 2
     """
 )
 
@@ -560,6 +863,11 @@ def from_probe_table(
     max_target_seqs: Annotated[int, typer.Option(help="BLAST 每条 query 最大目标序列数")] = 10,
     force: Annotated[bool, typer.Option(help="强制重新运行 BLAST")] = False,
     max_hits: Annotated[int, typer.Option(help="每个位点最多保留的 best hit 数量")] = 3,
+    id_chrom_map_file: Annotated[
+        Path | None,
+        typer.Option("--id-chrom-map", help="ID 到目标染色体映射文件（2 列：id → 目标染色体），严格过滤 hit"),
+    ] = None,
+    max_gap_opens: Annotated[int, typer.Option(help="允许的最大 gap opening 数量；大于 0 时需要 BTOP 列")] = 2,
 ) -> None:
     # 1. 从探针设计表生成 FASTA 和偏移量
     logger.info("解析探针设计表，生成 FASTA ...")
@@ -579,11 +887,18 @@ def from_probe_table(
     # 3. 解析 BLAST 结果并生成映射
     logger.info("解析比对结果、推算新坐标 ...")
     alignments = parse_blast_results(blast_tsv)
+    id_chrom_map = None
+    if id_chrom_map_file is not None:
+        logger.info(f"加载 ID 到染色体映射: {id_chrom_map_file}")
+        id_chrom_map = load_id_chrom_map(id_chrom_map_file)
+
     mapping_df = build_id_mapping(
         alignments,
         offsets,
         match_ratio_cutoff=match_ratio_cutoff,
         max_hits=max_hits,
+        id_chrom_map=id_chrom_map,
+        max_gap_opens=max_gap_opens,
     )
 
     # 4. 输出结果
