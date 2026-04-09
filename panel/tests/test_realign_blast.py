@@ -77,6 +77,19 @@ def test_fasta_and_offsets_from_probe_table_keeps_slash_marker_and_flank_iupac(
     ]
 
 
+def test_fasta_and_offsets_from_probe_table_expands_multiple_markers(tmp_path: Path) -> None:
+    probe_table = tmp_path / "probe.tsv"
+    probe_table.write_text("id\tFlank\nprobe1\tAC[A/G]TG[A/C]AAA\n", encoding="utf-8")
+
+    offsets, fasta = realign_blast.fasta_and_offsets_from_probe_table(probe_table)
+
+    assert fasta.read_text(encoding="utf-8") == ">probe1\nACATGAAAA\n"
+    assert offsets.to_dict("records") == [
+        {"id": "probe1", "offset_fwd": 2, "offset_rev": 6, "alleles": "A/G"},
+        {"id": "probe1", "offset_fwd": 5, "offset_rev": 3, "alleles": "A/C"},
+    ]
+
+
 def test_fasta_and_offsets_from_probe_table_reports_context_for_invalid_marker(
     tmp_path: Path,
 ) -> None:
@@ -128,6 +141,29 @@ def test_build_id_mapping_drops_id_without_allowed_target_chrom() -> None:
 
     assert result.empty
     assert {"id", "new_id", "pos", "alleles"}.issubset(result.columns)
+
+
+def test_build_id_mapping_outputs_multiple_rows_for_multiple_marker_offsets() -> None:
+    alignments = pd.DataFrame([_alignment_row()])
+    offsets = pd.DataFrame(
+        {
+            "id": ["probe1", "probe1"],
+            "offset_fwd": [2, 5],
+            "offset_rev": [7, 4],
+            "alleles": ["A/G", "A/C"],
+        }
+    )
+
+    result = realign_blast.build_id_mapping(
+        alignments,
+        offsets,
+        max_gap_opens=0,
+    )
+
+    assert result[["id", "chrom", "pos", "alleles"]].to_dict("records") == [
+        {"id": "probe1", "chrom": "chr1", "pos": 102, "alleles": "A/G"},
+        {"id": "probe1", "chrom": "chr1", "pos": 105, "alleles": "A/C"},
+    ]
 
 
 def test_build_id_mapping_uses_btop_to_correct_gap_before_offset() -> None:

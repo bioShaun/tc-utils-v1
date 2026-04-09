@@ -157,9 +157,7 @@ def make_flank_bed(
     """用 bedtools slop 扩展目标位点侧翼区域。"""
     flank_bed = target_bed.with_suffix(f".flank{flank_size}.bed")
     if force or not flank_bed.is_file():
-        _run_cmd(
-            f"bedtools slop -b {flank_size} -i {target_bed} -g {genome_fai} > {flank_bed}"
-        )
+        _run_cmd(f"bedtools slop -b {flank_size} -i {target_bed} -g {genome_fai} > {flank_bed}")
     return flank_bed
 
 
@@ -172,9 +170,7 @@ def extract_flank_fasta(
     """用 bedtools getfasta 提取侧翼序列。"""
     flank_fa = flank_bed.with_suffix(".fa")
     if force or not flank_fa.is_file():
-        _run_cmd(
-            f"bedtools getfasta -fi {genome_fa} -fo {flank_fa} -bed {flank_bed} -nameOnly"
-        )
+        _run_cmd(f"bedtools getfasta -fi {genome_fa} -fo {flank_fa} -bed {flank_bed} -nameOnly")
     return flank_fa
 
 
@@ -196,7 +192,7 @@ def run_blastn(
     blast_tsv = query_fa.with_suffix(".blast.tsv")
     if force or not blast_tsv.is_file():
         _run_cmd(
-            f'blastn -query {query_fa} -db {db} '
+            f"blastn -query {query_fa} -db {db} "
             f'-outfmt "{BLAST_OUTFMT}" '
             f"-num_threads {threads} "
             f"-evalue {evalue} "
@@ -218,9 +214,7 @@ def compute_offsets(target_bed: Path, flank_bed: Path) -> pd.DataFrame:
     offset_fwd: 目标位点距 flank 起始的碱基数（正链时使用）
     offset_rev: 目标位点距 flank 末尾的碱基数（负链时使用）
     """
-    target_df = pd.read_table(
-        target_bed, header=None, names=["target_start", "id"], usecols=[1, 3]
-    )
+    target_df = pd.read_table(target_bed, header=None, names=["target_start", "id"], usecols=[1, 3])
     flank_df = pd.read_table(
         flank_bed,
         header=None,
@@ -460,11 +454,12 @@ def _parse_probe_flank(
     *,
     probe_id: object = "<unknown>",
     probe_table: Path | None = None,
-) -> tuple[str, int, str]:
+) -> tuple[str, list[tuple[int, str]]]:
     """
-    从 Flank 字符串提取 query 序列、目标 offset 和 alleles。
+    从 Flank 字符串提取 query 序列、目标 offset 和 alleles 列表。
 
-    支持 ``ACGT[A/G]TGCA`` 和 ``CGGCAA[Y]GACGCATTCG`` 两类标记。
+    支持 ``ACGT[A/G]TGCA``、``CGGCAA[Y]GACGCATTCG`` 和
+    ``AC[A/G]TG[A/C]AAA`` 等含多个标记的 Flank。
     """
     context = _probe_context(probe_table=probe_table, probe_id=probe_id, flank=flank)
     if pd.isna(flank):
@@ -472,32 +467,43 @@ def _parse_probe_flank(
 
     flank_str = str(flank).strip()
     marker_matches = list(re.finditer(r"\[([^\[\]]+)\]", flank_str))
-    if len(marker_matches) != 1:
-        raise ValueError(f"Flank 必须且只能包含一个 [] 标记: {context}")
+    if not marker_matches:
+        raise ValueError(f"Flank 必须至少包含一个 [] 标记: {context}")
 
-    marker = marker_matches[0]
-    left = flank_str[: marker.start()]
-    marker_text = marker.group(1).upper()
-    right = flank_str[marker.end() :]
+    sequence_parts: list[str] = []
+    marker_rows: list[tuple[int, str]] = []
+    cursor = 0
+    sequence_length = 0
 
-    left_sequence = _iupac_to_representative(left, context=context)
-    right_sequence = _iupac_to_representative(right, context=context)
+    for marker in marker_matches:
+        literal_sequence = _iupac_to_representative(flank_str[cursor : marker.start()], context=context)
+        sequence_parts.append(literal_sequence)
+        sequence_length += len(literal_sequence)
 
-    if "/" in marker_text:
-        alleles = marker_text.split("/")
-        if len(alleles) != 2:
-            raise ValueError(f"Flank 中 / 标记格式错误: {context}")
-        for allele in alleles:
-            _validate_allele(allele, context=context)
-        center_sequence = _representative_allele(alleles, context=context)
-        allele_text = "/".join(alleles)
-    else:
-        if len(marker_text) != 1 or marker_text not in IUPAC_BASES:
-            raise ValueError(f"单碱基标记必须是一个有效 IUPAC 码: {context}")
-        center_sequence = IUPAC_BASES[marker_text][0]
-        allele_text = "/".join(IUPAC_BASES[marker_text])
+        marker_text = marker.group(1).upper()
+        if "/" in marker_text:
+            alleles = marker_text.split("/")
+            if len(alleles) != 2:
+                raise ValueError(f"Flank 中 / 标记格式错误: {context}")
+            for allele in alleles:
+                _validate_allele(allele, context=context)
+            center_sequence = _representative_allele(alleles, context=context)
+            allele_text = "/".join(alleles)
+        else:
+            if len(marker_text) != 1 or marker_text not in IUPAC_BASES:
+                raise ValueError(f"单碱基标记必须是一个有效 IUPAC 码: {context}")
+            center_sequence = IUPAC_BASES[marker_text][0]
+            allele_text = "/".join(IUPAC_BASES[marker_text])
 
-    return f"{left_sequence}{center_sequence}{right_sequence}", len(left_sequence), allele_text
+        marker_rows.append((sequence_length, allele_text))
+        sequence_parts.append(center_sequence)
+        sequence_length += len(center_sequence)
+        cursor = marker.end()
+
+    trailing_sequence = _iupac_to_representative(flank_str[cursor:], context=context)
+    sequence_parts.append(trailing_sequence)
+
+    return "".join(sequence_parts), marker_rows
 
 
 def _parse_probe_sequence(flank: str) -> str:
@@ -507,7 +513,7 @@ def _parse_probe_sequence(flank: str) -> str:
 
 def _parse_alleles(flank: str) -> str:
     """从 Flank 字符串提取 alleles（如 ``[A/G]`` → ``A/G``，``[Y]`` → ``C/T``）。"""
-    return _parse_probe_flank(flank)[2]
+    return _parse_probe_flank(flank)[1][0][1]
 
 
 def fasta_and_offsets_from_probe_table(
@@ -527,23 +533,29 @@ def fasta_and_offsets_from_probe_table(
     if missing_columns:
         raise ValueError(f"探针设计表缺少必需列 {sorted(missing_columns)}: {probe_table}")
 
-    parsed_rows = [
-        _parse_probe_flank(row.Flank, probe_id=row.id, probe_table=probe_table)
-        for row in df.itertuples()
-    ]
-    df["sequence"] = [row[0] for row in parsed_rows]
-    df["offset_fwd"] = [row[1] for row in parsed_rows]
-    df["alleles"] = [row[2] for row in parsed_rows]
+    parsed_sequences = []
+    offset_rows = []
+    for row in df.itertuples():
+        sequence, marker_rows = _parse_probe_flank(row.Flank, probe_id=row.id, probe_table=probe_table)
+        parsed_sequences.append(sequence)
+        seq_len = len(sequence)
+        for offset_fwd, alleles in marker_rows:
+            offset_rows.append(
+                {
+                    "id": row.id,
+                    "offset_fwd": offset_fwd,
+                    "offset_rev": seq_len - offset_fwd - 1,
+                    "alleles": alleles,
+                }
+            )
+    df["sequence"] = parsed_sequences
 
     probe_fasta = probe_table.with_suffix(".fa")
     with open(probe_fasta, "w", encoding="utf-8") as f:
         for row in df.itertuples():
             f.write(f">{row.id}\n{row.sequence}\n")
 
-    seq_len = df["sequence"].str.len()
-    df["offset_rev"] = seq_len - df["offset_fwd"] - 1
-
-    return df[["id", "offset_fwd", "offset_rev", "alleles"]].copy(), probe_fasta
+    return pd.DataFrame(offset_rows), probe_fasta
 
 
 # ---------------------------------------------------------------------------
@@ -576,9 +588,7 @@ def load_id_chrom_map(id_chrom_map_file: Path) -> dict[str, set[str]]:
     if df.empty:
         raise ValueError(f"ID 到染色体映射文件为空: {id_chrom_map_file}")
     if df.shape[1] != 2:
-        raise ValueError(
-            f"ID 到染色体映射文件必须为 2 列: {id_chrom_map_file}，实际 {df.shape[1]} 列"
-        )
+        raise ValueError(f"ID 到染色体映射文件必须为 2 列: {id_chrom_map_file}，实际 {df.shape[1]} 列")
 
     df.columns = ["id", "chrom"]
     df["id"] = df["id"].str.strip()
@@ -593,9 +603,7 @@ def load_id_chrom_map(id_chrom_map_file: Path) -> dict[str, set[str]]:
 
 def load_source_chroms(target_bed: Path) -> pd.DataFrame:
     """从 target BED 读取每个 id 的源染色体。"""
-    return pd.read_table(
-        target_bed, header=None, names=["source_chrom", "id"], usecols=[0, 3]
-    )
+    return pd.read_table(target_bed, header=None, names=["source_chrom", "id"], usecols=[0, 3])
 
 
 def _empty_mapping_df() -> pd.DataFrame:
@@ -682,9 +690,7 @@ def build_id_mapping(
         )
         df = df.drop(columns=["source_chrom", "chr_matched"])
     else:
-        df = df.sort_values(
-            ["id", "bitscore", "mismatches"], ascending=[True, False, True]
-        )
+        df = df.sort_values(["id", "bitscore", "mismatches"], ascending=[True, False, True])
 
     df = df.groupby("id", sort=False).head(max_hits)
 
