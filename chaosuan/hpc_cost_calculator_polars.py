@@ -1,11 +1,40 @@
+"""
+统计 HPC 月度扣费压缩包中的作业费用，并输出汇总结果。
+
+脚本会遍历目录下的 `.zip` 账单文件，读取其中的 Excel 工作表，按“扣费时间”和“退出状态”汇总
+`CPU核*时` 与 `金额(元)`，并额外按 `0.04 元 / CPU核*时` 计算 `实际金额(元)`。
+"""
+
 import io
 import zipfile
+from inspect import cleandoc
 from pathlib import Path
-from typing import Optional
+from typing import Annotated, Optional
 
 import polars as pl
 import typer
 from loguru import logger
+
+MODULE_HELP = cleandoc(
+    """
+    统计 HPC 月度扣费压缩包中的作业费用，并输出汇总结果。
+
+    脚本会遍历指定目录下的 `.zip` 账单文件，读取压缩包中的 Excel 工作表，
+    按“年月 + 退出状态”汇总 `CPU核*时`、`金额(元)`，并补充按单价 0.04 元 / CPU核*时
+    计算的 `实际金额(元)`。
+
+    \b
+    使用示例:
+      python chaosuan/hpc_cost_calculator_polars.py stats_dir summary.xlsx
+      python chaosuan/hpc_cost_calculator_polars.py stats_dir summary.xlsx --prefix 2024-01 --prefix 2024-02
+
+    \b
+    输出格式:
+      - summary.xlsx: Excel 汇总表，包含列 年月、退出状态、CPU核*时、金额(元)、实际金额(元)
+    """
+)
+
+app = typer.Typer(help=MODULE_HELP, no_args_is_help=True)
 
 
 def load_one_month_data(zip_filename: Path) -> pl.DataFrame:
@@ -126,14 +155,15 @@ def one_month_stats(df: pl.DataFrame) -> pl.DataFrame:
     return monthly_stats
 
 
+@app.command(help=MODULE_HELP)
 def main(
-    stats_dir: Path,
-    summary_filename: Path,
+    stats_dir: Annotated[Path, typer.Argument(help="存放月度账单 zip 文件的目录")],
+    summary_filename: Annotated[Path, typer.Argument(help="输出汇总 Excel 文件路径")],
     prefix: Optional[list[str]] = typer.Option(
         None, help="文件名前缀过滤器，可以指定多个。例如: --prefix abc --prefix xyz"
     ),
-):
-    """Main function to process all zip files in a directory and generate a summary CSV."""
+) -> None:
+    """汇总指定目录中的 HPC 月度费用数据。"""
     if not stats_dir.exists():
         logger.error(f"错误：找不到目录 '{stats_dir}'。")
         return
@@ -186,4 +216,4 @@ def main(
 
 
 if __name__ == "__main__":
-    typer.run(main)
+    app()
