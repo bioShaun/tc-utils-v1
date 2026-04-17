@@ -30,6 +30,24 @@ KaspPrimer = kasp_mapper.KaspPrimer
 
 
 # ---------------------------------------------------------------------------
+# Module constants
+# ---------------------------------------------------------------------------
+class TestModuleConstants:
+    """Guard tests for KASP allele-specific tail sequences.
+
+    These constants MUST match LGC Biosearch Technologies' published KASP
+    tail sequences. A typo silently breaks dye-tag stripping in parse_kasp1,
+    which in turn inflates query length and causes coverage under-reporting.
+    """
+
+    def test_fam_tag_matches_lgc_standard(self) -> None:
+        assert kasp_mapper.FAM_TAG == "GAAGGTGACCAAGTTCATGCT"
+
+    def test_hex_tag_matches_lgc_standard(self) -> None:
+        assert kasp_mapper.HEX_TAG == "GAAGGTCGGAGTCAACGGATT"
+
+
+# ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 def make_hit(
@@ -285,6 +303,67 @@ class TestAnalyzeFormat1Loci:
         assert loci[0].snp_pos == 119
         assert loci[0].ref_allele == "A"
         assert loci[0].alt_allele == "T"
+
+    def test_allows_locus_when_only_fam_covers_snp(self) -> None:
+        """HEX 3' base is soft-clipped by BLAST; FAM still anchors the SNP."""
+        primer = self._make_primer()
+        fam_hit = make_hit("KASP1_FAM", "chr1", 1, 20, 100, 119)
+        # HEX alignment trimmed at 3' end (coverage 19/20 = 0.95 still passes).
+        hex_hit = make_hit("KASP1_HEX", "chr1", 1, 19, 100, 118)
+        common_hit = make_hit("KASP1_Common", "chr1", 1, 20, 200, 219)
+        loci = kasp_mapper.analyze_format1_loci(
+            primer, [fam_hit, hex_hit, common_hit], min_coverage=0.9
+        )
+        assert len(loci) == 1
+        # SNP pos comes from FAM; FAM matches reference -> FAM allele is REF.
+        assert loci[0].snp_pos == 119
+        assert loci[0].ref_allele == "A"
+        assert loci[0].alt_allele == "T"
+
+    def test_allows_locus_when_only_hex_covers_snp_and_swaps_alleles(self) -> None:
+        """FAM 3' base is soft-clipped; HEX anchors the SNP so HEX is REF."""
+        primer = self._make_primer()
+        # FAM alignment trimmed at 3' end.
+        fam_hit = make_hit("KASP1_FAM", "chr1", 1, 19, 100, 118)
+        hex_hit = make_hit("KASP1_HEX", "chr1", 1, 20, 100, 119)
+        common_hit = make_hit("KASP1_Common", "chr1", 1, 20, 200, 219)
+        loci = kasp_mapper.analyze_format1_loci(
+            primer, [fam_hit, hex_hit, common_hit], min_coverage=0.9
+        )
+        assert len(loci) == 1
+        assert loci[0].snp_pos == 119
+        # HEX matches reference -> ref/alt must be swapped relative to the
+        # FAM-centric default.
+        assert loci[0].ref_allele == "T"
+        assert loci[0].alt_allele == "A"
+
+    def test_rejects_when_neither_primer_covers_snp(self) -> None:
+        primer = self._make_primer()
+        # Both hits trimmed at 3' end -> SNP is outside aligned span.
+        fam_hit = make_hit("KASP1_FAM", "chr1", 1, 19, 100, 118)
+        hex_hit = make_hit("KASP1_HEX", "chr1", 1, 19, 100, 118)
+        common_hit = make_hit("KASP1_Common", "chr1", 1, 20, 200, 219)
+        loci = kasp_mapper.analyze_format1_loci(
+            primer, [fam_hit, hex_hit, common_hit], min_coverage=0.9
+        )
+        assert loci == []
+
+    def test_rejects_when_both_snp_positions_differ_by_one_base(self) -> None:
+        """Both primers map over the SNP; positions must be identical.
+
+        Centers are still within ``max_snp_distance`` (default 10), so the
+        pairing is not filtered by the center check — the stricter SNP
+        equality check is what must reject it.
+        """
+        primer = self._make_primer()
+        fam_hit = make_hit("KASP1_FAM", "chr1", 1, 20, 100, 119)
+        # Shifted by 1 bp -> SNP at 120 vs 119.
+        hex_hit = make_hit("KASP1_HEX", "chr1", 1, 20, 101, 120)
+        common_hit = make_hit("KASP1_Common", "chr1", 1, 20, 200, 219)
+        loci = kasp_mapper.analyze_format1_loci(
+            primer, [fam_hit, hex_hit, common_hit], min_coverage=0.9
+        )
+        assert loci == []
 
     def test_target_chroms_filters_hits(self) -> None:
         primer = self._make_primer()

@@ -19,9 +19,9 @@ from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 
-# Constants
-FAM_TAG = "GAAGGGGACCAAGTTAATGCT"
-HEX_TAG = "GAAGCCCGAAGTCAACGGATT"
+# Constants (KASP standard allele-specific tail sequences from LGC Biosearch Technologies)
+FAM_TAG = "GAAGGTGACCAAGTTCATGCT"
+HEX_TAG = "GAAGGTCGGAGTCAACGGATT"
 SNP_PATTERN = re.compile(r"\[([ACGT]+)/([ACGT]+)\]", re.IGNORECASE)
 CHROM_SPLIT_PATTERN = re.compile(r"[,;|\s]+")
 
@@ -551,7 +551,7 @@ def analyze_format1_loci(
     snp_info = _find_kasp_snp_query_positions(primer.fam_primer, primer.hex_primer)
     if not snp_info:
         return []
-    fam_snp_query_pos, hex_snp_query_pos, ref_allele, alt_allele = snp_info
+    fam_snp_query_pos, hex_snp_query_pos, fam_allele, hex_allele = snp_info
 
     valid_loci: list[ValidKaspLocus] = []
     chroms = {hit.subject_id for hit in fam_hits + hex_hits + common_hits}
@@ -566,24 +566,38 @@ def analyze_format1_loci(
         for fam_hit in cf:
             fam_center = (fam_hit.subject_start + fam_hit.subject_end) // 2
             fam_snp_pos = _query_to_subject_pos(fam_hit, fam_snp_query_pos)
-            if fam_snp_pos is None:
-                continue
 
             for hex_hit in ch:
                 hex_center = (hex_hit.subject_start + hex_hit.subject_end) // 2
                 hex_snp_pos = _query_to_subject_pos(hex_hit, hex_snp_query_pos)
-                if hex_snp_pos is None:
-                    continue
 
                 # Use center-based pairing (like original pipeline)
                 if abs(fam_center - hex_center) > max_snp_distance:
                     continue
 
-                # The allele-specific SNP should map to nearly the same genomic base.
-                if abs(fam_snp_pos - hex_snp_pos) > max_snp_distance:
+                # KASP design: only one allele-specific primer matches the SNP
+                # in the reference genome; the other carries a 3' mismatch that
+                # BLAST may either keep (with a mismatch) or soft-clip (None).
+                #
+                # - Both aligned: the two projections must point at the same
+                #   genomic base. ``max_snp_distance`` controls pairing via
+                #   hit centers, not allele position, so we require strict
+                #   equality here.
+                # - Only one aligned: that primer's 3' base matches the
+                #   reference, so its allele is REF and the other is ALT.
+                if fam_snp_pos is None and hex_snp_pos is None:
                     continue
-
-                snp_pos = fam_snp_pos
+                if fam_snp_pos is not None and hex_snp_pos is not None:
+                    if fam_snp_pos != hex_snp_pos:
+                        continue
+                    snp_pos = fam_snp_pos
+                    ref_allele, alt_allele = fam_allele, hex_allele
+                elif fam_snp_pos is not None:
+                    snp_pos = fam_snp_pos
+                    ref_allele, alt_allele = fam_allele, hex_allele
+                else:
+                    snp_pos = hex_snp_pos
+                    ref_allele, alt_allele = hex_allele, fam_allele
 
                 for common_hit in cc:
                     all_pos = [
@@ -837,7 +851,7 @@ def create_excel_report(
         ws1["A7"] = "1) FAM/HEX/Common Identity >= 95%"
         ws1["A8"] = f"2) FAM/HEX/Common Coverage >= {format1_min_coverage:.0%}"
         ws1["A9"] = "3) 三条引物必须在同一染色体"
-        ws1["A10"] = "4) FAM和HEX SNP位置距离 <= 10bp"
+        ws1["A10"] = "4) FAM/HEX 命中中心距离 <= 10bp；若两条均覆盖SNP位置则坐标必须相等，仅一条覆盖时以该条定位并将其等位基因判为REF"
         ws1["A11"] = "5) PCR扩增子长度 < 1000bp"
     elif format_type == "ssr":
         ws1["A6"] = "SSR判定规则:"
