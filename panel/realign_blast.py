@@ -919,25 +919,42 @@ def _slice_by_rank(df: pd.DataFrame, *, max_rank: int) -> pd.DataFrame:
     return df[df["rank"] <= max_rank].copy()
 
 
+_OPTIONAL_STATUS_COLUMNS = ("chr_map_status", "id_chrom_status")
+
+
 def write_selection_report(mapping_df: pd.DataFrame, out_prefix: Path) -> Path:
     """
     写出 *.selection.tsv 报告：每条选中 hit 的完整数值指标与选择理由。
 
     输出列见 ``SELECTION_REPORT_COLUMNS``，含表头；缺失 alleles 时默认填 ``-/-``。
+    自动剔除整列均为 ``n/a`` 的状态列（chr_map_status / id_chrom_status），避免给客户的表出现纯吨的噪音。
     返回写出的报告路径。
     """
     report_path = out_prefix.with_suffix(".selection.tsv")
     df = mapping_df.copy()
     if "alleles" not in df.columns:
         df["alleles"] = "-/-"
+
+    columns = [
+        col for col in SELECTION_REPORT_COLUMNS
+        if col not in _OPTIONAL_STATUS_COLUMNS or not _is_all_not_applicable(df, col)
+    ]
+
     df.to_csv(
         report_path,
         sep="\t",
         index=False,
-        columns=SELECTION_REPORT_COLUMNS,
+        columns=columns,
     )
     logger.info(f"选择依据报告: {report_path}（{len(df)} 条记录）")
     return report_path
+
+
+def _is_all_not_applicable(df: pd.DataFrame, column: str) -> bool:
+    """判断指定列在非空表里是否整列均为 ``n/a``。空表不删列。"""
+    if column not in df.columns or df.empty:
+        return False
+    return (df[column] == "n/a").all()
 
 
 # ---------------------------------------------------------------------------

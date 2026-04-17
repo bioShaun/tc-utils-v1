@@ -444,8 +444,36 @@ def test_write_selection_report_contains_header_and_reasons(tmp_path: Path) -> N
     assert header[0] == "id"
     assert "selection_reason" in header
     assert "match_ratio" in header
-    assert "chr_map_status" in header
     assert len(content) == 2  # 表头 + 1 条记录
+
+
+def test_write_selection_report_drops_all_n_a_status_columns(tmp_path: Path) -> None:
+    # 未传 chr_map / id_chrom_map：两列状态均为 n/a，应被剔除
+    alignments = pd.DataFrame([_alignment_row()])
+    mapping_df = realign_blast.build_id_mapping(alignments, _offsets(), max_gap_opens=0)
+
+    report_path = realign_blast.write_selection_report(mapping_df, tmp_path / "out")
+
+    header = report_path.read_text(encoding="utf-8").splitlines()[0].split("\t")
+    assert "chr_map_status" not in header
+    assert "id_chrom_status" not in header
+
+
+def test_write_selection_report_keeps_status_when_values_vary(tmp_path: Path) -> None:
+    # id_chrom_map 下状态为 strict：id_chrom_status 应保留；chr_map_status 仍全 n/a 被剔除
+    alignments = pd.DataFrame([_alignment_row(chrom="chr1")])
+    mapping_df = realign_blast.build_id_mapping(
+        alignments,
+        _offsets(),
+        max_gap_opens=0,
+        id_chrom_map={"probe1": {"chr1"}},
+    )
+
+    report_path = realign_blast.write_selection_report(mapping_df, tmp_path / "out")
+
+    header = report_path.read_text(encoding="utf-8").splitlines()[0].split("\t")
+    assert "id_chrom_status" in header
+    assert "chr_map_status" not in header
 
 
 def test_write_outputs_uses_separate_selection_df_for_report(tmp_path: Path) -> None:
