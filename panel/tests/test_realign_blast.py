@@ -446,3 +446,49 @@ def test_write_selection_report_contains_header_and_reasons(tmp_path: Path) -> N
     assert "match_ratio" in header
     assert "chr_map_status" in header
     assert len(content) == 2  # 表头 + 1 条记录
+
+
+def test_write_outputs_uses_separate_selection_df_for_report(tmp_path: Path) -> None:
+    alignments = pd.DataFrame(
+        [
+            _alignment_row(chrom="chr1", bitscore=200),
+            _alignment_row(chrom="chr2", bitscore=100),
+        ]
+    )
+    full_df = realign_blast.build_id_mapping(
+        alignments,
+        _offsets(),
+        max_gap_opens=0,
+        max_hits=2,
+    )
+    primary_df = full_df[full_df["rank"] <= 1].copy()
+
+    out_prefix = tmp_path / "out"
+    realign_blast.write_outputs(primary_df, out_prefix, selection_df=full_df)
+
+    idmap_lines = (tmp_path / "out.idmap.tsv").read_text(encoding="utf-8").strip().splitlines()
+    selection_lines = (
+        (tmp_path / "out.idmap.selection.tsv").read_text(encoding="utf-8").strip().splitlines()
+    )
+
+    # idmap.tsv 不带表头：仅保留 rank=1 的一条
+    assert len(idmap_lines) == 1
+    # selection.tsv 带表头：表头 + rank=1 与 rank=2 两条
+    assert len(selection_lines) == 3
+    assert selection_lines[0].split("\t")[0] == "id"
+
+
+def test_write_outputs_defaults_selection_df_to_primary(tmp_path: Path) -> None:
+    alignments = pd.DataFrame([_alignment_row()])
+    mapping_df = realign_blast.build_id_mapping(
+        alignments,
+        _offsets(),
+        max_gap_opens=0,
+    )
+
+    realign_blast.write_outputs(mapping_df, tmp_path / "out")
+
+    selection_lines = (
+        (tmp_path / "out.idmap.selection.tsv").read_text(encoding="utf-8").strip().splitlines()
+    )
+    assert len(selection_lines) == 2  # 表头 + 1 行

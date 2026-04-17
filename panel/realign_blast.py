@@ -859,8 +859,18 @@ def _compose_selection_reason(row: pd.Series) -> str:
 # ---------------------------------------------------------------------------
 
 
-def write_outputs(mapping_df: pd.DataFrame, out_prefix: Path) -> None:
-    """写出 idmap.tsv / target.bed / pos.tsv / selection.tsv 四个结果文件。"""
+def write_outputs(
+    mapping_df: pd.DataFrame,
+    out_prefix: Path,
+    *,
+    selection_df: pd.DataFrame | None = None,
+) -> None:
+    """写出 idmap.tsv / target.bed / pos.tsv / selection.tsv 四个结果文件。
+
+    前三个文件基于 ``mapping_df``（主输出，由上游 max_hits 决定）；
+    selection.tsv 使用 ``selection_df``（报告用，可包含更多次优候选 hit），
+    未提供时退化为使用 ``mapping_df``。
+    """
     # idmap.tsv
     idmap_path = out_prefix.with_suffix(".idmap.tsv")
     mapping_df.to_csv(
@@ -898,7 +908,15 @@ def write_outputs(mapping_df: pd.DataFrame, out_prefix: Path) -> None:
     logger.info(f"位点坐标: {pos_path}")
 
     # selection.tsv：对外可解释的选择报告
-    write_selection_report(mapping_df, idmap_path)
+    report_source = selection_df if selection_df is not None else mapping_df
+    write_selection_report(report_source, idmap_path)
+
+
+def _slice_by_rank(df: pd.DataFrame, *, max_rank: int) -> pd.DataFrame:
+    """按 rank 截取每个 id 下前 max_rank 条；空 DataFrame 直接返回拷贝。"""
+    if df.empty or max_rank <= 0:
+        return df.copy()
+    return df[df["rank"] <= max_rank].copy()
 
 
 def write_selection_report(mapping_df: pd.DataFrame, out_prefix: Path) -> Path:
@@ -952,7 +970,14 @@ def from_bed(
     max_target_seqs: Annotated[int, typer.Option(help="BLAST 每条 query 最大目标序列数")] = 10,
     target_type: Annotated[TargetType, typer.Option(help="输入文件类型")] = TargetType.bed,
     force: Annotated[bool, typer.Option(help="强制重新运行所有中间步骤")] = False,
-    max_hits: Annotated[int, typer.Option(help="每个位点最多保留的 best hit 数量")] = 3,
+    max_hits: Annotated[int, typer.Option(help="每个位点最多保留的 best hit 数量（写入 idmap/target.bed/pos.tsv）")] = 3,
+    report_top_n: Annotated[
+        int,
+        typer.Option(
+            "--report-top-n",
+            help="写入 selection.tsv 报告的每个位点 top-N BLAST 候选数；默认与 max_hits 相同，传入更大值可一同记录次优候选",
+        ),
+    ] = 3,
     chr_map_file: Annotated[
         Path | None,
         typer.Option("--chr-map", help="染色体映射文件（2 列：源染色体 → 目标染色体），优先保留匹配的 hit"),
@@ -1001,18 +1026,21 @@ def from_bed(
     # 7. 解析 BLAST 结果并生成映射
     logger.info("解析比对结果、推算新坐标 ...")
     alignments = parse_blast_results(blast_tsv)
+    effective_top_n = max(max_hits, report_top_n)
     mapping_df = build_id_mapping(
         alignments,
         offsets,
         match_ratio_cutoff=match_ratio_cutoff,
-        max_hits=max_hits,
+        max_hits=effective_top_n,
         chr_map=chr_map,
         source_chroms=source_chroms,
         n_counts=n_counts,
     )
+    primary_df = _slice_by_rank(mapping_df, max_rank=max_hits)
+    selection_df = _slice_by_rank(mapping_df, max_rank=report_top_n)
 
     # 8. 输出结果
-    write_outputs(mapping_df, blast_tsv)
+    write_outputs(primary_df, blast_tsv, selection_df=selection_df)
 
 
 FROM_PROBE_TABLE_HELP = cleandoc(
@@ -1041,7 +1069,14 @@ def from_probe_table(
     match_ratio_cutoff: Annotated[float, typer.Option(help="比对长度/序列长度最低比率")] = 0.9,
     max_target_seqs: Annotated[int, typer.Option(help="BLAST 每条 query 最大目标序列数")] = 10,
     force: Annotated[bool, typer.Option(help="强制重新运行 BLAST")] = False,
-    max_hits: Annotated[int, typer.Option(help="每个位点最多保留的 best hit 数量")] = 3,
+    max_hits: Annotated[int, typer.Option(help="每个位点最多保留的 best hit 数量（写入 idmap/target.bed/pos.tsv）")] = 3,
+    report_top_n: Annotated[
+        int,
+        typer.Option(
+            "--report-top-n",
+            help="写入 selection.tsv 报告的每个位点 top-N BLAST 候选数；默认与 max_hits 相同，传入更大值可一同记录次优候选",
+        ),
+    ] = 3,
     id_chrom_map_file: Annotated[
         Path | None,
         typer.Option(
@@ -1075,18 +1110,21 @@ def from_probe_table(
         logger.info(f"加载 ID 到染色体映射: {id_chrom_map_file}")
         id_chrom_map = load_id_chrom_map(id_chrom_map_file)
 
+    effective_top_n = max(max_hits, report_top_n)
     mapping_df = build_id_mapping(
         alignments,
         offsets,
         match_ratio_cutoff=match_ratio_cutoff,
-        max_hits=max_hits,
+        max_hits=effective_top_n,
         id_chrom_map=id_chrom_map,
         max_gap_opens=max_gap_opens,
         n_counts=n_counts,
     )
+    primary_df = _slice_by_rank(mapping_df, max_rank=max_hits)
+    selection_df = _slice_by_rank(mapping_df, max_rank=report_top_n)
 
     # 4. 输出结果
-    write_outputs(mapping_df, blast_tsv)
+    write_outputs(primary_df, blast_tsv, selection_df=selection_df)
 
 
 if __name__ == "__main__":
