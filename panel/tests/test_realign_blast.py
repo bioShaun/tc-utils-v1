@@ -143,6 +143,60 @@ def test_build_id_mapping_drops_id_without_allowed_target_chrom() -> None:
     assert {"id", "new_id", "pos", "alleles"}.issubset(result.columns)
 
 
+def test_build_id_mapping_passes_through_id_missing_from_id_chrom_map() -> None:
+    alignments = pd.DataFrame(
+        [
+            _alignment_row(probe_id="probe1", chrom="chr2"),
+            _alignment_row(probe_id="probe2", chrom="chr9"),
+        ]
+    )
+    offsets = pd.DataFrame(
+        {
+            "id": ["probe1", "probe2"],
+            "offset_fwd": [5, 5],
+            "offset_rev": [4, 4],
+            "alleles": ["A/G", "A/T"],
+        }
+    )
+
+    result = realign_blast.build_id_mapping(
+        alignments,
+        offsets,
+        id_chrom_map={"probe1": {"chr2"}},
+        max_gap_opens=0,
+    )
+
+    assert sorted(result["id"].tolist()) == ["probe1", "probe2"]
+    assert result[result["id"] == "probe2"]["chrom"].tolist() == ["chr9"]
+
+
+def test_build_id_mapping_still_filters_mapped_id_when_other_ids_missing() -> None:
+    alignments = pd.DataFrame(
+        [
+            _alignment_row(probe_id="probe1", chrom="chr1"),
+            _alignment_row(probe_id="probe2", chrom="chr9"),
+        ]
+    )
+    offsets = pd.DataFrame(
+        {
+            "id": ["probe1", "probe2"],
+            "offset_fwd": [5, 5],
+            "offset_rev": [4, 4],
+            "alleles": ["A/G", "A/T"],
+        }
+    )
+
+    result = realign_blast.build_id_mapping(
+        alignments,
+        offsets,
+        id_chrom_map={"probe1": {"chr2"}},
+        max_gap_opens=0,
+    )
+
+    # probe1 被严格过滤掉（chr1 不在允许集合），probe2 未登记则放行
+    assert result["id"].tolist() == ["probe2"]
+
+
 def test_build_id_mapping_outputs_multiple_rows_for_multiple_marker_offsets() -> None:
     alignments = pd.DataFrame([_alignment_row()])
     offsets = pd.DataFrame(
@@ -233,3 +287,162 @@ def test_build_id_mapping_with_btop_handles_negative_strand() -> None:
     assert result[["id", "chrom", "pos"]].to_dict("records") == [
         {"id": "probe1", "chrom": "chr1", "pos": 197}
     ]
+
+
+def test_fasta_and_offsets_from_probe_table_preserves_n_in_literal_flank(
+    tmp_path: Path,
+) -> None:
+    probe_table = tmp_path / "probe.tsv"
+    probe_table.write_text(
+        "id\tFlank\nprobe1\tNNAC[A/G]TGNN\n",
+        encoding="utf-8",
+    )
+
+    offsets, fasta = realign_blast.fasta_and_offsets_from_probe_table(probe_table)
+
+    assert fasta.read_text(encoding="utf-8") == ">probe1\nNNACATGNN\n"
+    assert offsets.to_dict("records") == [
+        {"id": "probe1", "offset_fwd": 4, "offset_rev": 4, "alleles": "A/G"}
+    ]
+
+
+def test_count_ns_in_fasta_handles_multiline_sequences(tmp_path: Path) -> None:
+    fa = tmp_path / "t.fa"
+    fa.write_text(">a\nACNN\nNNAT\n>b\nACGT\n>c\nNnNn\n", encoding="utf-8")
+
+    assert realign_blast.count_ns_in_fasta(fa) == {"a": 4, "b": 0, "c": 4}
+
+
+def test_build_id_mapping_uses_informative_len_for_match_ratio() -> None:
+    # query_len=10, align_len=8, n_count=3 → informative_len=7 → ratio=8/7 > 0.9 → 通过
+    alignments = pd.DataFrame([_alignment_row(align_len=8, send=107)])
+
+    result = realign_blast.build_id_mapping(
+        alignments,
+        _offsets(),
+        max_gap_opens=0,
+        match_ratio_cutoff=0.9,
+        n_counts={"probe1": 3},
+    )
+
+    assert result["id"].tolist() == ["probe1"]
+
+
+def test_build_id_mapping_still_rejects_low_ratio_when_no_n() -> None:
+    # 无 N：align_len=5, query_len=10 → ratio=0.5 → 不过
+    alignments = pd.DataFrame([_alignment_row(align_len=5, send=104)])
+
+    result = realign_blast.build_id_mapping(
+        alignments,
+        _offsets(),
+        max_gap_opens=0,
+        match_ratio_cutoff=0.9,
+    )
+
+    assert result.empty
+
+
+def test_build_id_mapping_drops_query_with_all_n_sequence() -> None:
+    alignments = pd.DataFrame([_alignment_row()])
+
+    result = realign_blast.build_id_mapping(
+        alignments,
+        _offsets(),
+        max_gap_opens=0,
+        n_counts={"probe1": 10},  # informative_len ≤ 0
+    )
+
+    assert result.empty
+
+
+def test_build_id_mapping_annotates_rank_and_status_columns() -> None:
+    alignments = pd.DataFrame(
+        [
+            _alignment_row(chrom="chr1", bitscore=200),
+            _alignment_row(chrom="chr2", bitscore=100),
+        ]
+    )
+
+    result = realign_blast.build_id_mapping(
+        alignments,
+        _offsets(),
+        max_gap_opens=0,
+        max_hits=2,
+    )
+
+    assert result["rank"].tolist() == [1, 2]
+    assert result["chrom"].tolist() == ["chr1", "chr2"]
+    assert result["chr_map_status"].tolist() == ["n/a", "n/a"]
+    assert result["id_chrom_status"].tolist() == ["n/a", "n/a"]
+    assert result["selection_reason"].str.contains("bitscore").all()
+    assert result["selection_reason"].iloc[0].startswith("rank #1")
+
+
+def test_build_id_mapping_status_is_strict_when_id_is_registered() -> None:
+    alignments = pd.DataFrame([_alignment_row(chrom="chr1")])
+
+    result = realign_blast.build_id_mapping(
+        alignments,
+        _offsets(),
+        max_gap_opens=0,
+        id_chrom_map={"probe1": {"chr1"}},
+    )
+
+    assert result["id_chrom_status"].tolist() == ["strict"]
+    assert "id_chrom_map" in result["selection_reason"].iloc[0]
+
+
+def test_build_id_mapping_status_is_fallback_when_id_missing_from_chrom_map() -> None:
+    alignments = pd.DataFrame([_alignment_row(chrom="chr1")])
+
+    result = realign_blast.build_id_mapping(
+        alignments,
+        _offsets(),
+        max_gap_opens=0,
+        id_chrom_map={"probe2": {"chr1"}},
+    )
+
+    assert result["id_chrom_status"].tolist() == ["fallback"]
+
+
+def test_build_id_mapping_chr_map_status_reflects_match_vs_fallback() -> None:
+    alignments = pd.DataFrame(
+        [
+            _alignment_row(chrom="chrTarget", bitscore=200),
+            _alignment_row(chrom="chrOther", bitscore=150),
+        ]
+    )
+    source_chroms = pd.DataFrame({"id": ["probe1"], "source_chrom": ["chrSrc"]})
+
+    result = realign_blast.build_id_mapping(
+        alignments,
+        _offsets(),
+        max_gap_opens=0,
+        max_hits=2,
+        chr_map={"chrSrc": {"chrTarget"}},
+        source_chroms=source_chroms,
+    )
+
+    # chr_matched=True 排在前；对应 matched；不匹配的 chrOther 记为 fallback
+    assert result["chrom"].tolist() == ["chrTarget", "chrOther"]
+    assert result["chr_map_status"].tolist() == ["matched", "fallback"]
+
+
+def test_write_selection_report_contains_header_and_reasons(tmp_path: Path) -> None:
+    alignments = pd.DataFrame([_alignment_row()])
+    mapping_df = realign_blast.build_id_mapping(
+        alignments,
+        _offsets(),
+        max_gap_opens=0,
+    )
+
+    report_path = realign_blast.write_selection_report(mapping_df, tmp_path / "out")
+
+    assert report_path.exists()
+    content = report_path.read_text(encoding="utf-8").strip().splitlines()
+    header = content[0].split("\t")
+    assert header[0] == "id"
+    assert "selection_reason" in header
+    assert "match_ratio" in header
+    assert "chr_map_status" in header
+    assert len(content) == 2  # 表头 + 1 条记录

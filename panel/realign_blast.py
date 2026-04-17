@@ -74,6 +74,31 @@ MAPPING_COLUMNS = [
     "pos",
     "new_id",
     "pos_0",
+    "n_count",
+    "informative_len",
+    "rank",
+    "chr_map_status",
+    "id_chrom_status",
+    "selection_reason",
+]
+SELECTION_REPORT_COLUMNS = [
+    "id",
+    "new_id",
+    "chrom",
+    "pos",
+    "strand",
+    "alleles",
+    "rank",
+    "bitscore",
+    "match_ratio",
+    "align_len",
+    "informative_len",
+    "n_count",
+    "mismatches",
+    "gap_opens",
+    "chr_map_status",
+    "id_chrom_status",
+    "selection_reason",
 ]
 IUPAC_BASES = {
     "A": ("A",),
@@ -422,14 +447,49 @@ def _probe_context(*, probe_table: Path | None, probe_id: object, flank: object)
 
 
 def _iupac_to_representative(sequence: str, *, context: str) -> str:
-    """将 IUPAC 序列转换为代表性 ATGC 序列。"""
+    """
+    将 IUPAC 序列转换为代表性 ATGC 序列；保留 N 不变。
+
+    BLAST 原生支持 query 中的 N（中性得分），为避免 “N→A” 造成的假阳性匹配，
+      - N 字面写入序列；
+      - R/Y/S/W/K/M/B/D/H/V 等其他 IUPAC 码继续按首位代表碱基展开，保持与原有行为一致。
+    """
     converted: list[str] = []
     for base in sequence.upper():
+        if base == "N":
+            converted.append("N")
+            continue
         try:
             converted.append(IUPAC_BASES[base][0])
         except KeyError as exc:
             raise ValueError(f"不支持的 IUPAC 碱基 {base!r}: {context}") from exc
     return "".join(converted)
+
+
+def count_ns_in_fasta(fasta_path: Path) -> dict[str, int]:
+    """
+    统计 FASTA 中每条序列 N 的数量（大小写不敏感）。
+
+    返回 {id: n_count}。id 取 FASTA header `>` 后的首个空格分隔符。
+    """
+    n_counts: dict[str, int] = {}
+    current_id: str | None = None
+    current_n = 0
+    with open(fasta_path, encoding="utf-8") as handle:
+        for raw_line in handle:
+            line = raw_line.strip()
+            if not line:
+                continue
+            if line.startswith(">"):
+                if current_id is not None:
+                    n_counts[current_id] = current_n
+                current_id = line[1:].split()[0]
+                current_n = 0
+                continue
+            current_n += line.upper().count("N")
+    if current_id is not None:
+        n_counts[current_id] = current_n
+    return n_counts
 
 
 def _validate_allele(allele: str, *, context: str) -> None:
@@ -615,11 +675,33 @@ def _filter_by_id_chrom_map(
     df: pd.DataFrame,
     id_chrom_map: dict[str, set[str]],
 ) -> pd.DataFrame:
-    """按 id -> 目标染色体映射严格过滤 BLAST hit。"""
-    has_allowed_chrom = df.apply(
-        lambda row: str(row["chrom"]) in id_chrom_map.get(str(row["id"]), set()),
-        axis=1,
-    )
+    """
+    按 id -> 目标染色体映射过滤 BLAST hit。
+
+    仅对 id_chrom_map 中登记的 id 施加严格过滤（只保留 chrom 位于允许集合的 hit）；
+    未登记的 id 整体放行，后续走默认 best-hit 排序策略。对缺失登记的 id 会输出
+    warning 日志，避免静默丢数据。
+    """
+    if df.empty:
+        return df.copy()
+
+    ids_in_df = set(df["id"].astype(str).unique())
+    unmapped_ids = ids_in_df - id_chrom_map.keys()
+    if unmapped_ids:
+        sample = sorted(unmapped_ids)[:5]
+        suffix = ", ..." if len(unmapped_ids) > len(sample) else ""
+        logger.warning(
+            f"{len(unmapped_ids)} / {len(ids_in_df)} 个 id 未在 id_chrom_map 中登记，"
+            f"将按默认 best-hit 策略保留其所有 hit（示例: {sample}{suffix}）"
+        )
+
+    def _is_allowed(row: pd.Series) -> bool:
+        allowed = id_chrom_map.get(str(row["id"]))
+        if allowed is None:
+            return True
+        return str(row["chrom"]) in allowed
+
+    has_allowed_chrom = df.apply(_is_allowed, axis=1)
     return df[has_allowed_chrom].copy()
 
 
@@ -645,27 +727,52 @@ def build_id_mapping(
     source_chroms: pd.DataFrame | None = None,
     id_chrom_map: dict[str, set[str]] | None = None,
     max_gap_opens: int = 0,
+    n_counts: dict[str, int] | None = None,
 ) -> pd.DataFrame:
     """
     筛选最佳比对、计算新坐标、生成 ID 映射表。
 
     筛选策略：
       1. 过滤 gap_open 数量超过 max_gap_opens 的比对
-      2. 过滤 align_len / query_len <= match_ratio_cutoff 的比对
-      3. 若提供 id_chrom_map，严格保留 id 对应目标染色体上的 hit
+      2. match_ratio = align_len / informative_len，其中 informative_len = query_len - n_count；
+         滤掉 match_ratio <= match_ratio_cutoff 的比对。informative_len ≤ 0（全 N）的 id 被丢弃并 warn。
+      3. 若提供 id_chrom_map，仅对登记过的 id 严格过滤到允许染色体上的 hit；
+         未登记的 id 整体放行走默认排序策略，并输出 warning 日志
       4. 若提供 chr_map，优先保留目标染色体匹配的 hit；无匹配时回退到最佳 hit
-      4. 每个 id 按 bitscore 降序 → mismatches 升序排列
-      5. 每个 id 最多保留 max_hits 条
+      5. 每个 id 按 bitscore 降序 → mismatches 升序排列
+      6. 每个 id 最多保留 max_hits 条
+
+    n_counts: {id: N 碱基数量}。未提供时视为 0，等价于旧行为。
     """
     if max_gap_opens < 0:
         raise ValueError(f"max_gap_opens 不能小于 0: {max_gap_opens}")
 
     df = alignments.copy()
 
-    # 先过滤：仅保留 gap 数量与比对比率达标的 hit
+    # 先过滤：仅保留 gap 数量达标的 hit
     df = df[df["gap_opens"] <= max_gap_opens].copy()
     _ensure_btop_for_gaps(df, max_gap_opens=max_gap_opens)
-    df["match_ratio"] = df["align_len"] / df["query_len"]
+
+    # 计算 informative_len（排除 N 后的有效 query 长度）作为 match_ratio 分母
+    n_counts = n_counts or {}
+    df["n_count"] = df["id"].astype(str).map(n_counts).fillna(0).astype(int)
+    df["informative_len"] = df["query_len"] - df["n_count"]
+
+    too_short = df["informative_len"] <= 0
+    if too_short.any():
+        bad_ids = sorted(df.loc[too_short, "id"].astype(str).unique())
+        sample = bad_ids[:5]
+        suffix = ", ..." if len(bad_ids) > len(sample) else ""
+        logger.warning(
+            f"{len(bad_ids)} 个 id 的 query 信息量为 0（全为 N），已丢弃其所有 hit，"
+            f"示例: {sample}{suffix}"
+        )
+        df = df[~too_short].copy()
+
+    if df.empty:
+        return _empty_mapping_df()
+
+    df["match_ratio"] = df["align_len"] / df["informative_len"]
     df = df[df["match_ratio"] > match_ratio_cutoff].copy()
 
     if df.empty:
@@ -676,6 +783,14 @@ def build_id_mapping(
         if df.empty:
             return _empty_mapping_df()
 
+    # 注入 id_chrom_map 状态（供报告使用）
+    if id_chrom_map is not None:
+        df["id_chrom_status"] = df["id"].astype(str).apply(
+            lambda i: "strict" if i in id_chrom_map else "fallback"
+        )
+    else:
+        df["id_chrom_status"] = "n/a"
+
     # chr_map 优先排序：匹配的 hit 排在前面
     if chr_map is not None and source_chroms is not None:
         df = df.merge(source_chroms, on="id", how="left")
@@ -683,15 +798,24 @@ def build_id_mapping(
             lambda r: r["chrom"] in chr_map.get(str(r["source_chrom"]), set()),
             axis=1,
         )
+        df["chr_map_status"] = df["chr_matched"].map({True: "matched", False: "fallback"})
         # chr_matched=True 排前面（ascending=True 时 False<True，所以用 ascending=False）
         df = df.sort_values(
             ["id", "chr_matched", "bitscore", "mismatches"],
             ascending=[True, False, False, True],
+            kind="mergesort",
         )
         df = df.drop(columns=["source_chrom", "chr_matched"])
     else:
-        df = df.sort_values(["id", "bitscore", "mismatches"], ascending=[True, False, True])
+        df["chr_map_status"] = "n/a"
+        df = df.sort_values(
+            ["id", "bitscore", "mismatches"],
+            ascending=[True, False, True],
+            kind="mergesort",
+        )
 
+    # 排序后分配 rank（1 = 当前 id 下的最优 hit）
+    df["rank"] = df.groupby("id", sort=False).cumcount() + 1
     df = df.groupby("id", sort=False).head(max_hits)
 
     # 合并偏移量并推算新坐标
@@ -703,8 +827,31 @@ def build_id_mapping(
     df["pos"] = df["pos"].astype(int)
     df["new_id"] = df["chrom"].astype(str) + "_" + df["pos"].astype(str)
     df["pos_0"] = df["pos"] - 1
+    df["selection_reason"] = df.apply(_compose_selection_reason, axis=1)
 
     return df
+
+
+def _compose_selection_reason(row: pd.Series) -> str:
+    """生成单条待选中 hit 的人类可读选择理由。"""
+    parts = [
+        f"rank #{int(row['rank'])}",
+        f"bitscore={float(row['bitscore']):.1f}",
+        f"match_ratio={float(row['match_ratio']):.3f}",
+        f"mismatches={int(row['mismatches'])}",
+        f"gap_opens={int(row['gap_opens'])}",
+    ]
+    chr_status = row.get("chr_map_status", "n/a")
+    if chr_status == "matched":
+        parts.append("chr_map: 源→目标染色体匹配")
+    elif chr_status == "fallback":
+        parts.append("chr_map: 未匹配，取跨染色体最优")
+    id_status = row.get("id_chrom_status", "n/a")
+    if id_status == "strict":
+        parts.append("id_chrom_map: 严格限制通过")
+    elif id_status == "fallback":
+        parts.append("id_chrom_map: 未登记，走默认 best-hit")
+    return "; ".join(parts)
 
 
 # ---------------------------------------------------------------------------
@@ -713,7 +860,7 @@ def build_id_mapping(
 
 
 def write_outputs(mapping_df: pd.DataFrame, out_prefix: Path) -> None:
-    """写出 idmap.tsv / target.bed / pos.tsv 三个结果文件。"""
+    """写出 idmap.tsv / target.bed / pos.tsv / selection.tsv 四个结果文件。"""
     # idmap.tsv
     idmap_path = out_prefix.with_suffix(".idmap.tsv")
     mapping_df.to_csv(
@@ -749,6 +896,30 @@ def write_outputs(mapping_df: pd.DataFrame, out_prefix: Path) -> None:
         columns=["chrom", "pos", "alleles", "id"],
     )
     logger.info(f"位点坐标: {pos_path}")
+
+    # selection.tsv：对外可解释的选择报告
+    write_selection_report(mapping_df, idmap_path)
+
+
+def write_selection_report(mapping_df: pd.DataFrame, out_prefix: Path) -> Path:
+    """
+    写出 *.selection.tsv 报告：每条选中 hit 的完整数值指标与选择理由。
+
+    输出列见 ``SELECTION_REPORT_COLUMNS``，含表头；缺失 alleles 时默认填 ``-/-``。
+    返回写出的报告路径。
+    """
+    report_path = out_prefix.with_suffix(".selection.tsv")
+    df = mapping_df.copy()
+    if "alleles" not in df.columns:
+        df["alleles"] = "-/-"
+    df.to_csv(
+        report_path,
+        sep="\t",
+        index=False,
+        columns=SELECTION_REPORT_COLUMNS,
+    )
+    logger.info(f"选择依据报告: {report_path}（{len(df)} 条记录）")
+    return report_path
 
 
 # ---------------------------------------------------------------------------
@@ -815,8 +986,9 @@ def from_bed(
         force=force,
     )
 
-    # 5. 计算偏移量
+    # 5. 计算偏移量和 N 统计
     offsets = compute_offsets(target_bed, flank_bed)
+    n_counts = count_ns_in_fasta(flank_fa)
 
     # 6. 加载 chr-map（如果提供）
     chr_map = None
@@ -836,6 +1008,7 @@ def from_bed(
         max_hits=max_hits,
         chr_map=chr_map,
         source_chroms=source_chroms,
+        n_counts=n_counts,
     )
 
     # 8. 输出结果
@@ -871,7 +1044,10 @@ def from_probe_table(
     max_hits: Annotated[int, typer.Option(help="每个位点最多保留的 best hit 数量")] = 3,
     id_chrom_map_file: Annotated[
         Path | None,
-        typer.Option("--id-chrom-map", help="ID 到目标染色体映射文件（2 列：id → 目标染色体），严格过滤 hit"),
+        typer.Option(
+            "--id-chrom-map",
+            help="ID 到目标染色体映射文件（2 列：id → 目标染色体）；仅对登记过的 id 严格过滤，未登记的 id 走默认 best-hit 策略",
+        ),
     ] = None,
     max_gap_opens: Annotated[int, typer.Option(help="允许的最大 gap opening 数量；大于 0 时需要 BTOP 列")] = 2,
 ) -> None:
@@ -893,6 +1069,7 @@ def from_probe_table(
     # 3. 解析 BLAST 结果并生成映射
     logger.info("解析比对结果、推算新坐标 ...")
     alignments = parse_blast_results(blast_tsv)
+    n_counts = count_ns_in_fasta(probe_fa)
     id_chrom_map = None
     if id_chrom_map_file is not None:
         logger.info(f"加载 ID 到染色体映射: {id_chrom_map_file}")
@@ -905,6 +1082,7 @@ def from_probe_table(
         max_hits=max_hits,
         id_chrom_map=id_chrom_map,
         max_gap_opens=max_gap_opens,
+        n_counts=n_counts,
     )
 
     # 4. 输出结果
