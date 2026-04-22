@@ -31,17 +31,20 @@ def classify_genotype(
     ratio: float,
     tolerance: float,
     min_coverage: float = 0.3,
+    het_ratio: float = 0.75,
+    hom_ratio: float = 1.0,
 ) -> str:
     """根据 transgene_coverage 和 ratio 判断转基因纯合/杂合/非转基因。
 
     - coverage < min_coverage: 非转基因
-    - coverage >= min_coverage 且 ratio 符合阈值: 杂合/纯合
+    - coverage >= min_coverage 且 ratio 在 het_ratio ± tolerance: 杂合
+    - coverage >= min_coverage 且 ratio >= hom_ratio: 纯合（上不封顶）
     """
     if transgene_coverage < min_coverage:
         return "非转基因"
-    if abs(ratio - 0.7) <= tolerance:
+    if abs(ratio - het_ratio) <= tolerance:
         return "转基因杂合"
-    if abs(ratio - 1.5) <= tolerance:
+    if ratio >= hom_ratio:
         return "转基因纯合"
     return "未确定"
 
@@ -93,7 +96,12 @@ def read_depth_file(depth_file: Path) -> Optional[DepthResult]:
 
 
 def process_single_sample(
-    transgene_dir: Path, background_bamdst_dir: Path, tolerance: float, min_coverage: float
+    transgene_dir: Path,
+    background_bamdst_dir: Path,
+    tolerance: float,
+    min_coverage: float,
+    het_ratio: float,
+    hom_ratio: float,
 ) -> Optional[DepthStats]:
     """
     Processes a single sample to calculate depth statistics.
@@ -133,7 +141,9 @@ def process_single_sample(
         trans_result.median / bg_result.median if bg_result.median > 0 else 0.0
     )
 
-    genotype = classify_genotype(trans_result.coverage, ratio, tolerance, min_coverage)
+    genotype = classify_genotype(
+        trans_result.coverage, ratio, tolerance, min_coverage, het_ratio, hom_ratio
+    )
 
     return DepthStats(
         sample_id=sample_id,
@@ -155,11 +165,17 @@ def main(
     output_file: Annotated[Path, typer.Argument(help="Path to the output Excel file")],
     threads: Annotated[int, typer.Option(help="Number of threads for parallel processing")] = 4,
     tolerance: Annotated[
-        float, typer.Option(help="基因型判定的浮动容差范围")
+        float, typer.Option(help="杂合判定的浮动容差范围")
     ] = 0.15,
     min_coverage: Annotated[
         float, typer.Option(help="判定为转基因所需的最低 transgene coverage")
     ] = 0.3,
+    het_ratio: Annotated[
+        float, typer.Option(help="转基因杂合的 ratio 中心值")
+    ] = 0.75,
+    hom_ratio: Annotated[
+        float, typer.Option(help="转基因纯合的 ratio 下限阈值（>=）")
+    ] = 1.0,
 ) -> None:
     """
     Compares the depth of transgene and background BAM files.
@@ -176,7 +192,10 @@ def main(
 
     with ProcessPoolExecutor(max_workers=threads) as executor:
         futures = {
-            executor.submit(process_single_sample, d, background_bamdst_dir, tolerance, min_coverage): d.name
+            executor.submit(
+                process_single_sample, d, background_bamdst_dir,
+                tolerance, min_coverage, het_ratio, hom_ratio,
+            ): d.name
             for d in sample_dirs
         }
 
