@@ -20,19 +20,49 @@ logger = logging.getLogger(__name__)
 class DepthStats:
     sample_id: str
     transgene_depth: float
+    transgene_coverage: float
     background_depth: float
     ratio: float
+    genotype: str
 
 
-def read_depth_median(depth_file: Path) -> Optional[float]:
+def classify_genotype(
+    transgene_coverage: float,
+    ratio: float,
+    tolerance: float,
+    min_coverage: float = 0.3,
+) -> str:
+    """根据 transgene_coverage 和 ratio 判断转基因纯合/杂合/非转基因。
+
+    - coverage < min_coverage: 非转基因
+    - coverage >= min_coverage 且 ratio 符合阈值: 杂合/纯合
     """
-    Reads a depth file and returns the median depth, excluding zero-depth positions.
+    if transgene_coverage < min_coverage:
+        return "非转基因"
+    if abs(ratio - 0.7) <= tolerance:
+        return "转基因杂合"
+    if abs(ratio - 1.5) <= tolerance:
+        return "转基因纯合"
+    return "未确定"
+
+
+@dataclass
+class DepthResult:
+    """read_depth_file 的返回结果。"""
+    median: float
+    coverage: float
+
+
+def read_depth_file(depth_file: Path) -> Optional[DepthResult]:
+    """
+    Reads a depth file and returns the median depth (excluding zero-depth positions)
+    and coverage ratio (proportion of positions with depth > 0).
 
     Args:
-        depth_file: Path to the depth file (expected to be a tab-separated file with a 'Raw Depth' column).
+        depth_file: Path to the depth file (tab-separated with a 'Raw Depth' column).
 
     Returns:
-        The median depth as a float, or None if the file cannot be read or processed.
+        A DepthResult with median and coverage, or None if the file cannot be read.
     """
     if not depth_file.exists():
         logger.warning(f"File not found: {depth_file}")
@@ -43,18 +73,19 @@ def read_depth_median(depth_file: Path) -> Optional[float]:
         df = pl.read_csv(
             depth_file,
             separator="\t",
-            columns=["Raw Depth"] # Only read the necessary column
+            columns=["Raw Depth"],
         )
 
         depth_series = df["Raw Depth"]
+        total = len(depth_series)
+        if total == 0:
+            return DepthResult(median=0.0, coverage=0.0)
 
-        # Filter out zero depths to consider only covered regions
         valid_depths = depth_series.filter(depth_series > 0)
+        coverage = len(valid_depths) / total
+        median = float(valid_depths.median()) if not valid_depths.is_empty() else 0.0
 
-        if valid_depths.is_empty():
-            return 0.0
-
-        return float(valid_depths.median())
+        return DepthResult(median=median, coverage=coverage)
 
     except Exception as e:
         logger.error(f"Error reading {depth_file}: {e}")
@@ -62,7 +93,7 @@ def read_depth_median(depth_file: Path) -> Optional[float]:
 
 
 def process_single_sample(
-    transgene_dir: Path, background_bamdst_dir: Path
+    transgene_dir: Path, background_bamdst_dir: Path, tolerance: float, min_coverage: float
 ) -> Optional[DepthStats]:
     """
     Processes a single sample to calculate depth statistics.
@@ -70,6 +101,7 @@ def process_single_sample(
     Args:
         transgene_dir: Directory containing the transgene sample data.
         background_bamdst_dir: Directory containing the background samples.
+        tolerance: Tolerance for genotype classification.
 
     Returns:
         A DepthStats object containing the results, or None if processing fails.
@@ -79,35 +111,37 @@ def process_single_sample(
 
     sample_id = transgene_dir.name
     trans_depth_file = transgene_dir / "depth.tsv.gz"
-    
+
     # Assuming the background directory structure matches the sample ID
     bg_depth_file = background_bamdst_dir / sample_id / "depth.tsv.gz"
 
-    transgene_depth = read_depth_median(trans_depth_file)
-    
-    if transgene_depth is None:
+    trans_result = read_depth_file(trans_depth_file)
+
+    if trans_result is None:
         return None
 
     if not bg_depth_file.exists():
         logger.debug(f"Background file missing for sample: {sample_id}")
         return None
-        
-    background_depth = read_depth_median(bg_depth_file)
 
-    if background_depth is None:
+    bg_result = read_depth_file(bg_depth_file)
+
+    if bg_result is None:
         return None
 
     ratio = (
-        transgene_depth / background_depth
-        if background_depth > 0
-        else 0.0
+        trans_result.median / bg_result.median if bg_result.median > 0 else 0.0
     )
+
+    genotype = classify_genotype(trans_result.coverage, ratio, tolerance, min_coverage)
 
     return DepthStats(
         sample_id=sample_id,
-        transgene_depth=transgene_depth,
-        background_depth=background_depth,
+        transgene_depth=trans_result.median,
+        transgene_coverage=trans_result.coverage,
+        background_depth=bg_result.median,
         ratio=ratio,
+        genotype=genotype,
     )
 
 
@@ -120,6 +154,12 @@ def main(
     ],
     output_file: Annotated[Path, typer.Argument(help="Path to the output Excel file")],
     threads: Annotated[int, typer.Option(help="Number of threads for parallel processing")] = 4,
+    tolerance: Annotated[
+        float, typer.Option(help="基因型判定的浮动容差范围")
+    ] = 0.15,
+    min_coverage: Annotated[
+        float, typer.Option(help="判定为转基因所需的最低 transgene coverage")
+    ] = 0.3,
 ) -> None:
     """
     Compares the depth of transgene and background BAM files.
@@ -136,7 +176,7 @@ def main(
 
     with ProcessPoolExecutor(max_workers=threads) as executor:
         futures = {
-            executor.submit(process_single_sample, d, background_bamdst_dir): d.name
+            executor.submit(process_single_sample, d, background_bamdst_dir, tolerance, min_coverage): d.name
             for d in sample_dirs
         }
 
