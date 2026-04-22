@@ -1,11 +1,15 @@
 import gzip
 from pathlib import Path
 
-import polars as pl
 import pytest
 
-from transgene.depth_compare_v2 import read_depth_median, process_single_sample, DepthStats
-
+from transgene.depth_compare_v2 import (
+    DepthResult,
+    DepthStats,
+    classify_genotype,
+    process_single_sample,
+    read_depth_file,
+)
 
 BAMDST_HEADER = "#Chr\tPos\tRaw Depth"
 
@@ -18,32 +22,102 @@ def create_depth_file(path: Path, depths: list[int]):
             f.write(f"chr1\t{i}\t{depth}\n")
 
 
-class TestReadDepthMedian:
+# ── classify_genotype ──────────────────────────────────────────────
+
+
+class TestClassifyGenotype:
+    """测试基因型分类逻辑。"""
+
+    @pytest.mark.parametrize(
+        "coverage, ratio, expected",
+        [
+            (0.0, 0.7, "非转基因"),
+            (0.1, 1.5, "非转基因"),
+            (0.29, 0.8, "非转基因"),
+        ],
+    )
+    def test_low_coverage_is_non_transgenic(self, coverage, ratio, expected):
+        assert classify_genotype(coverage, ratio, tolerance=0.15) == expected
+
+    @pytest.mark.parametrize(
+        "ratio, expected",
+        [
+            (0.55, "转基因杂合"),
+            (0.70, "转基因杂合"),
+            (0.84, "转基因杂合"),
+        ],
+    )
+    def test_heterozygous(self, ratio, expected):
+        assert classify_genotype(0.9, ratio, tolerance=0.15) == expected
+
+    @pytest.mark.parametrize(
+        "ratio, expected",
+        [
+            (1.35, "转基因纯合"),
+            (1.50, "转基因纯合"),
+            (1.65, "转基因纯合"),
+        ],
+    )
+    def test_homozygous(self, ratio, expected):
+        assert classify_genotype(0.9, ratio, tolerance=0.15) == expected
+
+    @pytest.mark.parametrize(
+        "ratio",
+        [0.3, 1.0, 1.2, 2.0],
+    )
+    def test_undetermined(self, ratio):
+        assert classify_genotype(0.9, ratio, tolerance=0.15) == "未确定"
+
+    def test_custom_min_coverage(self):
+        """min_coverage=0.5 时，coverage=0.4 应判为非转基因"""
+        assert (
+            classify_genotype(0.4, 0.7, tolerance=0.15, min_coverage=0.5)
+            == "非转基因"
+        )
+
+    def test_custom_tolerance(self):
+        """tolerance=0.05 时边界外的 ratio 应判为未确定"""
+        assert classify_genotype(0.9, 0.76, tolerance=0.05) == "未确定"
+        assert classify_genotype(0.9, 0.74, tolerance=0.05) == "转基因杂合"
+
+    def test_boundary_coverage_exact(self):
+        """coverage 恰好等于 min_coverage 时应进入 ratio 判定"""
+        assert classify_genotype(0.3, 0.7, tolerance=0.15) == "转基因杂合"
+
+
+# ── read_depth_file ────────────────────────────────────────────────
+
+
+class TestReadDepthFile:
     def test_normal_depths(self, tmp_path):
-        """测试正常深度数据"""
+        """测试正常深度数据的 median 和 coverage"""
         depth_file = tmp_path / "depth.tsv.gz"
         create_depth_file(depth_file, [10, 20, 30, 40, 50])
 
-        result = read_depth_median(depth_file)
-        # [10,20,30,40,50], 中位数是 30
-        assert result == 30.0
+        result = read_depth_file(depth_file)
+        assert result is not None
+        assert result.median == 30.0
+        assert result.coverage == 1.0
 
     def test_with_zero_depths(self, tmp_path):
-        """测试包含0深度的数据"""
+        """测试包含 0 深度的数据"""
         depth_file = tmp_path / "depth.tsv.gz"
         create_depth_file(depth_file, [0, 0, 10, 20, 30, 40, 50, 0])
 
-        result = read_depth_median(depth_file)
-        # 过滤0后 [10,20,30,40,50], 中位数是 30
-        assert result == 30.0
+        result = read_depth_file(depth_file)
+        assert result is not None
+        assert result.median == 30.0
+        assert result.coverage == pytest.approx(5 / 8)
 
     def test_all_zeros(self, tmp_path):
-        """测试全是0的数据"""
+        """测试全是 0 的数据"""
         depth_file = tmp_path / "depth.tsv.gz"
         create_depth_file(depth_file, [0, 0, 0])
 
-        result = read_depth_median(depth_file)
-        assert result == 0.0
+        result = read_depth_file(depth_file)
+        assert result is not None
+        assert result.median == 0.0
+        assert result.coverage == 0.0
 
     def test_empty_file(self, tmp_path):
         """测试空文件（只有表头）"""
@@ -51,13 +125,17 @@ class TestReadDepthMedian:
         with gzip.open(depth_file, "wt") as f:
             f.write(BAMDST_HEADER + "\n")
 
-        result = read_depth_median(depth_file)
-        assert result == 0.0
+        result = read_depth_file(depth_file)
+        assert result is not None
+        assert result.median == 0.0
+        assert result.coverage == 0.0
 
     def test_file_not_exists(self, tmp_path):
-        """测试文件不存在"""
-        result = read_depth_median(tmp_path / "not_exists.tsv.gz")
+        result = read_depth_file(tmp_path / "not_exists.tsv.gz")
         assert result is None
+
+
+# ── process_single_sample ──────────────────────────────────────────
 
 
 class TestProcessSingleSample:
@@ -73,17 +151,16 @@ class TestProcessSingleSample:
         bg_sample_dir.mkdir()
         create_depth_file(bg_sample_dir / "depth.tsv.gz", [10, 20, 30, 40, 50])
 
-        result = process_single_sample(transgene_dir, bg_dir)
+        result = process_single_sample(transgene_dir, bg_dir, tolerance=0.15, min_coverage=0.3)
 
         assert result is not None
         assert isinstance(result, DepthStats)
         assert result.sample_id == "sample1"
-        # transgene: [20,30,40,50,60] 中位数 40
         assert result.transgene_depth == 40.0
-        # background: [10,20,30,40,50] 中位数 30
+        assert result.transgene_coverage == 1.0
         assert result.background_depth == 30.0
-        # ratio: 40/30 = 1.333...
         assert abs(result.ratio - 1.333333) < 0.01
+        assert result.genotype == "未确定"
 
     def test_missing_background(self, tmp_path):
         """测试背景文件缺失"""
@@ -93,8 +170,55 @@ class TestProcessSingleSample:
 
         bg_dir = tmp_path / "background"
         bg_dir.mkdir()
-        # 不创建 sample2 的背景文件
 
-        result = process_single_sample(transgene_dir, bg_dir)
-        # 应该返回 None（背景缺失时跳过）
+        result = process_single_sample(transgene_dir, bg_dir, tolerance=0.15, min_coverage=0.3)
         assert result is None
+
+    def test_heterozygous_sample(self, tmp_path):
+        """测试杂合样本：transgene/background ratio ≈ 0.7"""
+        transgene_dir = tmp_path / "sample_het"
+        transgene_dir.mkdir()
+        create_depth_file(transgene_dir / "depth.tsv.gz", [7, 7, 7, 7, 7])
+
+        bg_dir = tmp_path / "background"
+        bg_dir.mkdir()
+        bg_sample_dir = bg_dir / "sample_het"
+        bg_sample_dir.mkdir()
+        create_depth_file(bg_sample_dir / "depth.tsv.gz", [10, 10, 10, 10, 10])
+
+        result = process_single_sample(transgene_dir, bg_dir, tolerance=0.15, min_coverage=0.3)
+        assert result is not None
+        assert result.genotype == "转基因杂合"
+
+    def test_homozygous_sample(self, tmp_path):
+        """测试纯合样本：transgene/background ratio ≈ 1.5"""
+        transgene_dir = tmp_path / "sample_hom"
+        transgene_dir.mkdir()
+        create_depth_file(transgene_dir / "depth.tsv.gz", [15, 15, 15, 15, 15])
+
+        bg_dir = tmp_path / "background"
+        bg_dir.mkdir()
+        bg_sample_dir = bg_dir / "sample_hom"
+        bg_sample_dir.mkdir()
+        create_depth_file(bg_sample_dir / "depth.tsv.gz", [10, 10, 10, 10, 10])
+
+        result = process_single_sample(transgene_dir, bg_dir, tolerance=0.15, min_coverage=0.3)
+        assert result is not None
+        assert result.genotype == "转基因纯合"
+
+    def test_non_transgenic_low_coverage(self, tmp_path):
+        """测试低覆盖率样本应判定为非转基因"""
+        transgene_dir = tmp_path / "sample_low"
+        transgene_dir.mkdir()
+        # 10 个位点只有 2 个有深度 => coverage = 0.2
+        create_depth_file(transgene_dir / "depth.tsv.gz", [0, 0, 0, 0, 0, 0, 0, 0, 10, 10])
+
+        bg_dir = tmp_path / "background"
+        bg_dir.mkdir()
+        bg_sample_dir = bg_dir / "sample_low"
+        bg_sample_dir.mkdir()
+        create_depth_file(bg_sample_dir / "depth.tsv.gz", [10, 10, 10, 10, 10, 10, 10, 10, 10, 10])
+
+        result = process_single_sample(transgene_dir, bg_dir, tolerance=0.15, min_coverage=0.3)
+        assert result is not None
+        assert result.genotype == "非转基因"
