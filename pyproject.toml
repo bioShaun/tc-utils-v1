@@ -107,6 +107,7 @@ testpaths = [
     "exome/tests",
     "liftover/tests",
     "transgene/tests",
+    "ssr/tests",
 ]
 python_files = "test_*.py"
 python_classes = "Test*"
