@@ -84,15 +84,17 @@ class TestReadLiftoverResult:
         _write_gzipped_vcf(
             vcf_gz,
             [
-                "chr1\t100\tid1\tA\tT\t.\t.\t.",
-                "chr1\t200\tid2\tC\tG\t.\t.\t.",
-                "chr1\t100\tid1\tA\tT\t.\t.\t.",  # duplicate
+                "chr1\t100\tinput_chr1_1\tA\tT\t.\t.\t.",
+                "chr1\t200\tinput_chr1_2\tC\tG\t.\t.\t.",
+                "chr1\t100\tinput_chr1_1\tA\tT\t.\t.\t.",  # duplicate
             ],
         )
         df = liftover_by_id.read_liftover_result(vcf_gz)
         assert len(df) == 2
+        assert "id" in df.columns
         assert "start" in df.columns
         assert "pos_id" in df.columns
+        assert df.iloc[0]["id"] == "input_chr1_1"
         assert df.iloc[0]["start"] == 99
         assert df.iloc[0]["pos_id"] == "chr1_100"
 
@@ -232,7 +234,7 @@ def test_main_pipeline_invokes_subprocess_and_creates_outputs(tmp_path: Path):
 
     outdir = tmp_path / "lift"
 
-    mock_df = pd.DataFrame({"chrom": ["chr1"], "pos": [10]})
+    mock_df = pd.DataFrame({"chrom": ["chr1"], "pos": [10], "id": ["chr1_10"]})
     mock_df["start"] = mock_df["pos"] - 1
     mock_df["pos_id"] = mock_df["chrom"] + "_" + mock_df["pos"].astype(str)
 
@@ -253,4 +255,8 @@ def test_main_pipeline_invokes_subprocess_and_creates_outputs(tmp_path: Path):
         )
 
     assert mock_run.call_count >= 1
-    assert (outdir / "test.bed").exists() or (outdir / "test.id").exists()
+    assert (outdir / "test.id").exists()
+    assert (outdir / "test.bed").exists()
+    assert (outdir / "test.pos.tsv").exists()
+    assert (outdir / "test.snpcalling.bed").exists()
+    assert (outdir / "test.pos.tsv").read_text(encoding="utf-8").strip() == "chr1\t10\tchr1_10"

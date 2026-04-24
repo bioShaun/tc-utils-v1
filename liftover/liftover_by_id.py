@@ -34,6 +34,7 @@ MODULE_HELP = cleandoc(
     输出格式:
       - <probe_name>.id: 1 列，pos_id（chrom_pos）
       - <probe_name>.bed: 3 列（chrom, start, pos），按 query.fa.fai 排序
+      - <probe_name>.pos.tsv: 3 列（chrom, pos, id），其中 id 为输入 ID，chrom/pos 为 liftover 后坐标
       - <probe_name>.snpcalling.bed: 3 列（chrom, start, end），slop+merge 后的区间
     """
 )
@@ -118,15 +119,15 @@ def run_transanno_liftvcf(
 
 
 def read_liftover_result(vcf_gz: Path) -> pd.DataFrame:
-    """读取 liftover VCF 输出，返回去重的 DataFrame (chrom, pos, start, pos_id)。"""
+    """读取 liftover VCF 输出，返回去重的 DataFrame (chrom, pos, id, start, pos_id)。"""
     compression = "gzip" if vcf_gz.suffix == ".gz" else "infer"
     df = pd.read_table(
         vcf_gz,
         header=None,
         sep="\t",
         comment="#",
-        usecols=[0, 1],
-        names=["chrom", "pos"],
+        usecols=[0, 1, 2],
+        names=["chrom", "pos", "id"],
         compression=compression,
     )
     df["start"] = df["pos"] - 1
@@ -249,7 +250,14 @@ def main(
     )
     logger.info(f"已写入 BED 文件: {probe_bed}")
 
-    # 7. 生成 snpcalling BED (slop + merge)
+    # 7. 写入 probe_name.pos.tsv
+    probe_pos_file = outdir / f"{probe_name}.pos.tsv"
+    sorted_bed.to_csv(
+        probe_pos_file, sep="\t", index=False, header=False, columns=["chrom", "pos", "id"]
+    )
+    logger.info(f"已写入位点坐标文件: {probe_pos_file}")
+
+    # 8. 生成 snpcalling BED (slop + merge)
     chrom_sizes_dict = dict(zip(chrom_df["chrom"], chrom_df["chrom_size"]))
     snpcalling_df = slop_and_merge(sorted_bed, chrom_sizes_dict, flank)
     snpcalling_sorted = sort_bed_by_fai(snpcalling_df, chrom_df)
