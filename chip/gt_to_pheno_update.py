@@ -106,7 +106,7 @@ def build_sample_phenotype_df(
 def format_output(df: pd.DataFrame) -> pd.DataFrame:
     out_df = df.copy()
     out_df["gene"] = out_df.apply(gene_add_label, axis=1)
-    rename_df = df.rename(columns={"trait": "性状", "gene": "基因"})
+    rename_df = out_df.rename(columns={"trait": "性状", "gene": "基因"})
     rename_df = rename_df[rename_df.columns[4:]].set_index(["性状", "基因"])
     rename_df.columns.name = "样品"
     return rename_df.T
